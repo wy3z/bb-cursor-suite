@@ -1,0 +1,69 @@
+html[data-bb-ui-prompt-position="center"]
+  [data-bb-ui-tweaks-prompt-container="true"],
+html[data-bb-ui-prompt-position="bottom"]
+  [data-bb-ui-tweaks-prompt-container="true"] {
+  min-height: 100%;
+}
+
+html[data-bb-ui-prompt-position="center"]
+  [data-bb-ui-tweaks-prompt-container="true"] {
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+html[data-bb-ui-prompt-position="bottom"]
+  [data-bb-ui-tweaks-prompt-container="true"] {
+  justify-content: flex-end;
+  padding-top: 0;
+}
+
+html[data-bb-ui-font-size="true"] body {
+  font-size: var(--bb-ui-tweaks-ui-font-size);
+}
+
+html[data-bb-ui-code-font-size="true"]
+  :is(code, kbd, pre, samp, .font-mono) {
+  font-size: var(--bb-ui-tweaks-code-font-size);
+}
+
+.ui-tweaks-typography {
+  container-type: inline-size;
+}
+
+.ui-tweaks-typography-row,
+.ui-tweaks-font-controls {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+@container (min-width: 28rem) {
+  .ui-tweaks-font-controls {
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+    gap: 0.75rem;
+  }
+}
+
+@container (min-width: 36rem) {
+  .ui-tweaks-typography-row {
+    grid-template-columns: 8rem minmax(0, 23.5rem);
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+}
+
+[data-bb-ui-tweaks-footer-action-hidden="true"] {
+  display: none !important;
+}
+
+[data-bb-ui-tweaks-workspace-app-menu-hidden="true"] {
+  display: none !important;
+}
+
+section[data-resource-detail-section="configuration"]:has(
+    > [data-testid="plugin-detail-ui-tweaks"] [data-ui-tweaks-settings]
+  )
+  > div:first-child:has(> h2:only-child) {
+  display: none;
+}
