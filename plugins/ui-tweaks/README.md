@@ -6,7 +6,8 @@ Small, configurable interface improvements for BB.
 
 - Set UI and code fonts and sizes independently.
 - Position the New thread prompt at the top, centre, or bottom.
-- Filter workspace applications from the **Open With** menu.
+- Filter workspace applications from the **Open With** menu and chat file-link
+  context menus.
 - Show or hide supported sidebar footer buttons, including plugin actions.
 
 Configure everything under **Settings → Plugins → UI Tweaks**.

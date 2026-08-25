@@ -41,6 +41,15 @@ export function normalizeWorkspaceAppLabel(label: string): string {
   return label.trim().toLocaleLowerCase();
 }
 
+/**
+ * BB's workspace dropdown renders the target label directly, while chat file
+ * link context menus may render the same target as "Open in <label>".
+ */
+export function workspaceAppTargetLabelFromMenuItem(label: string): string {
+  const trimmed = label.trim();
+  return trimmed.replace(/^Open in\s+/u, "").trim();
+}
+
 export function workspaceAppMenuLabel(app: WorkspaceAppCatalogItem): string {
   return app.menuLabel ?? app.label;
 }
@@ -186,15 +195,23 @@ export function resolveWorkspaceMenuApps(
     catalogGroups.set(key, group);
   }
 
+  const resolveMenuLabelKey = (label: string) => {
+    const exactKey = normalizeWorkspaceAppLabel(label);
+    if (catalogGroups.has(exactKey)) return exactKey;
+    return normalizeWorkspaceAppLabel(
+      workspaceAppTargetLabelFromMenuItem(label),
+    );
+  };
+
   const menuCounts = new Map<string, number>();
   for (const label of menuLabels) {
-    const key = normalizeWorkspaceAppLabel(label);
+    const key = resolveMenuLabelKey(label);
     menuCounts.set(key, (menuCounts.get(key) ?? 0) + 1);
   }
 
   const offsets = new Map<string, number>();
   return menuLabels.map((label) => {
-    const key = normalizeWorkspaceAppLabel(label);
+    const key = resolveMenuLabelKey(label);
     const matches = catalogGroups.get(key) ?? [];
     if (matches.length === 0 || menuCounts.get(key) !== matches.length) {
       return null;

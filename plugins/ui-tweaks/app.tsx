@@ -7,6 +7,7 @@ import {
   parseStoredWorkspaceAppCatalog,
   parseWorkspaceAppsTargetsResponse,
   resolveWorkspaceMenuApps,
+  workspaceAppMenuLabel,
   type WorkspaceAppCatalogItem,
   type WorkspaceAppCategory,
 } from "./lib/workspace-apps.js";
@@ -30,6 +31,11 @@ const FOOTER_ACTION_HIDDEN_MARKER =
   "data-bb-ui-tweaks-footer-action-hidden";
 const WORKSPACE_APP_MENU_TRIGGER_LABEL =
   "Choose another app to open workspace";
+const CHAT_FILE_OPEN_SUBMENU_TRIGGER_LABEL = "Open in";
+const CHAT_FILE_MENU_SIGNATURE_LABELS = [
+  "Copy file path",
+  "Copy file name",
+] as const;
 const WORKSPACE_APP_MENU_ITEM_MARKER =
   "data-bb-ui-tweaks-workspace-app-menu-item";
 const WORKSPACE_APP_MENU_HIDDEN_MARKER =
@@ -141,6 +147,18 @@ interface OwnedAttributeValue {
   written: string | null;
 }
 
+interface OwnedTextValue {
+  node: Text;
+  previous: string;
+  written: string;
+}
+
+interface OwnedWorkspaceAppMenuIcon {
+  category: "editor" | "terminal";
+  original: SVGSVGElement;
+  replacement: SVGSVGElement;
+}
+
 interface RootOverrides {
   styles: Map<string, OwnedStyleValue>;
   attributes: Map<string, OwnedAttributeValue>;
@@ -148,6 +166,11 @@ interface RootOverrides {
 
 let activeRootOverrides: RootOverrides | null = null;
 let currentPreferences: Preferences | null = null;
+const workspaceAppMenuLabelOverrides = new Map<HTMLElement, OwnedTextValue>();
+const workspaceAppMenuIconOverrides = new Map<
+  HTMLElement,
+  OwnedWorkspaceAppMenuIcon
+>();
 
 function createRootOverrides(): RootOverrides {
   return { styles: new Map(), attributes: new Map() };
@@ -1040,23 +1063,83 @@ function clearFooterActionMarkers() {
   }
 }
 
+const WORKSPACE_APP_MENU_TRIGGER_SELECTOR =
+  `button[aria-label="${WORKSPACE_APP_MENU_TRIGGER_LABEL}"]`;
+const CHAT_FILE_OPEN_SUBMENU_TRIGGER_SELECTOR =
+  '[role="menuitem"][aria-haspopup="menu"]';
+
+function addControlledMenu(menus: Set<HTMLElement>, trigger: HTMLElement) {
+  const controlledId = trigger.getAttribute("aria-controls");
+  if (!controlledId) return;
+  const menu = document.getElementById(controlledId);
+  if (menu?.getAttribute("role") === "menu") menus.add(menu);
+}
+
+function isChatFileOpenSubmenuTrigger(trigger: HTMLElement): boolean {
+  if (trigger.textContent?.trim() !== CHAT_FILE_OPEN_SUBMENU_TRIGGER_LABEL) {
+    return false;
+  }
+
+  const parentMenu = trigger.closest<HTMLElement>('[role="menu"]');
+  if (!parentMenu) return false;
+  const labels = new Set(
+    Array.from(parentMenu.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+      .map((item) => item.textContent?.trim() ?? "")
+      .filter(Boolean),
+  );
+  return CHAT_FILE_MENU_SIGNATURE_LABELS.every((label) => labels.has(label));
+}
+
 function findWorkspaceAppMenus(): HTMLElement[] {
   const menus = new Set<HTMLElement>();
-  const triggers = document.querySelectorAll<HTMLButtonElement>(
-    `button[aria-label="${WORKSPACE_APP_MENU_TRIGGER_LABEL}"]`,
+  const dropdownTriggers = document.querySelectorAll<HTMLElement>(
+    WORKSPACE_APP_MENU_TRIGGER_SELECTOR,
   );
 
-  for (const trigger of Array.from(triggers)) {
-    const controlledId = trigger.getAttribute("aria-controls");
-    if (!controlledId) continue;
-    const menu = document.getElementById(controlledId);
-    if (menu?.getAttribute("role") === "menu") menus.add(menu);
+  for (const trigger of Array.from(dropdownTriggers)) {
+    addControlledMenu(menus, trigger);
+  }
+
+  const chatFileTriggers = document.querySelectorAll<HTMLElement>(
+    CHAT_FILE_OPEN_SUBMENU_TRIGGER_SELECTOR,
+  );
+  for (const trigger of Array.from(chatFileTriggers)) {
+    if (!isChatFileOpenSubmenuTrigger(trigger)) continue;
+    addControlledMenu(menus, trigger);
   }
 
   return [...menus];
 }
 
+function containsWorkspaceAppMenuTrigger(node: Element): boolean {
+  if (
+    node.matches(WORKSPACE_APP_MENU_TRIGGER_SELECTOR) ||
+    node.querySelector(WORKSPACE_APP_MENU_TRIGGER_SELECTOR) !== null
+  ) {
+    return true;
+  }
+
+  const candidates: HTMLElement[] = [];
+  if (node.matches(CHAT_FILE_OPEN_SUBMENU_TRIGGER_SELECTOR)) {
+    candidates.push(node as HTMLElement);
+  }
+  candidates.push(
+    ...Array.from(
+      node.querySelectorAll<HTMLElement>(
+        CHAT_FILE_OPEN_SUBMENU_TRIGGER_SELECTOR,
+      ),
+    ),
+  );
+  return candidates.some(isChatFileOpenSubmenuTrigger);
+}
+
 function clearWorkspaceAppMenuMarkers() {
+  for (const item of [...workspaceAppMenuIconOverrides.keys()]) {
+    releaseWorkspaceAppMenuIcon(item);
+  }
+  for (const item of [...workspaceAppMenuLabelOverrides.keys()]) {
+    releaseWorkspaceAppMenuLabel(item);
+  }
   for (const item of Array.from(
     document.querySelectorAll<HTMLElement>(
       `[${WORKSPACE_APP_MENU_ITEM_MARKER}]`,
@@ -1064,6 +1147,141 @@ function clearWorkspaceAppMenuMarkers() {
   )) {
     item.removeAttribute(WORKSPACE_APP_MENU_ITEM_MARKER);
     item.removeAttribute(WORKSPACE_APP_MENU_HIDDEN_MARKER);
+  }
+}
+
+function releaseWorkspaceAppMenuIcon(item: HTMLElement) {
+  const state = workspaceAppMenuIconOverrides.get(item);
+  if (!state) return;
+  if (item.contains(state.replacement)) {
+    state.replacement.replaceWith(state.original);
+  }
+  workspaceAppMenuIconOverrides.delete(item);
+}
+
+function appendWorkspaceAppMenuIconElement(
+  icon: SVGSVGElement,
+  name: "path" | "rect",
+  attributes: Record<string, string>,
+) {
+  const element = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    name,
+  );
+  for (const [attribute, value] of Object.entries(attributes)) {
+    element.setAttribute(attribute, value);
+  }
+  icon.append(element);
+}
+
+function applyWorkspaceAppMenuIcon(
+  item: HTMLElement,
+  category: WorkspaceAppCategory,
+) {
+  if (category !== "editor" && category !== "terminal") {
+    releaseWorkspaceAppMenuIcon(item);
+    return;
+  }
+
+  const existing = workspaceAppMenuIconOverrides.get(item);
+  if (
+    existing?.category === category &&
+    item.contains(existing.replacement)
+  ) {
+    return;
+  }
+  releaseWorkspaceAppMenuIcon(item);
+
+  const original =
+    item.querySelector<SVGSVGElement>(":scope > svg") ??
+    item.querySelector<SVGSVGElement>("svg");
+  if (!original) return;
+
+  const replacement = original.cloneNode(false) as SVGSVGElement;
+  replacement.classList.add("text-muted-foreground");
+  replacement.setAttribute("viewBox", "0 0 24 24");
+  replacement.setAttribute("fill", "none");
+  replacement.setAttribute("stroke", "currentColor");
+  replacement.setAttribute("stroke-width", "1.5");
+  replacement.setAttribute("stroke-linecap", "round");
+  replacement.setAttribute("stroke-linejoin", "round");
+
+  if (category === "editor") {
+    appendWorkspaceAppMenuIconElement(replacement, "path", {
+      d: "m18 16 4-4-4-4",
+    });
+    appendWorkspaceAppMenuIconElement(replacement, "path", {
+      d: "m6 8-4 4 4 4",
+    });
+    appendWorkspaceAppMenuIconElement(replacement, "path", {
+      d: "m14.5 4-5 16",
+    });
+  } else {
+    appendWorkspaceAppMenuIconElement(replacement, "rect", {
+      width: "18",
+      height: "18",
+      x: "3",
+      y: "3",
+      rx: "2",
+    });
+    appendWorkspaceAppMenuIconElement(replacement, "path", {
+      d: "m7 8 4 4-4 4",
+    });
+    appendWorkspaceAppMenuIconElement(replacement, "path", {
+      d: "M13 16h4",
+    });
+  }
+
+  original.replaceWith(replacement);
+  workspaceAppMenuIconOverrides.set(item, {
+    category,
+    original,
+    replacement,
+  });
+}
+
+function releaseWorkspaceAppMenuLabel(item: HTMLElement) {
+  const state = workspaceAppMenuLabelOverrides.get(item);
+  if (!state) return;
+  if (item.contains(state.node) && state.node.data === state.written) {
+    state.node.data = state.previous;
+  }
+  workspaceAppMenuLabelOverrides.delete(item);
+}
+
+function trimWorkspaceAppMenuLabel(
+  item: HTMLElement,
+  app: WorkspaceAppCatalogItem,
+) {
+  const existing = workspaceAppMenuLabelOverrides.get(item);
+  if (
+    existing &&
+    item.contains(existing.node) &&
+    existing.node.data === existing.written
+  ) {
+    return;
+  }
+  releaseWorkspaceAppMenuLabel(item);
+
+  const expectedLabel = `Open in ${workspaceAppMenuLabel(app)}`;
+  if (item.textContent?.trim() !== expectedLabel) return;
+
+  const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    const textNode = node as Text;
+    const written = textNode.data.replace(/^(\s*)Open in\s+/u, "$1");
+    if (written !== textNode.data) {
+      const previous = textNode.data;
+      textNode.data = written;
+      workspaceAppMenuLabelOverrides.set(item, {
+        node: textNode,
+        previous,
+        written,
+      });
+      return;
+    }
+    node = walker.nextNode();
   }
 }
 
@@ -1086,6 +1304,7 @@ function applyWorkspaceAppMenuPreferences(preferences: Preferences) {
     items.forEach((item, index) => {
       const app = resolvedApps[index];
       if (!app) {
+        releaseWorkspaceAppMenuIcon(item);
         item.removeAttribute(WORKSPACE_APP_MENU_ITEM_MARKER);
         item.removeAttribute(WORKSPACE_APP_MENU_HIDDEN_MARKER);
         return;
@@ -1093,6 +1312,8 @@ function applyWorkspaceAppMenuPreferences(preferences: Preferences) {
 
       seenItems.add(item);
       item.setAttribute(WORKSPACE_APP_MENU_ITEM_MARKER, app.key);
+      trimWorkspaceAppMenuLabel(item, app);
+      applyWorkspaceAppMenuIcon(item, app.category);
       const legacyKey = legacyWorkspaceAppKey(app);
 
       if (
@@ -1115,6 +1336,12 @@ function applyWorkspaceAppMenuPreferences(preferences: Preferences) {
     if (seenItems.has(item)) continue;
     item.removeAttribute(WORKSPACE_APP_MENU_ITEM_MARKER);
     item.removeAttribute(WORKSPACE_APP_MENU_HIDDEN_MARKER);
+  }
+  for (const item of [...workspaceAppMenuIconOverrides.keys()]) {
+    if (!seenItems.has(item)) releaseWorkspaceAppMenuIcon(item);
+  }
+  for (const item of [...workspaceAppMenuLabelOverrides.keys()]) {
+    if (!seenItems.has(item)) releaseWorkspaceAppMenuLabel(item);
   }
 }
 
@@ -1516,7 +1743,8 @@ function InterfaceSettings() {
         <div>
           <h3 className="text-sm font-medium text-foreground">Open With Filter</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Choose which workspace apps appear in the Open With menu.
+            Choose which workspace apps appear in Open With and chat file
+            menus.
           </p>
         </div>
         <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-background">
@@ -1914,12 +2142,7 @@ export default definePluginApp((app) => {
               ) ||
               node.matches(footerControlSelector) ||
               node.querySelector(footerControlSelector) !== null ||
-              node.matches(
-                `button[aria-label="${WORKSPACE_APP_MENU_TRIGGER_LABEL}"]`,
-              ) ||
-              node.querySelector(
-                `button[aria-label="${WORKSPACE_APP_MENU_TRIGGER_LABEL}"]`,
-              ) !== null ||
+              containsWorkspaceAppMenuTrigger(node) ||
               node.matches("#root-compose-prompt") ||
               node.querySelector("#root-compose-prompt") !== null
             );

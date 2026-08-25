@@ -79,6 +79,24 @@ test("resolves duplicate rendered labels in daemon order", () => {
   );
 });
 
+test("resolves chat context-menu labels prefixed with Open in", () => {
+  const catalog = parseWorkspaceAppsTargetsResponse({
+    targets: [
+      { id: "default", kind: "default-app", label: "Default App" },
+      { id: "editor:cursor", kind: "editor", label: "Cursor" },
+    ],
+  });
+  assert.ok(catalog);
+
+  assert.deepEqual(
+    resolveWorkspaceMenuApps(
+      ["Open in Default App", "Open in Cursor"],
+      catalog,
+    ),
+    catalog,
+  );
+});
+
 test("fails open when duplicate menu and catalogue counts do not match", () => {
   const catalog = parseWorkspaceAppsTargetsResponse({
     targets: [
