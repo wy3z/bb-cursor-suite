@@ -11,6 +11,7 @@ import {
   type WorkspaceAppCatalogItem,
   type WorkspaceAppCategory,
 } from "./lib/workspace-apps.js";
+import { mountFontSizeModifier, readFontSizeOffset } from "./lib/font-size.js";
 import "./app.css";
 
 const STORAGE_KEY = "bb-plugin-ui-tweaks.preferences.v1";
@@ -42,34 +43,6 @@ const WORKSPACE_APP_MENU_HIDDEN_MARKER =
   "data-bb-ui-tweaks-workspace-app-menu-hidden";
 const PROMPT_CONTAINER_MARKER = "data-bb-ui-tweaks-prompt-container";
 const PROMPT_POSITIONS = ["top", "center", "bottom"] as const;
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 48;
-const CSS_GENERIC_FONT_FAMILIES = new Set([
-  "cursive",
-  "emoji",
-  "fangsong",
-  "fantasy",
-  "math",
-  "monospace",
-  "sans-serif",
-  "serif",
-  "system-ui",
-  "ui-monospace",
-  "ui-rounded",
-  "ui-sans-serif",
-  "ui-serif",
-]);
-const UI_TEXT_TOKENS = {
-  "--text-2xs": 10,
-  "--text-xs": 12,
-  "--text-sm": 13,
-  "--text-base": 15,
-  "--text-lg": 18,
-  "--text-xl": 20,
-  "--text-2xl": 24,
-  "--text-2xs--line-height": 14,
-  "--text-base--line-height": 22,
-} as const;
 type PromptPosition = (typeof PROMPT_POSITIONS)[number];
 
 const WORKSPACE_APP_CATEGORY_OPTIONS = [
@@ -81,19 +54,11 @@ const WORKSPACE_APP_CATEGORY_OPTIONS = [
 ] as const satisfies ReadonlyArray<readonly [WorkspaceAppCategory, string]>;
 
 interface Preferences {
+  fontSizeOffset: number;
   promptPosition: PromptPosition;
-  uiFontFamily: string;
-  uiFontSize: number | null;
-  codeFontFamily: string;
-  codeFontSize: number | null;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
   hiddenFooterActions: string[];
-}
-
-interface StoredPreferences extends Partial<Preferences> {
-  editorFontFamily?: unknown;
-  editorFontSize?: unknown;
 }
 
 type FooterActionGlyph =
@@ -117,11 +82,8 @@ type WorkspaceAppDiscoveryStatus =
 let workspaceAppDiscoveryStatus: WorkspaceAppDiscoveryStatus = "loading";
 
 const DEFAULT_PREFERENCES: Preferences = {
+  fontSizeOffset: 0,
   promptPosition: "bottom",
-  uiFontFamily: "",
-  uiFontSize: null,
-  codeFontFamily: "",
-  codeFontSize: null,
   workspaceAppCategories: [
     "default-app",
     "file-manager",
@@ -131,16 +93,6 @@ const DEFAULT_PREFERENCES: Preferences = {
   hiddenWorkspaceApps: [],
   hiddenFooterActions: [],
 };
-
-interface InlineStyleValue {
-  value: string;
-  priority: string;
-}
-
-interface OwnedStyleValue {
-  previous: InlineStyleValue;
-  written: InlineStyleValue;
-}
 
 interface OwnedAttributeValue {
   previous: string | null;
@@ -160,11 +112,9 @@ interface OwnedWorkspaceAppMenuIcon {
 }
 
 interface RootOverrides {
-  styles: Map<string, OwnedStyleValue>;
   attributes: Map<string, OwnedAttributeValue>;
 }
 
-let activeRootOverrides: RootOverrides | null = null;
 let currentPreferences: Preferences | null = null;
 const workspaceAppMenuLabelOverrides = new Map<HTMLElement, OwnedTextValue>();
 const workspaceAppMenuIconOverrides = new Map<
@@ -173,58 +123,7 @@ const workspaceAppMenuIconOverrides = new Map<
 >();
 
 function createRootOverrides(): RootOverrides {
-  return { styles: new Map(), attributes: new Map() };
-}
-
-function readInlineStyle(property: string): InlineStyleValue {
-  const style = document.documentElement.style;
-  return {
-    value: style.getPropertyValue(property),
-    priority: style.getPropertyPriority(property),
-  };
-}
-
-function writeInlineStyle(property: string, next: InlineStyleValue) {
-  const style = document.documentElement.style;
-  if (next.value) style.setProperty(property, next.value, next.priority);
-  else style.removeProperty(property);
-}
-
-function inlineStylesEqual(left: InlineStyleValue, right: InlineStyleValue) {
-  return left.value === right.value && left.priority === right.priority;
-}
-
-function setOwnedStyle(
-  overrides: RootOverrides,
-  property: string,
-  value: string | null,
-  reclaimExternal = false,
-) {
-  const existing = overrides.styles.get(property);
-  const current = readInlineStyle(property);
-
-  if (value === null) {
-    if (!existing) return;
-    if (inlineStylesEqual(current, existing.written)) {
-      writeInlineStyle(property, existing.previous);
-    }
-    overrides.styles.delete(property);
-    return;
-  }
-
-  const next = { value, priority: "" };
-  if (!existing) {
-    writeInlineStyle(property, next);
-    overrides.styles.set(property, { previous: current, written: next });
-    return;
-  }
-
-  if (!inlineStylesEqual(current, existing.written)) {
-    if (!reclaimExternal) return;
-    existing.previous = current;
-  }
-  writeInlineStyle(property, next);
-  existing.written = next;
+  return { attributes: new Map() };
 }
 
 function setOwnedAttribute(
@@ -261,13 +160,6 @@ function setOwnedAttribute(
 }
 
 function releaseRootOverrides(overrides: RootOverrides) {
-  for (const [property, state] of overrides.styles) {
-    if (inlineStylesEqual(readInlineStyle(property), state.written)) {
-      writeInlineStyle(property, state.previous);
-    }
-  }
-  overrides.styles.clear();
-
   const root = document.documentElement;
   for (const [attribute, state] of overrides.attributes) {
     if (root.getAttribute(attribute) !== state.written) continue;
@@ -279,67 +171,6 @@ function releaseRootOverrides(overrides: RootOverrides) {
 
 function isPromptPosition(value: unknown): value is PromptPosition {
   return PROMPT_POSITIONS.includes(value as PromptPosition);
-}
-
-function readFontFamily(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function normalizeFontFamily(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  const firstCharacter = trimmed.at(0);
-  const isQuoted =
-    (firstCharacter === '"' || firstCharacter === "'") &&
-    trimmed.at(-1) === firstCharacter;
-  const isAdvancedValue =
-    trimmed.includes(",") || isQuoted || /^var\(.+\)$/.test(trimmed);
-
-  if (
-    isAdvancedValue ||
-    CSS_GENERIC_FONT_FAMILIES.has(trimmed.toLowerCase())
-  ) {
-    return trimmed;
-  }
-
-  const escaped = trimmed
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replace(/[\n\r\f]/g, " ");
-  return `"${escaped}"`;
-}
-
-function readPrimaryFontName(fontStack: string): string {
-  const trimmed = fontStack.trim();
-  const quote = trimmed.at(0);
-
-  if (quote === '"' || quote === "'") {
-    let escaped = false;
-    for (let index = 1; index < trimmed.length; index += 1) {
-      const character = trimmed[index];
-      if (escaped) {
-        escaped = false;
-      } else if (character === "\\") {
-        escaped = true;
-      } else if (character === quote) {
-        return trimmed
-          .slice(1, index)
-          .replace(/\\(["'\\])/g, "$1");
-      }
-    }
-  }
-
-  return trimmed.split(",", 1)[0]?.trim() ?? "";
-}
-
-function readFontSize(value: unknown): number | null {
-  return typeof value === "number" &&
-    Number.isFinite(value) &&
-    value >= MIN_FONT_SIZE &&
-    value <= MAX_FONT_SIZE
-    ? value
-    : null;
 }
 
 function readStringArray(value: unknown): string[] {
@@ -366,17 +197,12 @@ function readPersistedPreferences(): Preferences {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      const value = JSON.parse(stored) as StoredPreferences;
+      const value = JSON.parse(stored) as Partial<Preferences>;
       return {
+        fontSizeOffset: readFontSizeOffset(value.fontSizeOffset),
         promptPosition: isPromptPosition(value.promptPosition)
           ? value.promptPosition
           : DEFAULT_PREFERENCES.promptPosition,
-        uiFontFamily: readFontFamily(value.uiFontFamily),
-        uiFontSize: readFontSize(value.uiFontSize),
-        codeFontFamily: readFontFamily(
-          value.codeFontFamily ?? value.editorFontFamily,
-        ),
-        codeFontSize: readFontSize(value.codeFontSize ?? value.editorFontSize),
         workspaceAppCategories: readWorkspaceAppCategories(
           value.workspaceAppCategories,
         ),
@@ -424,88 +250,6 @@ function applyRootPreferences(
     preferences.promptPosition,
     reclaimExternal,
   );
-
-  const uiFontFamily = normalizeFontFamily(preferences.uiFontFamily);
-  if (uiFontFamily) {
-    const themeUiFontFamily = readThemeFontFamily("--font-sans");
-    setOwnedStyle(
-      overrides,
-      "--font-sans",
-      `${uiFontFamily}, ${themeUiFontFamily || "sans-serif"}`,
-      reclaimExternal,
-    );
-  } else {
-    setOwnedStyle(overrides, "--font-sans", null);
-  }
-
-  if (preferences.uiFontSize === null) {
-    setOwnedAttribute(overrides, "data-bb-ui-font-size", null);
-    setOwnedStyle(overrides, "--bb-ui-tweaks-ui-font-size", null);
-    for (const property of Object.keys(UI_TEXT_TOKENS)) {
-      setOwnedStyle(overrides, property, null);
-    }
-  } else {
-    const themeTokenSizes = new Map(
-      Object.entries(UI_TEXT_TOKENS).map(([property, fallback]) => [
-        property,
-        readThemeLengthPixels(property) ?? fallback,
-      ]),
-    );
-    const themeBaseSize =
-      themeTokenSizes.get("--text-base") ?? UI_TEXT_TOKENS["--text-base"];
-    const scale = preferences.uiFontSize / themeBaseSize;
-    setOwnedAttribute(
-      overrides,
-      "data-bb-ui-font-size",
-      "true",
-      reclaimExternal,
-    );
-    setOwnedStyle(
-      overrides,
-      "--bb-ui-tweaks-ui-font-size",
-      `${preferences.uiFontSize}px`,
-      reclaimExternal,
-    );
-    for (const [property, baseSize] of themeTokenSizes) {
-      setOwnedStyle(
-        overrides,
-        property,
-        `${baseSize * scale}px`,
-        reclaimExternal,
-      );
-    }
-  }
-
-  const codeFontFamily = normalizeFontFamily(preferences.codeFontFamily);
-  if (codeFontFamily) {
-    const themeCodeFontFamily = readThemeFontFamily("--font-mono");
-    setOwnedStyle(
-      overrides,
-      "--font-mono",
-      `${codeFontFamily}, ${themeCodeFontFamily || "monospace"}`,
-      reclaimExternal,
-    );
-  } else {
-    setOwnedStyle(overrides, "--font-mono", null);
-  }
-
-  if (preferences.codeFontSize === null) {
-    setOwnedAttribute(overrides, "data-bb-ui-code-font-size", null);
-    setOwnedStyle(overrides, "--bb-ui-tweaks-code-font-size", null);
-  } else {
-    setOwnedAttribute(
-      overrides,
-      "data-bb-ui-code-font-size",
-      "true",
-      reclaimExternal,
-    );
-    setOwnedStyle(
-      overrides,
-      "--bb-ui-tweaks-code-font-size",
-      `${preferences.codeFontSize}px`,
-      reclaimExternal,
-    );
-  }
 }
 
 function applyDynamicDomPreferences(preferences: Preferences) {
@@ -549,82 +293,6 @@ function applyPreferences(
 ) {
   applyRootPreferences(preferences, overrides, reclaimExternal);
   applyDynamicDomPreferences(preferences);
-}
-
-function withUnderlyingStyleProperty<T>(property: string, read: () => T): T {
-  const overrides = activeRootOverrides;
-  const state = overrides?.styles.get(property);
-  if (!overrides || !state) return read();
-
-  const current = readInlineStyle(property);
-  if (!inlineStylesEqual(current, state.written)) return read();
-
-  writeInlineStyle(property, state.previous);
-  try {
-    return read();
-  } finally {
-    const exposed = readInlineStyle(property);
-    if (inlineStylesEqual(exposed, state.previous)) {
-      writeInlineStyle(property, state.written);
-    } else {
-      overrides.styles.delete(property);
-    }
-  }
-}
-
-function readThemeFontFamily(property: "--font-sans" | "--font-mono"): string {
-  const root = document.documentElement;
-  return withUnderlyingStyleProperty(property, () =>
-    getComputedStyle(root).getPropertyValue(property).trim(),
-  );
-}
-
-function readThemeLengthPixels(property: string): number | null {
-  const probe = document.createElement("span");
-  probe.style.position = "fixed";
-  probe.style.visibility = "hidden";
-  probe.style.pointerEvents = "none";
-  const isLineHeight = property.endsWith("--line-height");
-  if (isLineHeight) {
-    probe.style.fontSize = "16px";
-    probe.style.lineHeight = `var(${property})`;
-  } else {
-    probe.style.fontSize = `var(${property})`;
-  }
-
-  return withUnderlyingStyleProperty(property, () => {
-    document.body.append(probe);
-    try {
-      const computed = getComputedStyle(probe);
-      const pixels = Number.parseFloat(
-        isLineHeight ? computed.lineHeight : computed.fontSize,
-      );
-      return Number.isFinite(pixels) && pixels > 0 ? pixels : null;
-    } finally {
-      probe.remove();
-    }
-  });
-}
-
-function readThemeFontSize(): string {
-  const root = document.documentElement;
-  const property = "--text-base";
-  const probe = document.createElement("span");
-
-  probe.style.position = "fixed";
-  probe.style.visibility = "hidden";
-  probe.style.pointerEvents = "none";
-  probe.style.fontSize = `var(${property})`;
-
-  return withUnderlyingStyleProperty(property, () => {
-    document.body.append(probe);
-    try {
-      const pixels = Number.parseFloat(getComputedStyle(probe).fontSize);
-      return Number.isFinite(pixels) ? `${Number(pixels.toFixed(2))}` : "";
-    } finally {
-      probe.remove();
-    }
-  });
 }
 
 function readFooterActionCatalog(): FooterAction[] {
@@ -1404,14 +1072,6 @@ function savePreferences(preferences: Preferences) {
   );
 }
 
-interface FontSizeInputProps {
-  id: string;
-  label: string;
-  placeholder: string;
-  value: number | null;
-  onValueChange: (value: number | null) => void;
-}
-
 function usePreferences() {
   const [preferences, setPreferences] = useState(getPreferences);
 
@@ -1477,185 +1137,6 @@ function ToggleSwitch({
   );
 }
 
-function FontSizeInput({
-  id,
-  label,
-  placeholder,
-  value,
-  onValueChange,
-}: FontSizeInputProps) {
-  const [draft, setDraft] = useState(value === null ? "" : `${value}`);
-
-  useEffect(() => {
-    setDraft(value === null ? "" : `${value}`);
-  }, [value]);
-
-  const restoreInvalidDraft = () => {
-    if (draft.trim() && readFontSize(Number(draft)) === null) {
-      setDraft(value === null ? "" : `${value}`);
-    }
-  };
-
-  const stepValue = (amount: number) => {
-    const themeValue = Number.parseFloat(placeholder);
-    const current = value ?? (Number.isFinite(themeValue) ? themeValue : 15);
-    const next = readFontSize(current + amount);
-    if (next !== null) onValueChange(next);
-  };
-
-  return (
-    <div>
-      <div className="flex h-9 overflow-hidden rounded-md border border-border bg-background">
-        <input
-          id={id}
-          aria-label={label}
-          className="min-w-0 flex-1 bg-transparent px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          inputMode="decimal"
-          max={MAX_FONT_SIZE}
-          min={MIN_FONT_SIZE}
-          placeholder={placeholder}
-          step="0.5"
-          type="number"
-          value={draft}
-          onBlur={restoreInvalidDraft}
-          onChange={(event) => {
-            const next = event.target.value;
-            setDraft(next);
-
-            if (!next.trim()) {
-              onValueChange(null);
-              return;
-            }
-
-            const parsed = readFontSize(Number(next));
-            if (parsed !== null) onValueChange(parsed);
-          }}
-        />
-        <button
-          aria-label={`Decrease ${label.toLowerCase()}`}
-          className="w-8 border-l border-border text-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-          type="button"
-          onClick={() => stepValue(-0.5)}
-        >
-          −
-        </button>
-        <button
-          aria-label={`Increase ${label.toLowerCase()}`}
-          className="w-8 border-l border-border text-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-          type="button"
-          onClick={() => stepValue(0.5)}
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function TypographySettings() {
-  const { preferences, update } = usePreferences();
-  const [themeUiFontFamily] = useState(() =>
-    readThemeFontFamily("--font-sans"),
-  );
-  const [themeCodeFontFamily] = useState(() =>
-    readThemeFontFamily("--font-mono"),
-  );
-  const [themeFontSize] = useState(readThemeFontSize);
-
-  return (
-    <div
-      className="ui-tweaks-typography w-full space-y-3"
-      data-ui-tweaks-settings=""
-    >
-      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-background">
-        <div className="ui-tweaks-typography-row p-3">
-          <div>
-            <label
-              className="text-sm font-medium text-foreground"
-              htmlFor="ui-tweaks-ui-font-family"
-            >
-              UI font
-            </label>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Interface text.
-            </p>
-          </div>
-          <div className="ui-tweaks-font-controls">
-            <input
-              id="ui-tweaks-ui-font-family"
-              className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-              placeholder={
-                readPrimaryFontName(themeUiFontFamily) || "Theme default"
-              }
-              value={preferences.uiFontFamily}
-              onChange={(event) =>
-                update({ uiFontFamily: event.target.value })
-              }
-            />
-            <FontSizeInput
-              id="ui-tweaks-ui-font-size"
-              label="UI font size"
-              placeholder={themeFontSize || "Default"}
-              value={preferences.uiFontSize}
-              onValueChange={(uiFontSize) => update({ uiFontSize })}
-            />
-          </div>
-        </div>
-
-        <div className="ui-tweaks-typography-row p-3">
-          <div>
-            <label
-              className="text-sm font-medium text-foreground"
-              htmlFor="ui-tweaks-code-font-family"
-            >
-              Code font
-            </label>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Code and monospace text.
-            </p>
-          </div>
-          <div className="ui-tweaks-font-controls">
-            <input
-              id="ui-tweaks-code-font-family"
-              className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-              placeholder={
-                readPrimaryFontName(themeCodeFontFamily) || "Theme default"
-              }
-              value={preferences.codeFontFamily}
-              onChange={(event) =>
-                update({ codeFontFamily: event.target.value })
-              }
-            />
-            <FontSizeInput
-              id="ui-tweaks-code-font-size"
-              label="Code font size"
-              placeholder={themeFontSize || "Default"}
-              value={preferences.codeFontSize}
-              onValueChange={(codeFontSize) => update({ codeFontSize })}
-            />
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <button
-          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-muted"
-          type="button"
-          onClick={() =>
-            update({
-              uiFontFamily: DEFAULT_PREFERENCES.uiFontFamily,
-              uiFontSize: DEFAULT_PREFERENCES.uiFontSize,
-              codeFontFamily: DEFAULT_PREFERENCES.codeFontFamily,
-              codeFontSize: DEFAULT_PREFERENCES.codeFontSize,
-            })
-          }
-        >
-          ↶ Reset to defaults
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function InterfaceSettings() {
   const { preferences, update } = usePreferences();
   const [workspaceApps, setWorkspaceApps] = useState(readWorkspaceAppCatalog);
@@ -1708,7 +1189,29 @@ function InterfaceSettings() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 border-b border-border pb-5 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
+      <div className="space-y-5 rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">Global font size</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground" id="ui-tweaks-font-description">
+            Adjust the active theme’s base font size by 1 pt per press.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2" role="group" aria-label="Global font size" aria-describedby="ui-tweaks-font-description">
+          <button type="button" className="size-9 rounded-md border border-border hover:bg-muted disabled:opacity-50"
+            aria-label="Decrease font size by 1 pt" disabled={preferences.fontSizeOffset <= -6}
+            onClick={() => update({ fontSizeOffset: readFontSizeOffset(getPreferences().fontSizeOffset - 1) })}>−</button>
+          <output className="min-w-12 text-center text-sm" aria-live="polite">
+            {preferences.fontSizeOffset > 0 ? "+" : ""}{preferences.fontSizeOffset} pt
+          </output>
+          <button type="button" className="size-9 rounded-md border border-border hover:bg-muted disabled:opacity-50"
+            aria-label="Increase font size by 1 pt" disabled={preferences.fontSizeOffset >= 18}
+            onClick={() => update({ fontSizeOffset: readFontSizeOffset(getPreferences().fontSizeOffset + 1) })}>+</button>
+          <button type="button" className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted"
+            onClick={() => update({ fontSizeOffset: 0 })}>Reset</button>
+        </div>
+      </div>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
         <div>
           <label
             className="text-sm font-medium text-foreground"
@@ -1739,6 +1242,8 @@ function InterfaceSettings() {
         </select>
       </div>
 
+      </div>
+
       <div className="space-y-3">
         <div>
           <h3 className="text-sm font-medium text-foreground">Open With Filter</h3>
@@ -1747,7 +1252,7 @@ function InterfaceSettings() {
             menus.
           </p>
         </div>
-        <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-background">
+        <div className="overflow-hidden rounded-lg border border-border bg-card p-1">
           {WORKSPACE_APP_CATEGORY_OPTIONS.map(([category, label]) => {
             const apps = workspaceApps.filter(
               (app) => app.category === category,
@@ -1871,6 +1376,7 @@ function InterfaceSettings() {
           type="button"
           onClick={() =>
             update({
+              fontSizeOffset: DEFAULT_PREFERENCES.fontSizeOffset,
               promptPosition: DEFAULT_PREFERENCES.promptPosition,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
@@ -1972,7 +1478,7 @@ function FooterSettings() {
         Choose which buttons appear at the bottom of the sidebar.
       </p>
       <div
-        className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-background"
+        className="overflow-hidden rounded-lg border border-border bg-card p-1"
         role="list"
       >
         {footerActions.map((action) => (
@@ -2027,14 +1533,7 @@ function FooterSettings() {
 
 export default definePluginApp((app) => {
   app.slots.settingsSection({
-    id: "fonts",
-    title: "Fonts",
-    component: TypographySettings,
-  });
-
-  app.slots.settingsSection({
     id: "preferences",
-    title: "Interface preferences",
     component: InterfaceSettings,
   });
 
@@ -2048,7 +1547,7 @@ export default definePluginApp((app) => {
     id: "apply-preferences",
     mount: ({ signal }) => {
       const overrides = createRootOverrides();
-      activeRootOverrides = overrides;
+      const fontSize = mountFontSizeModifier(() => getPreferences().fontSizeOffset);
       let footerMenu = findSidebarFooterMenu();
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
@@ -2109,6 +1608,7 @@ export default definePluginApp((app) => {
         footerObserver.disconnect();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
+        fontSize.refresh();
         observeDynamicSurfaces();
       };
       const onStorage = (event: StorageEvent) => {
@@ -2117,6 +1617,7 @@ export default definePluginApp((app) => {
         footerObserver.disconnect();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
+        fontSize.refresh();
         observeDynamicSurfaces();
       };
 
@@ -2164,6 +1665,7 @@ export default definePluginApp((app) => {
 
       return () => {
         rootObserver.disconnect();
+        fontSize.dispose();
         footerObserver.disconnect();
         workspaceObserver.disconnect();
         if (refreshFrame !== 0) window.cancelAnimationFrame(refreshFrame);
@@ -2171,7 +1673,6 @@ export default definePluginApp((app) => {
         clearWorkspaceAppMenuMarkers();
         clearPromptContainerMarker();
         releaseRootOverrides(overrides);
-        if (activeRootOverrides === overrides) activeRootOverrides = null;
       };
     },
   });

@@ -4,7 +4,10 @@ Small, configurable interface improvements for BB.
 
 ## Features
 
-- Set UI and code fonts and sizes independently.
+- Adjust the active theme’s global base font size with **− / +**, in 1 pt steps.
+  The saved offset follows theme changes; **Reset** restores the theme default.
+  Rem-based text and spacing scale with the base size; fixed-pixel content is unchanged.
+
 - Position the New thread prompt at the top, centre, or bottom.
 - Filter workspace applications from the **Open With** menu and chat file-link
   context menus.
