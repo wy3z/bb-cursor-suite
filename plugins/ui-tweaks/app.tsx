@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
-import { mergeRetainedItems } from "./lib/footer-actions.js";
 import {
   WORKSPACE_APP_CATEGORIES,
   legacyWorkspaceAppKey,
@@ -15,21 +14,12 @@ import { mountFontSizeModifier, readFontSizeOffset } from "./lib/font-size.js";
 import "./app.css";
 
 const STORAGE_KEY = "bb-plugin-ui-tweaks.preferences.v1";
-const FOOTER_ACTIONS_STORAGE_KEY =
-  "bb-plugin-ui-tweaks.sidebar-footer-actions.v2";
-const LEGACY_FOOTER_ACTIONS_STORAGE_KEY =
-  "bb-plugin-ui-tweaks.sidebar-footer-actions.v1";
 const WORKSPACE_APPS_STORAGE_KEY = "bb-plugin-ui-tweaks.workspace-apps.v3";
 const LEGACY_PROMPT_POSITION_KEY = "bb-plugin-prompt-box-position";
 const CHANGE_EVENT = "bb:ui-tweaks-preferences-change";
-const FOOTER_ACTIONS_CHANGE_EVENT = "bb:ui-tweaks-footer-actions-change";
 const WORKSPACE_APPS_CHANGE_EVENT = "bb:ui-tweaks-workspace-apps-change";
 const WORKSPACE_APPS_REFRESH_EVENT = "bb:ui-tweaks-workspace-apps-refresh";
 const WORKSPACE_APPS_STATUS_EVENT = "bb:ui-tweaks-workspace-apps-status";
-const FOOTER_ACTION_TEST_ID_PREFIX = "plugin-sidebar-footer-action-";
-const FOOTER_ACTION_MARKER = "data-bb-ui-tweaks-footer-action";
-const FOOTER_ACTION_HIDDEN_MARKER =
-  "data-bb-ui-tweaks-footer-action-hidden";
 const WORKSPACE_APP_MENU_TRIGGER_LABEL =
   "Choose another app to open workspace";
 const CHAT_FILE_OPEN_SUBMENU_TRIGGER_LABEL = "Open in";
@@ -58,20 +48,7 @@ interface Preferences {
   promptPosition: PromptPosition;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
-  hiddenFooterActions: string[];
 }
-
-type FooterActionGlyph =
-  | { kind: "mask"; url: string }
-  | { kind: "svg"; markup: string };
-
-interface FooterAction {
-  key: string;
-  label: string;
-  glyph: FooterActionGlyph | null;
-}
-
-let footerActionCatalogSnapshot: FooterAction[] = [];
 
 type WorkspaceAppDiscoveryStatus =
   | "loading"
@@ -91,7 +68,6 @@ const DEFAULT_PREFERENCES: Preferences = {
     "terminal",
   ],
   hiddenWorkspaceApps: [],
-  hiddenFooterActions: [],
 };
 
 interface OwnedAttributeValue {
@@ -207,7 +183,6 @@ function readPersistedPreferences(): Preferences {
           value.workspaceAppCategories,
         ),
         hiddenWorkspaceApps: readStringArray(value.hiddenWorkspaceApps),
-        hiddenFooterActions: readStringArray(value.hiddenFooterActions),
       };
     }
 
@@ -254,7 +229,6 @@ function applyRootPreferences(
 
 function applyDynamicDomPreferences(preferences: Preferences) {
   applyPromptContainerMarker();
-  applyFooterActionPreferences(preferences);
   applyWorkspaceAppMenuPreferences(preferences);
 }
 
@@ -293,114 +267,6 @@ function applyPreferences(
 ) {
   applyRootPreferences(preferences, overrides, reclaimExternal);
   applyDynamicDomPreferences(preferences);
-}
-
-function readFooterActionCatalog(): FooterAction[] {
-  if (footerActionCatalogSnapshot.length > 0) {
-    return footerActionCatalogSnapshot;
-  }
-
-  try {
-    const stored =
-      window.localStorage.getItem(FOOTER_ACTIONS_STORAGE_KEY) ??
-      window.localStorage.getItem(LEGACY_FOOTER_ACTIONS_STORAGE_KEY);
-    if (!stored) return [];
-    const value = JSON.parse(stored) as unknown;
-    if (!Array.isArray(value)) return [];
-
-    footerActionCatalogSnapshot = value.flatMap((item) => {
-      if (
-        typeof item !== "object" ||
-        item === null ||
-        !("key" in item) ||
-        !("label" in item) ||
-        typeof item.key !== "string" ||
-        typeof item.label !== "string"
-      ) {
-        return [];
-      }
-      if (
-        item.key === "bb:settings" ||
-        item.key === "ui-tweaks:layout-switcher"
-      ) {
-        return [];
-      }
-
-      let glyph: FooterActionGlyph | null = null;
-      if ("glyph" in item && typeof item.glyph === "object" && item.glyph) {
-        if (
-          "kind" in item.glyph &&
-          item.glyph.kind === "mask" &&
-          "url" in item.glyph &&
-          typeof item.glyph.url === "string"
-        ) {
-          const url = readSameOriginAssetUrl(item.glyph.url);
-          if (url) glyph = { kind: "mask", url };
-        } else if (
-          "kind" in item.glyph &&
-          item.glyph.kind === "svg" &&
-          "markup" in item.glyph &&
-          typeof item.glyph.markup === "string"
-        ) {
-          const svg = sanitizeSvg(item.glyph.markup);
-          if (svg) glyph = { kind: "svg", markup: svg.outerHTML };
-        }
-      }
-      return [{ key: item.key, label: item.label, glyph }];
-    });
-    try {
-      window.localStorage.setItem(
-        FOOTER_ACTIONS_STORAGE_KEY,
-        JSON.stringify(footerActionCatalogSnapshot),
-      );
-      window.localStorage.removeItem(LEGACY_FOOTER_ACTIONS_STORAGE_KEY);
-    } catch {
-      // The sanitized in-memory catalog remains usable for this session.
-    }
-    return footerActionCatalogSnapshot;
-  } catch {
-    return [];
-  }
-}
-
-function publishFooterActionCatalog(
-  actions: FooterAction[],
-  retainMissingKeys: ReadonlySet<string> = new Set(),
-) {
-  const nextActions = mergeRetainedItems(
-    actions,
-    readFooterActionCatalog(),
-    retainMissingKeys,
-  );
-
-  if (
-    nextActions.length === footerActionCatalogSnapshot.length &&
-    nextActions.every((action, index) => {
-      const previous = footerActionCatalogSnapshot[index];
-      return (
-        previous?.key === action.key &&
-        previous.label === action.label &&
-        JSON.stringify(previous.glyph) === JSON.stringify(action.glyph)
-      );
-    })
-  ) return;
-
-  footerActionCatalogSnapshot = nextActions;
-
-  try {
-    window.localStorage.setItem(
-      FOOTER_ACTIONS_STORAGE_KEY,
-      JSON.stringify(nextActions),
-    );
-  } catch {
-    // The live event still keeps this client's settings view up to date.
-  }
-
-  window.dispatchEvent(
-    new CustomEvent<FooterAction[]>(FOOTER_ACTIONS_CHANGE_EVENT, {
-      detail: nextActions,
-    }),
-  );
 }
 
 function readWorkspaceAppCatalog(): WorkspaceAppCatalogItem[] {
@@ -591,143 +457,6 @@ async function populateWorkspaceAppCatalog(signal: AbortSignal) {
       readWorkspaceAppCatalog().length > 0 ? "stale" : "error",
     );
     nextDelay = retryDelays[Math.min(failureCount, retryDelays.length - 1)]!;
-  }
-}
-
-function findSidebarFooterMenu(): HTMLUListElement | null {
-  const reportBug = document.querySelector<HTMLElement>(
-    '[aria-label="Report a bug"]',
-  );
-  const menu = reportBug?.closest("ul");
-
-  return menu?.querySelector('[aria-label^="Settings"]') ? menu : null;
-}
-
-function readFooterAction(control: HTMLElement): FooterAction | null {
-  const testId = control.dataset.testid;
-  const ariaLabel = control.getAttribute("aria-label")?.trim() ?? "";
-  const glyph = captureFooterActionGlyph(control);
-
-  if (testId?.startsWith(FOOTER_ACTION_TEST_ID_PREFIX)) {
-    return {
-      key: `plugin:${testId.slice(FOOTER_ACTION_TEST_ID_PREFIX.length)}`,
-      label: ariaLabel || "Plugin action",
-      glyph,
-    };
-  }
-  if (ariaLabel === "Report a bug") {
-    return { key: "bb:report-a-bug", label: "Report a bug", glyph };
-  }
-  if (ariaLabel === "Settings" || ariaLabel.startsWith("Settings (")) {
-    return { key: "bb:settings", label: "Settings", glyph };
-  }
-  return null;
-}
-
-const SAFE_SVG_ELEMENTS = new Set([
-  "circle",
-  "ellipse",
-  "g",
-  "line",
-  "path",
-  "polygon",
-  "polyline",
-  "rect",
-  "svg",
-]);
-const SAFE_SVG_ATTRIBUTES = new Set([
-  "aria-hidden",
-  "cx",
-  "cy",
-  "d",
-  "fill",
-  "fill-opacity",
-  "fill-rule",
-  "height",
-  "points",
-  "preserveaspectratio",
-  "r",
-  "rx",
-  "ry",
-  "stroke",
-  "stroke-dasharray",
-  "stroke-dashoffset",
-  "stroke-linecap",
-  "stroke-linejoin",
-  "stroke-miterlimit",
-  "stroke-opacity",
-  "stroke-width",
-  "transform",
-  "viewbox",
-  "width",
-  "x",
-  "x1",
-  "x2",
-  "y",
-  "y1",
-  "y2",
-]);
-
-function readSameOriginAssetUrl(value: string): string | null {
-  if (!value || value.length > 4_096) return null;
-  try {
-    const url = new URL(value, window.location.href);
-    return url.origin === window.location.origin &&
-      (url.protocol === "http:" || url.protocol === "https:")
-      && url.pathname.startsWith("/api/v1/plugins/")
-      ? url.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function sanitizeSvg(markup: string): SVGSVGElement | null {
-  if (!markup || markup.length > 50_000) return null;
-  const parsed = new DOMParser().parseFromString(markup, "image/svg+xml");
-  const source = parsed.documentElement;
-  if (source.localName !== "svg" || parsed.querySelector("parsererror")) {
-    return null;
-  }
-
-  for (const element of [source, ...Array.from(source.querySelectorAll("*"))]) {
-    if (!SAFE_SVG_ELEMENTS.has(element.localName)) {
-      element.remove();
-      continue;
-    }
-    for (const attribute of Array.from(element.attributes)) {
-      const name = attribute.name.toLowerCase();
-      if (
-        !SAFE_SVG_ATTRIBUTES.has(name) ||
-        /url\s*\(|javascript:|data:/i.test(attribute.value)
-      ) {
-        element.removeAttribute(attribute.name);
-      }
-    }
-  }
-
-  source.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  return source as unknown as SVGSVGElement;
-}
-
-function captureFooterActionGlyph(control: HTMLElement): FooterActionGlyph | null {
-  const mask = control.querySelector<HTMLElement>(
-    ":scope > [data-plugin-icon-asset]",
-  );
-  const maskUrl = readSameOriginAssetUrl(mask?.dataset.pluginIconAsset ?? "");
-  if (maskUrl) return { kind: "mask", url: maskUrl };
-
-  const svg = control.querySelector<SVGSVGElement>(":scope > svg");
-  const sanitized = svg ? sanitizeSvg(svg.outerHTML) : null;
-  return sanitized ? { kind: "svg", markup: sanitized.outerHTML } : null;
-}
-
-function clearFooterActionMarkers() {
-  for (const item of Array.from(
-    document.querySelectorAll<HTMLElement>(`[${FOOTER_ACTION_MARKER}]`),
-  )) {
-    item.removeAttribute(FOOTER_ACTION_MARKER);
-    item.removeAttribute(FOOTER_ACTION_HIDDEN_MARKER);
   }
 }
 
@@ -1011,52 +740,6 @@ function applyWorkspaceAppMenuPreferences(preferences: Preferences) {
   for (const item of [...workspaceAppMenuLabelOverrides.keys()]) {
     if (!seenItems.has(item)) releaseWorkspaceAppMenuLabel(item);
   }
-}
-
-function applyFooterActionPreferences(preferences: Preferences) {
-  const menu = findSidebarFooterMenu();
-  if (!menu) return;
-
-  const hiddenActions = new Set(preferences.hiddenFooterActions);
-  const seenItems = new Set<HTMLElement>();
-  const actions: FooterAction[] = [];
-
-  for (const child of Array.from(menu.children)) {
-    if (!(child instanceof HTMLElement)) continue;
-    if (child.getAttribute("aria-hidden") === "true") break;
-
-    const control = child.querySelector<HTMLElement>(
-      ":scope > a, :scope > button",
-    );
-    if (!control) continue;
-
-    const action = readFooterAction(control);
-    if (!action) continue;
-
-    if (action.key === "bb:settings") {
-      child.removeAttribute(FOOTER_ACTION_MARKER);
-      child.removeAttribute(FOOTER_ACTION_HIDDEN_MARKER);
-      continue;
-    }
-
-    seenItems.add(child);
-    actions.push(action);
-    child.setAttribute(FOOTER_ACTION_MARKER, action.key);
-    if (hiddenActions.has(action.key)) {
-      child.setAttribute(FOOTER_ACTION_HIDDEN_MARKER, "true");
-    } else {
-      child.removeAttribute(FOOTER_ACTION_HIDDEN_MARKER);
-    }
-  }
-
-  for (const item of Array.from(
-    document.querySelectorAll<HTMLElement>(`[${FOOTER_ACTION_MARKER}]`),
-  )) {
-    if (seenItems.has(item)) continue;
-    item.removeAttribute(FOOTER_ACTION_MARKER);
-    item.removeAttribute(FOOTER_ACTION_HIDDEN_MARKER);
-  }
-  publishFooterActionCatalog(actions, hiddenActions);
 }
 
 function savePreferences(preferences: Preferences) {
@@ -1391,156 +1074,10 @@ function InterfaceSettings() {
   );
 }
 
-function FooterActionGlyphView({ glyph }: { glyph: FooterActionGlyph | null }) {
-  const containerRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    container.replaceChildren();
-
-    if (glyph?.kind === "mask") {
-      const assetUrl = readSameOriginAssetUrl(glyph.url);
-      if (!assetUrl) return;
-      const icon = document.createElement("span");
-      icon.className = "inline-block size-5 shrink-0";
-      icon.style.backgroundColor = "currentColor";
-      icon.style.maskImage = `url("${assetUrl}")`;
-      icon.style.maskPosition = "center";
-      icon.style.maskRepeat = "no-repeat";
-      icon.style.maskSize = "contain";
-      icon.style.webkitMaskImage = `url("${assetUrl}")`;
-      icon.style.webkitMaskPosition = "center";
-      icon.style.webkitMaskRepeat = "no-repeat";
-      icon.style.webkitMaskSize = "contain";
-      container.append(icon);
-    } else if (glyph?.kind === "svg") {
-      const source = sanitizeSvg(glyph.markup);
-      if (source) {
-        const icon = document.importNode(source, true);
-        icon.removeAttribute("class");
-        icon.removeAttribute("height");
-        icon.removeAttribute("width");
-        icon.classList.add("size-5", "shrink-0");
-        icon.setAttribute("aria-hidden", "true");
-        container.append(icon);
-      }
-    }
-
-    return () => container.replaceChildren();
-  }, [glyph]);
-
-  return (
-    <span
-      aria-hidden="true"
-      className="flex size-5 shrink-0 items-center justify-center text-muted-foreground"
-      ref={containerRef}
-    />
-  );
-}
-
-function FooterSettings() {
-  const { preferences, update } = usePreferences();
-  const [footerActions, setFooterActions] = useState(readFooterActionCatalog);
-
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (
-        event.key === FOOTER_ACTIONS_STORAGE_KEY ||
-        event.key === LEGACY_FOOTER_ACTIONS_STORAGE_KEY
-      ) {
-        footerActionCatalogSnapshot = [];
-        setFooterActions(readFooterActionCatalog());
-      }
-    };
-    const onFooterActionsChange = (event: Event) => {
-      setFooterActions((event as CustomEvent<FooterAction[]>).detail);
-    };
-
-    window.addEventListener(
-      FOOTER_ACTIONS_CHANGE_EVENT,
-      onFooterActionsChange,
-    );
-    window.addEventListener("storage", onStorage);
-    setFooterActions(readFooterActionCatalog());
-    return () => {
-      window.removeEventListener(
-        FOOTER_ACTIONS_CHANGE_EVENT,
-        onFooterActionsChange,
-      );
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Choose which buttons appear at the bottom of the sidebar.
-      </p>
-      <div
-        className="overflow-hidden rounded-lg border border-border bg-card p-1"
-        role="list"
-      >
-        {footerActions.map((action) => (
-          <div
-            className="flex min-h-12 items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-muted/50"
-            key={action.key}
-            role="listitem"
-          >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <ToggleSwitch
-                ariaLabel={`${
-                  preferences.hiddenFooterActions.includes(action.key)
-                    ? "Show"
-                    : "Hide"
-                } ${action.label}`}
-                checked={!preferences.hiddenFooterActions.includes(action.key)}
-                onCheckedChange={(checked) => {
-                  const hiddenFooterActions = new Set(
-                    preferences.hiddenFooterActions,
-                  );
-                  if (checked) {
-                    hiddenFooterActions.delete(action.key);
-                  } else {
-                    hiddenFooterActions.add(action.key);
-                  }
-                  update({ hiddenFooterActions: [...hiddenFooterActions] });
-                }}
-              />
-              <FooterActionGlyphView glyph={action.glyph} />
-              <span className="truncate">{action.label}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-muted"
-          type="button"
-          onClick={() =>
-            update({
-              hiddenFooterActions: DEFAULT_PREFERENCES.hiddenFooterActions,
-            })
-          }
-        >
-          ↶ Reset to defaults
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "preferences",
     component: InterfaceSettings,
-  });
-
-  app.slots.settingsSection({
-    id: "footer-buttons",
-    title: "Sidebar Footer",
-    component: FooterSettings,
   });
 
   app.contentScripts.register({
@@ -1548,33 +1085,16 @@ export default definePluginApp((app) => {
     mount: ({ signal }) => {
       const overrides = createRootOverrides();
       const fontSize = mountFontSizeModifier(() => getPreferences().fontSizeOffset);
-      let footerMenu = findSidebarFooterMenu();
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
 
-      const footerObserver = new MutationObserver(() => queueDynamicRefresh());
       const workspaceObserver = new MutationObserver(() =>
         queueDynamicRefresh(),
       );
 
       const observeDynamicSurfaces = () => {
-        footerObserver.disconnect();
         workspaceObserver.disconnect();
-        footerMenu = findSidebarFooterMenu();
         workspaceAppMenus = findWorkspaceAppMenus();
-        if (footerMenu) {
-          footerObserver.observe(footerMenu, {
-            attributes: true,
-            attributeFilter: [
-              "aria-label",
-              "data-plugin-icon-asset",
-              "data-testid",
-            ],
-            characterData: true,
-            childList: true,
-            subtree: true,
-          });
-        }
         for (const menu of workspaceAppMenus) {
           workspaceObserver.observe(menu, {
             characterData: true,
@@ -1585,7 +1105,6 @@ export default definePluginApp((app) => {
       };
 
       const refreshDynamicSurfaces = () => {
-        footerObserver.disconnect();
         workspaceObserver.disconnect();
         applyDynamicDomPreferences(getPreferences());
         observeDynamicSurfaces();
@@ -1605,7 +1124,6 @@ export default definePluginApp((app) => {
       const onChange = (event: Event) => {
         const next = (event as CustomEvent<Preferences>).detail;
         currentPreferences = next;
-        footerObserver.disconnect();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
         fontSize.refresh();
@@ -1614,16 +1132,12 @@ export default definePluginApp((app) => {
       const onStorage = (event: StorageEvent) => {
         if (event.key !== STORAGE_KEY && event.key !== null) return;
         const next = reloadPersistedPreferences();
-        footerObserver.disconnect();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
         fontSize.refresh();
         observeDynamicSurfaces();
       };
 
-      const footerControlSelector =
-        `[data-testid^="${FOOTER_ACTION_TEST_ID_PREFIX}"], ` +
-        '[aria-label="Report a bug"]';
       const rootObserver = new MutationObserver((records) => {
         const shouldRefresh = records.some((record) => {
           return [
@@ -1633,16 +1147,12 @@ export default definePluginApp((app) => {
             if (!(node instanceof Element)) return false;
             const currentWorkspaceMenus = findWorkspaceAppMenus();
             return (
-              node === footerMenu ||
-              (footerMenu !== null && node.contains(footerMenu)) ||
               workspaceAppMenus.some(
                 (menu) => node === menu || node.contains(menu),
               ) ||
               currentWorkspaceMenus.some(
                 (menu) => node === menu || node.contains(menu),
               ) ||
-              node.matches(footerControlSelector) ||
-              node.querySelector(footerControlSelector) !== null ||
               containsWorkspaceAppMenuTrigger(node) ||
               node.matches("#root-compose-prompt") ||
               node.querySelector("#root-compose-prompt") !== null
@@ -1666,10 +1176,8 @@ export default definePluginApp((app) => {
       return () => {
         rootObserver.disconnect();
         fontSize.dispose();
-        footerObserver.disconnect();
         workspaceObserver.disconnect();
         if (refreshFrame !== 0) window.cancelAnimationFrame(refreshFrame);
-        clearFooterActionMarkers();
         clearWorkspaceAppMenuMarkers();
         clearPromptContainerMarker();
         releaseRootOverrides(overrides);

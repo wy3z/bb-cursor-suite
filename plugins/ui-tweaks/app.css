@@ -17,10 +17,6 @@ html[data-bb-ui-prompt-position="bottom"]
   padding-top: 0;
 }
 
-[data-bb-ui-tweaks-footer-action-hidden="true"] {
-  display: none !important;
-}
-
 [data-bb-ui-tweaks-workspace-app-menu-hidden="true"] {
   display: none !important;
 }
