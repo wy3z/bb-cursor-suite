@@ -8,6 +8,11 @@ Small, configurable interface improvements for BB.
   The saved offset follows theme changes; **Reset** restores the theme default.
   Rem-based text and spacing scale with the base size; fixed-pixel content is unchanged.
 
+- Resize text in individual sections with **− / +**, in 1 pt steps, on top of the
+  global size: sidebar, thread header, chat, prompt box, right panel, main area,
+  menus and popovers, and code. Code adjustments stack on the section they sit in.
+  Only text changes; spacing stays put.
+
 - Position the New thread prompt at the top, centre, or bottom.
 - Filter workspace applications from the **Open With** menu and chat file-link
   context menus.

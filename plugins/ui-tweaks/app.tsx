@@ -10,7 +10,18 @@ import {
   type WorkspaceAppCatalogItem,
   type WorkspaceAppCategory,
 } from "./lib/workspace-apps.js";
-import { mountFontSizeModifier, readFontSizeOffset } from "./lib/font-size.js";
+import {
+  CODE_FONT_SIZE_SECTION,
+  FONT_SIZE_SECTIONS,
+  SECTION_FONT_SIZE_MAX,
+  SECTION_FONT_SIZE_MIN,
+  mountFontSizeModifier,
+  readFontSizeOffset,
+  readSectionFontSize,
+  readSectionFontSizes,
+  type FontSizeSectionId,
+  type SectionFontSizes,
+} from "./lib/font-size.js";
 import "./app.css";
 
 const STORAGE_KEY = "bb-plugin-ui-tweaks.preferences.v1";
@@ -45,6 +56,7 @@ const WORKSPACE_APP_CATEGORY_OPTIONS = [
 
 interface Preferences {
   fontSizeOffset: number;
+  sectionFontSizes: SectionFontSizes;
   promptPosition: PromptPosition;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
@@ -60,6 +72,7 @@ let workspaceAppDiscoveryStatus: WorkspaceAppDiscoveryStatus = "loading";
 
 const DEFAULT_PREFERENCES: Preferences = {
   fontSizeOffset: 0,
+  sectionFontSizes: {},
   promptPosition: "bottom",
   workspaceAppCategories: [
     "default-app",
@@ -176,6 +189,7 @@ function readPersistedPreferences(): Preferences {
       const value = JSON.parse(stored) as Partial<Preferences>;
       return {
         fontSizeOffset: readFontSizeOffset(value.fontSizeOffset),
+        sectionFontSizes: readSectionFontSizes(value.sectionFontSizes),
         promptPosition: isPromptPosition(value.promptPosition)
           ? value.promptPosition
           : DEFAULT_PREFERENCES.promptPosition,
@@ -820,6 +834,58 @@ function ToggleSwitch({
   );
 }
 
+function SectionFontSizeSettings({
+  sizes,
+  onChange,
+}: {
+  sizes: SectionFontSizes;
+  onChange: (sizes: SectionFontSizes) => void;
+}) {
+  const sections = [...FONT_SIZE_SECTIONS, CODE_FONT_SIZE_SECTION];
+  const setSize = (id: FontSizeSectionId, size: number) =>
+    onChange(readSectionFontSizes({ ...getPreferences().sectionFontSizes, [id]: size }));
+  const anyChanged = Object.values(sizes).some((size) => size !== 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">Text size by section</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Resize text in one part of BB, 1 pt per press, on top of the global size.
+          </p>
+        </div>
+        <button type="button" className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"
+          disabled={!anyChanged} onClick={() => onChange({})}>Reset all</button>
+      </div>
+      <ul className="divide-y divide-border rounded-md border border-border">
+        {sections.map((section) => {
+          const size = readSectionFontSize(sizes[section.id]);
+          return (
+            <li key={section.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm text-foreground">{section.label}</div>
+                <div className="text-xs text-muted-foreground">{section.description}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2" role="group" aria-label={`${section.label} text size`}>
+                <button type="button" className="size-8 rounded-md border border-border hover:bg-muted disabled:opacity-50"
+                  aria-label={`Decrease ${section.label} text size by 1 pt`} disabled={size <= SECTION_FONT_SIZE_MIN}
+                  onClick={() => setSize(section.id, size - 1)}>−</button>
+                <output className="min-w-12 text-center text-sm" aria-live="polite">
+                  {size > 0 ? "+" : ""}{size} pt
+                </output>
+                <button type="button" className="size-8 rounded-md border border-border hover:bg-muted disabled:opacity-50"
+                  aria-label={`Increase ${section.label} text size by 1 pt`} disabled={size >= SECTION_FONT_SIZE_MAX}
+                  onClick={() => setSize(section.id, size + 1)}>+</button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function InterfaceSettings() {
   const { preferences, update } = usePreferences();
   const [workspaceApps, setWorkspaceApps] = useState(readWorkspaceAppCatalog);
@@ -894,6 +960,10 @@ function InterfaceSettings() {
             onClick={() => update({ fontSizeOffset: 0 })}>Reset</button>
         </div>
       </div>
+      <SectionFontSizeSettings
+        sizes={preferences.sectionFontSizes}
+        onChange={(sectionFontSizes) => update({ sectionFontSizes })}
+      />
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
         <div>
           <label
@@ -1060,6 +1130,7 @@ function InterfaceSettings() {
           onClick={() =>
             update({
               fontSizeOffset: DEFAULT_PREFERENCES.fontSizeOffset,
+              sectionFontSizes: DEFAULT_PREFERENCES.sectionFontSizes,
               promptPosition: DEFAULT_PREFERENCES.promptPosition,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
@@ -1084,7 +1155,7 @@ export default definePluginApp((app) => {
     id: "apply-preferences",
     mount: ({ signal }) => {
       const overrides = createRootOverrides();
-      const fontSize = mountFontSizeModifier(() => getPreferences().fontSizeOffset);
+      const fontSize = mountFontSizeModifier(getPreferences);
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
 
