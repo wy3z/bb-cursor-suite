@@ -20,3 +20,12 @@ html[data-bb-ui-prompt-position="bottom"]
 [data-bb-ui-tweaks-workspace-app-menu-hidden="true"] {
   display: none !important;
 }
+
+/* Line height matches the editor's 1.7 leading; 1rem covers its padding. */
+html[data-bb-ui-prompt-height="two-lines"] [data-promptbox-editor-scroll] {
+  min-height: calc(3.4em + 1rem) !important;
+}
+
+html[data-bb-ui-prompt-height="one-line"] [data-promptbox-editor-scroll] {
+  min-height: calc(1.7em + 1rem) !important;
+}

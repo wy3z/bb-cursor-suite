@@ -13,6 +13,7 @@ Small, configurable interface improvements for BB.
   code inside that section.
 
 - Position the New thread prompt at the top, centre, or bottom.
+- Shrink the empty prompt box to two lines or one line. It still grows as you type.
 - Filter workspace applications from the **Open With** menu and chat file-link
   context menus.
 

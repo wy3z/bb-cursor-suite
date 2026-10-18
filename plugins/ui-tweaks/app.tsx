@@ -45,6 +45,8 @@ const WORKSPACE_APP_MENU_HIDDEN_MARKER =
 const PROMPT_CONTAINER_MARKER = "data-bb-ui-tweaks-prompt-container";
 const PROMPT_POSITIONS = ["top", "center", "bottom"] as const;
 type PromptPosition = (typeof PROMPT_POSITIONS)[number];
+const PROMPT_HEIGHTS = ["default", "two-lines", "one-line"] as const;
+type PromptHeight = (typeof PROMPT_HEIGHTS)[number];
 
 const WORKSPACE_APP_CATEGORY_OPTIONS = [
   ["default-app", "Default app"],
@@ -58,6 +60,7 @@ interface Preferences {
   fontSizeOffset: number;
   sectionFontSizes: SectionFontSizes;
   promptPosition: PromptPosition;
+  promptHeight: PromptHeight;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
 }
@@ -74,6 +77,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   fontSizeOffset: 0,
   sectionFontSizes: {},
   promptPosition: "bottom",
+  promptHeight: "default",
   workspaceAppCategories: [
     "default-app",
     "file-manager",
@@ -162,6 +166,10 @@ function isPromptPosition(value: unknown): value is PromptPosition {
   return PROMPT_POSITIONS.includes(value as PromptPosition);
 }
 
+function isPromptHeight(value: unknown): value is PromptHeight {
+  return PROMPT_HEIGHTS.includes(value as PromptHeight);
+}
+
 function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [
@@ -193,6 +201,9 @@ function readPersistedPreferences(): Preferences {
         promptPosition: isPromptPosition(value.promptPosition)
           ? value.promptPosition
           : DEFAULT_PREFERENCES.promptPosition,
+        promptHeight: isPromptHeight(value.promptHeight)
+          ? value.promptHeight
+          : DEFAULT_PREFERENCES.promptHeight,
         workspaceAppCategories: readWorkspaceAppCategories(
           value.workspaceAppCategories,
         ),
@@ -237,6 +248,12 @@ function applyRootPreferences(
     overrides,
     "data-bb-ui-prompt-position",
     preferences.promptPosition,
+    reclaimExternal,
+  );
+  setOwnedAttribute(
+    overrides,
+    "data-bb-ui-prompt-height",
+    preferences.promptHeight === "default" ? null : preferences.promptHeight,
     reclaimExternal,
   );
 }
@@ -994,6 +1011,36 @@ function InterfaceSettings() {
           <option value="bottom">Bottom</option>
         </select>
       </div>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
+        <div>
+          <label
+            className="text-sm font-medium text-foreground"
+            htmlFor="ui-tweaks-prompt-height"
+          >
+            Prompt box starting height
+          </label>
+          <p
+            className="mt-0.5 text-xs text-muted-foreground"
+            id="ui-tweaks-prompt-height-description"
+          >
+            How tall the empty composer is. It still grows as you type.
+          </p>
+        </div>
+        <select
+          id="ui-tweaks-prompt-height"
+          aria-describedby="ui-tweaks-prompt-height-description"
+          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+          value={preferences.promptHeight}
+          onChange={(event) => {
+            const promptHeight = event.target.value;
+            if (isPromptHeight(promptHeight)) update({ promptHeight });
+          }}
+        >
+          <option value="default">Default</option>
+          <option value="two-lines">Two lines</option>
+          <option value="one-line">One line</option>
+        </select>
+      </div>
 
       </div>
 
@@ -1132,6 +1179,7 @@ function InterfaceSettings() {
               fontSizeOffset: DEFAULT_PREFERENCES.fontSizeOffset,
               sectionFontSizes: DEFAULT_PREFERENCES.sectionFontSizes,
               promptPosition: DEFAULT_PREFERENCES.promptPosition,
+              promptHeight: DEFAULT_PREFERENCES.promptHeight,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
               hiddenWorkspaceApps: DEFAULT_PREFERENCES.hiddenWorkspaceApps,
