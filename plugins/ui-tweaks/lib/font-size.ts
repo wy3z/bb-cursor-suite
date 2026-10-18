@@ -57,24 +57,31 @@ export function readSectionFontSizes(value: unknown): SectionFontSizes {
   return sizes;
 }
 
-function sectionRules(
+function fontSizeRules(
+  globalOffset: number,
   sizes: SectionFontSizes,
   tokens: Array<[string, string]>,
   bodyFontSize: number,
 ): string {
-  if (!Object.values(sizes).some((size) => size !== 0)) return "";
+  if (globalOffset === 0 && !Object.values(sizes).some((size) => size !== 0)) return "";
 
   const declarations = (offset: number, withFontSize: boolean) => [
     ...tokens.map(([token, value]) => `--text-${token}: max(6pt, calc(${value} + ${offset}pt));`),
     ...(withFontSize ? [`font-size: max(6pt, calc(${bodyFontSize}px + ${offset}pt)) !important;`] : []),
   ].join(" ");
 
+  // Every offset is in plain points and they add up: global, then section,
+  // then code inside that section.
   const code = sizes.code ?? 0;
-  const rules = [`:is(${CODE_SELECTOR}) { ${declarations(code, false)} }`];
+  const rules = [
+    `html:root { ${declarations(globalOffset, false)} }`,
+    `html:root body { ${declarations(globalOffset, true)} }`,
+    `:is(${CODE_SELECTOR}) { ${declarations(globalOffset + code, false)} }`,
+  ];
   // Every section gets a rule, even at 0, so it resets anything inherited
   // from an enclosing section.
   for (const section of FONT_SIZE_SECTIONS) {
-    const offset = sizes[section.id] ?? 0;
+    const offset = globalOffset + (sizes[section.id] ?? 0);
     rules.push(`:is(${section.selector}) { ${declarations(offset, true)} }`);
     rules.push(`:is(${section.selector}) :is(${CODE_SELECTOR}) { ${declarations(offset + code, false)} }`);
   }
@@ -98,26 +105,13 @@ export function mountFontSizeModifier(read: () => {
     // Measure the active theme without our override, so changes never compound.
     style.disabled = true;
     const rootStyle = getComputedStyle(document.documentElement);
-    const base = Number.parseFloat(rootStyle.fontSize);
     const tokens = TEXT_SIZE_TOKENS
       .map((token) => [token, rootStyle.getPropertyValue(`--text-${token}`).trim()] as [string, string])
       .filter(([, value]) => value !== "");
-    const offset = readFontSizeOffset(fontSizeOffset);
-    const globalRule = offset === 0 || !Number.isFinite(base)
-      ? ""
-      : `html:root { font-size: max(6pt, calc(${base}px + ${offset}pt)) !important; }`;
-
-    // Section containers inherit the body size, which follows the global rule.
-    let bodyFontSize = Number.parseFloat(getComputedStyle(document.body).fontSize);
-    if (globalRule) {
-      style.textContent = globalRule;
-      style.disabled = false;
-      bodyFontSize = Number.parseFloat(getComputedStyle(document.body).fontSize);
-    }
-    const rule = [
-      globalRule,
-      Number.isFinite(bodyFontSize) ? sectionRules(sectionFontSizes, tokens, bodyFontSize) : "",
-    ].filter(Boolean).join("\n");
+    const bodyFontSize = Number.parseFloat(getComputedStyle(document.body).fontSize);
+    const rule = Number.isFinite(bodyFontSize)
+      ? fontSizeRules(readFontSizeOffset(fontSizeOffset), sectionFontSizes, tokens, bodyFontSize)
+      : "";
     if (style.textContent !== rule) style.textContent = rule;
     style.disabled = false;
   };

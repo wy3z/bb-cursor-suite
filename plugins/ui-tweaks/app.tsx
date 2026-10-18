@@ -852,7 +852,7 @@ function SectionFontSizeSettings({
         <div>
           <h3 className="text-sm font-medium text-foreground">Text size by section</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Resize text in one part of BB, 1 pt per press, on top of the global size.
+            Resize text in one part of BB, 1 pt per press. Adds to the global size.
           </p>
         </div>
         <button type="button" className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"
@@ -943,7 +943,7 @@ function InterfaceSettings() {
         <div>
           <h3 className="text-sm font-medium text-foreground">Global font size</h3>
           <p className="mt-0.5 text-xs text-muted-foreground" id="ui-tweaks-font-description">
-            Adjust the active theme’s base font size by 1 pt per press.
+            Add or remove 1 pt on all text per press. Spacing stays put.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2" role="group" aria-label="Global font size" aria-describedby="ui-tweaks-font-description">
