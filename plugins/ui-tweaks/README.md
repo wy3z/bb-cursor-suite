@@ -4,25 +4,43 @@ Small, configurable interface improvements for BB.
 
 ## Features
 
-- Match the left sidebar's open and close animation to the right panel.
+- Match the left sidebar's open and close animation to the right panel. This
+  is always on and has no setting.
 
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger
-  chat prose, and semibold bold text. This is the typography option; no manual
-  size sliders.
+  chat prose, and semibold bold text. Other sizes and weights stay put.
 
-- Position the New thread prompt at the top, centre, or bottom.
-- Shrink the empty prompt box to two lines or one line. It still grows as you type.
+- Put the New thread prompt at the **Top**, **Center**, or **Bottom**. Bottom
+  is the default.
+
+- Set the empty prompt box to the **Default** height, **Two lines**, or **One
+  line**. It still grows as you type.
+
 - Switch BB's interface icons between **BB Default**, **Lucide**, **Iconoir**,
   and **Tabler Outline**. The choice applies live and persists. Provider logos
   and brand marks are unchanged.
-- Pick a separate spinner style, or let it follow the icon pack.
-- Filter workspace applications from the **Open With** menu and chat file-link
-  context menus.
+
+- Set the spinner separately: **Follow icon pack**, **BB Default**, **Lucide**,
+  **Iconoir**, or **Tabler Outline**. The spinner setting applies to the
+  shared Loading and Spinner icons only.
+
+- Filter workspace apps from the **Open With** menu and chat file-link context
+  menus. Turn whole categories on or off, or expand a category and hide single
+  apps. The categories are Default app, File managers, Editors & IDEs,
+  Terminals, and Other applications. The first four are on by default.
+
+- **Reset to defaults** restores every setting above.
 
 Configure everything under **Settings → Plugins → UI Tweaks**.
 
-Sidebar footer buttons are no longer handled here. BB 0.46 does this itself
-under **More → Customize footer**.
+## Requirements
+
+- BB `>=0.48 <0.49`.
+- Plugin SDK `>=0.6 <0.7`.
+
+Workspace app discovery uses BB's local host daemon. In a client that cannot
+reach the daemon, the filter shows the last saved app list and says discovery
+is unavailable.
 
 ## Installation
 
