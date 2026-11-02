@@ -1,5 +1,21 @@
 import { useEffect, useState } from "react";
-import { definePluginApp } from "@get-bb/plugin-sdk/app";
+import {
+  UrlLink,
+  definePluginApp,
+} from "@get-bb/plugin-sdk/app";
+import {
+  IconPackPreview,
+  registerIconPacks,
+} from "./lib/icon-pack.js";
+import {
+  ICON_PACK_OPTIONS,
+  parseIconPack,
+  type IconPack,
+} from "./lib/icon-pack-preference.js";
+import {
+  PREFERENCES_CHANGE_EVENT as CHANGE_EVENT,
+  PREFERENCES_STORAGE_KEY as STORAGE_KEY,
+} from "./lib/preferences-storage.js";
 import {
   WORKSPACE_APP_CATEGORIES,
   legacyWorkspaceAppKey,
@@ -22,12 +38,18 @@ import {
   type FontSizeSectionId,
   type SectionFontSizes,
 } from "./lib/font-size.js";
+import {
+  createRootOverrides,
+  releaseRootOverrides,
+  setOwnedAttribute,
+  type RootOverrides,
+} from "./lib/root-attributes.js";
 import "./app.css";
 
-const STORAGE_KEY = "bb-plugin-ui-tweaks.preferences.v1";
 const WORKSPACE_APPS_STORAGE_KEY = "bb-plugin-ui-tweaks.workspace-apps.v3";
 const LEGACY_PROMPT_POSITION_KEY = "bb-plugin-prompt-box-position";
-const CHANGE_EVENT = "bb:ui-tweaks-preferences-change";
+const PANEL_TOGGLE_MIGRATION_KEY =
+  "bb-plugin-ui-tweaks.show-panel-toggle-migration.v1";
 const WORKSPACE_APPS_CHANGE_EVENT = "bb:ui-tweaks-workspace-apps-change";
 const WORKSPACE_APPS_REFRESH_EVENT = "bb:ui-tweaks-workspace-apps-refresh";
 const WORKSPACE_APPS_STATUS_EVENT = "bb:ui-tweaks-workspace-apps-status";
@@ -61,8 +83,11 @@ interface Preferences {
   sectionFontSizes: SectionFontSizes;
   promptPosition: PromptPosition;
   promptHeight: PromptHeight;
+  iconPack: IconPack;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
+  hideSidebarToggle: boolean;
+  hidePanelToggle: boolean;
 }
 
 type WorkspaceAppDiscoveryStatus =
@@ -72,12 +97,14 @@ type WorkspaceAppDiscoveryStatus =
   | "unavailable"
   | "error";
 let workspaceAppDiscoveryStatus: WorkspaceAppDiscoveryStatus = "loading";
+let panelToggleMigrationDone = false;
 
 const DEFAULT_PREFERENCES: Preferences = {
   fontSizeOffset: 0,
   sectionFontSizes: {},
   promptPosition: "bottom",
   promptHeight: "default",
+  iconPack: "default",
   workspaceAppCategories: [
     "default-app",
     "file-manager",
@@ -85,12 +112,9 @@ const DEFAULT_PREFERENCES: Preferences = {
     "terminal",
   ],
   hiddenWorkspaceApps: [],
+  hideSidebarToggle: false,
+  hidePanelToggle: false,
 };
-
-interface OwnedAttributeValue {
-  previous: string | null;
-  written: string | null;
-}
 
 interface OwnedTextValue {
   node: Text;
@@ -104,63 +128,12 @@ interface OwnedWorkspaceAppMenuIcon {
   replacement: SVGSVGElement;
 }
 
-interface RootOverrides {
-  attributes: Map<string, OwnedAttributeValue>;
-}
-
 let currentPreferences: Preferences | null = null;
 const workspaceAppMenuLabelOverrides = new Map<HTMLElement, OwnedTextValue>();
 const workspaceAppMenuIconOverrides = new Map<
   HTMLElement,
   OwnedWorkspaceAppMenuIcon
 >();
-
-function createRootOverrides(): RootOverrides {
-  return { attributes: new Map() };
-}
-
-function setOwnedAttribute(
-  overrides: RootOverrides,
-  attribute: string,
-  value: string | null,
-  reclaimExternal = false,
-) {
-  const root = document.documentElement;
-  const existing = overrides.attributes.get(attribute);
-  const current = root.getAttribute(attribute);
-
-  if (value === null) {
-    if (!existing) return;
-    if (current === existing.written) {
-      if (existing.previous === null) root.removeAttribute(attribute);
-      else root.setAttribute(attribute, existing.previous);
-    }
-    overrides.attributes.delete(attribute);
-    return;
-  }
-
-  if (!existing) {
-    root.setAttribute(attribute, value);
-    overrides.attributes.set(attribute, { previous: current, written: value });
-    return;
-  }
-  if (current !== existing.written) {
-    if (!reclaimExternal) return;
-    existing.previous = current;
-  }
-  root.setAttribute(attribute, value);
-  existing.written = value;
-}
-
-function releaseRootOverrides(overrides: RootOverrides) {
-  const root = document.documentElement;
-  for (const [attribute, state] of overrides.attributes) {
-    if (root.getAttribute(attribute) !== state.written) continue;
-    if (state.previous === null) root.removeAttribute(attribute);
-    else root.setAttribute(attribute, state.previous);
-  }
-  overrides.attributes.clear();
-}
 
 function isPromptPosition(value: unknown): value is PromptPosition {
   return PROMPT_POSITIONS.includes(value as PromptPosition);
@@ -190,7 +163,51 @@ function readWorkspaceAppCategories(value: unknown): WorkspaceAppCategory[] {
   ];
 }
 
+/**
+ * Restore the right-pane button once per client. Older builds could leave a
+ * stale hide marker with no persisted preference behind it. All other stored
+ * fields are copied through unchanged, and the marker is written even when the
+ * flag was already false or preferences were absent, so a later deliberate
+ * re-enable is not undone on the next load.
+ */
+function migratePanelToggleVisibility() {
+  if (panelToggleMigrationDone) return;
+  panelToggleMigrationDone = true;
+
+  try {
+    if (window.localStorage.getItem(PANEL_TOGGLE_MIGRATION_KEY) === "1") return;
+
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) {
+      try {
+        const value: unknown = JSON.parse(stored);
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value)
+        ) {
+          window.localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              ...(value as Record<string, unknown>),
+              hidePanelToggle: false,
+            }),
+          );
+        }
+      } catch {
+        // A malformed blob falls back to defaults when it is read below.
+      }
+    }
+
+    window.localStorage.setItem(PANEL_TOGGLE_MIGRATION_KEY, "1");
+  } catch {
+    // Storage blocked: the session still starts with the panel button visible.
+  }
+}
+
 function readPersistedPreferences(): Preferences {
+  migratePanelToggleVisibility();
+
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -204,10 +221,13 @@ function readPersistedPreferences(): Preferences {
         promptHeight: isPromptHeight(value.promptHeight)
           ? value.promptHeight
           : DEFAULT_PREFERENCES.promptHeight,
+        iconPack: parseIconPack(value.iconPack),
         workspaceAppCategories: readWorkspaceAppCategories(
           value.workspaceAppCategories,
         ),
         hiddenWorkspaceApps: readStringArray(value.hiddenWorkspaceApps),
+        hideSidebarToggle: value.hideSidebarToggle === true,
+        hidePanelToggle: value.hidePanelToggle === true,
       };
     }
 
@@ -244,17 +264,36 @@ function applyRootPreferences(
   overrides: RootOverrides,
   reclaimExternal = false,
 ) {
+  const root = document.documentElement;
   setOwnedAttribute(
     overrides,
+    root,
     "data-bb-ui-prompt-position",
     preferences.promptPosition,
     reclaimExternal,
   );
   setOwnedAttribute(
     overrides,
+    root,
     "data-bb-ui-prompt-height",
     preferences.promptHeight === "default" ? null : preferences.promptHeight,
     reclaimExternal,
+  );
+  setOwnedAttribute(
+    overrides,
+    root,
+    "data-bb-ui-hide-sidebar-toggle",
+    preferences.hideSidebarToggle ? "true" : null,
+    reclaimExternal,
+    "private",
+  );
+  setOwnedAttribute(
+    overrides,
+    root,
+    "data-bb-ui-hide-panel-toggle",
+    preferences.hidePanelToggle ? "true" : null,
+    reclaimExternal,
+    "private",
   );
 }
 
@@ -903,6 +942,83 @@ function SectionFontSizeSettings({
   );
 }
 
+function IconPackSettings({
+  value,
+  onChange,
+}: {
+  value: IconPack;
+  onChange: (pack: IconPack) => void;
+}) {
+  const previews = ["Search", "Folder", "MessageSquare", "Settings"] as const;
+
+  return (
+    <fieldset>
+      <legend className="text-sm font-medium text-foreground">Icon pack</legend>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Choose the artwork for BB's interface icons. Provider logos and brand
+        marks are left alone.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        {ICON_PACK_OPTIONS.map((option) => {
+          const selected = value === option.id;
+          return (
+            <label
+              key={option.id}
+              className={`flex cursor-pointer flex-col gap-2 rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring ${
+                selected
+                  ? "border-foreground ring-1 ring-foreground"
+                  : "border-border hover:bg-muted/50"
+              }`}
+            >
+              <input
+                checked={selected}
+                className="sr-only"
+                name="ui-tweaks-icon-pack"
+                type="radio"
+                value={option.id}
+                onChange={() => onChange(option.id)}
+              />
+              <span
+                aria-hidden="true"
+                className="flex items-center gap-2 text-foreground"
+              >
+                {previews.map((name) => (
+                  <IconPackPreview
+                    key={name}
+                    className="size-4"
+                    name={name}
+                    pack={option.id}
+                  />
+                ))}
+              </span>
+              <span className="text-sm font-medium text-foreground">
+                {option.label}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {option.description}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Solar Icons (Linear) by 480 Design,{" "}
+        <UrlLink
+          className="underline"
+          href="https://github.com/480-Design/Solar-Icon-Set"
+        >
+          CC BY 4.0
+        </UrlLink>
+        . Lucide,{" "}
+        <UrlLink className="underline" href="https://lucide.dev">
+          ISC
+        </UrlLink>
+        .
+      </p>
+    </fieldset>
+  );
+}
+
 function InterfaceSettings() {
   const { preferences, update } = usePreferences();
   const [workspaceApps, setWorkspaceApps] = useState(readWorkspaceAppCatalog);
@@ -1041,6 +1157,28 @@ function InterfaceSettings() {
           <option value="one-line">One line</option>
         </select>
       </div>
+      <IconPackSettings
+        value={preferences.iconPack}
+        onChange={(iconPack) => update({ iconPack })}
+      />
+      {(
+        [
+          ["hideSidebarToggle", "Hide sidebar button", "Removes the left sidebar toggle. The keyboard shortcut still works."],
+          ["hidePanelToggle", "Hide right panel button", "Removes the show/hide right panel button. The keyboard shortcut still works."],
+        ] as const
+      ).map(([key, label, description]) => (
+        <div key={key} className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">{label}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+          </div>
+          <ToggleSwitch
+            ariaLabel={label}
+            checked={preferences[key]}
+            onCheckedChange={(checked) => update({ [key]: checked })}
+          />
+        </div>
+      ))}
 
       </div>
 
@@ -1180,9 +1318,12 @@ function InterfaceSettings() {
               sectionFontSizes: DEFAULT_PREFERENCES.sectionFontSizes,
               promptPosition: DEFAULT_PREFERENCES.promptPosition,
               promptHeight: DEFAULT_PREFERENCES.promptHeight,
+              iconPack: DEFAULT_PREFERENCES.iconPack,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
               hiddenWorkspaceApps: DEFAULT_PREFERENCES.hiddenWorkspaceApps,
+              hideSidebarToggle: DEFAULT_PREFERENCES.hideSidebarToggle,
+              hidePanelToggle: DEFAULT_PREFERENCES.hidePanelToggle,
             })
           }
         >
@@ -1194,6 +1335,8 @@ function InterfaceSettings() {
 }
 
 export default definePluginApp((app) => {
+  registerIconPacks(app.experimental_icons.register);
+
   app.slots.settingsSection({
     id: "preferences",
     component: InterfaceSettings,
@@ -1299,7 +1442,7 @@ export default definePluginApp((app) => {
         if (refreshFrame !== 0) window.cancelAnimationFrame(refreshFrame);
         clearWorkspaceAppMenuMarkers();
         clearPromptContainerMarker();
-        releaseRootOverrides(overrides);
+        releaseRootOverrides(overrides, document.documentElement);
       };
     },
   });

@@ -29,3 +29,45 @@ html[data-bb-ui-prompt-height="two-lines"] [data-promptbox-editor-scroll] {
 html[data-bb-ui-prompt-height="one-line"] [data-promptbox-editor-scroll] {
   min-height: calc(1.7em + 1rem) !important;
 }
+
+/* Match the right panel's collapse motion, including delayed visibility. */
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  body:not(.sidebar-resizing) [data-sidebar="gap"] {
+    transition-duration: 220ms !important;
+    transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+  }
+
+  body:not(.sidebar-resizing) [data-sidebar="panel"] {
+    transition: left 220ms cubic-bezier(0.32, 0.72, 0, 1),
+      right 220ms cubic-bezier(0.32, 0.72, 0, 1),
+      width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear !important;
+  }
+
+  body:not(.sidebar-resizing)
+    [data-collapsible="offcanvas"] > [data-sidebar="panel"] {
+    transition-delay: 0s, 0s, 0s, 220ms !important;
+  }
+
+  [data-collapsible="rail"] [data-sidebar="collapsible-body"],
+  [data-side="left"][data-state="collapsed"] ~ [data-sidebar="inset"],
+  [data-side="left"][data-state="collapsed"] ~ [data-sidebar="inset"]::before {
+    transition-delay: 220ms !important;
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: reduce) {
+  [data-sidebar="gap"],
+  [data-sidebar="panel"],
+  [data-sidebar="collapsible-body"],
+  [data-sidebar="inset"],
+  [data-sidebar="inset"]::before {
+    transition: none !important;
+  }
+}
+
+html[data-bb-ui-hide-sidebar-toggle="true"] button[aria-label^="Toggle sidebar"],
+html[data-bb-ui-hide-panel-toggle="true"] button[aria-label^="Show right panel"],
+html[data-bb-ui-hide-panel-toggle="true"] button[aria-label^="Hide right panel"] {
+  display: none !important;
+}
