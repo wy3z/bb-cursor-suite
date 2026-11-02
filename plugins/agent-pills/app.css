@@ -1,0 +1,1167 @@
+/* bb-plugin-agent-pills — Cursor-style pills and prompt box. */
+
+/* ── Pills ─────────────────────────────────────────────────────────────── */
+
+.bb-agent-pills {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.bb-agent-pills__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-height: 44px;
+  overflow: hidden;
+}
+
+:root {
+  /* One surface for the composer and the pills, from the theme's own tokens:
+     BB's composer is bg-background + border-border. */
+  /* Translucent so the transcript shows through as it scrolls under the
+     composer; the blur keeps the draft readable over it. */
+  --bb-agent-pills-surface: color-mix(in oklab, var(--background) 60%, transparent);
+  /* Same frosting as the theme's popovers (blur(28px) saturate(160%)). */
+  --bb-agent-pills-blur: blur(28px) saturate(160%);
+  --bb-agent-pills-outline: var(--border);
+  --bb-agent-pills-surface-hover: var(--surface-selected, var(--state-hover));
+}
+
+.bb-agent-pills__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  min-width: 0;
+  max-width: 420px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--bb-agent-pills-outline);
+  border-radius: 999px;
+  background: var(--bb-agent-pills-surface);
+  color: var(--pill-foreground, var(--muted-foreground));
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 450;
+  line-height: 1;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+span.bb-agent-pills__pill {
+  cursor: default;
+}
+
+.bb-agent-pills__pill:hover,
+.bb-agent-pills__pill[aria-expanded="true"] {
+  border-color: var(--bb-agent-pills-outline);
+  background: var(--bb-agent-pills-surface-hover);
+  color: var(--foreground);
+}
+
+.bb-agent-pills__pill:focus-visible {
+  outline: 1px solid var(--ring, var(--accent));
+  outline-offset: 1px;
+}
+
+.bb-agent-pills__dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+}
+
+.bb-agent-pills__dot[data-state="needs-input"] {
+  background: var(--attention);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--attention) 18%, transparent);
+}
+
+.bb-agent-pills__dot[data-state="error"] {
+  background: var(--destructive);
+}
+
+.bb-agent-pills__dot[data-state="done"] {
+  background: var(--subtle-foreground);
+}
+
+.bb-agent-pills__dot[data-state="done-unread"] {
+  background: var(--accent);
+}
+
+.bb-agent-pills__dot[data-state="running"] {
+  animation: bb-agent-pills-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes bb-agent-pills-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-agent-pills__dot[data-state="running"] {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+.bb-agent-pills__glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  opacity: 0.65;
+}
+
+.bb-agent-pills__glyph svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bb-agent-pills__pill[data-state="needs-input"] .bb-agent-pills__glyph {
+  opacity: 0.9;
+}
+
+.bb-agent-pills__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bb-agent-pills__more {
+  padding: 0 7px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.bb-agent-pills__count {
+  flex: 0 0 auto;
+  color: var(--subtle-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One status bucket inside a pill: dot + "2 working". */
+.bb-agent-pills__segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The popover a pill opens, above it, like Paseo's track menu. */
+.bb-agent-pills__panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: min(620px, calc(100vw - 32px));
+  max-height: 440px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover, var(--surface-raised-solid, var(--background)));
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.28);
+}
+
+.bb-agent-pills__panel-title {
+  padding: 4px 8px 6px;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.bb-agent-pills__panel .bb-agent-pills__list {
+  overflow-y: auto;
+}
+
+.bb-agent-pills__row-text {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bb-agent-pills__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.bb-agent-pills__row-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+button.bb-agent-pills__row-item {
+  cursor: pointer;
+}
+
+.bb-agent-pills__row-item:hover {
+  background: var(--surface-selected, var(--state-hover));
+  color: var(--foreground);
+}
+
+.bb-agent-pills__row-title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+}
+
+.bb-agent-pills__row-model {
+  flex: 0 0 auto;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--subtle-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+}
+
+.bb-agent-pills__row-time {
+  flex: 0 0 auto;
+  color: var(--subtle-foreground);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A pill reporting something you may want to act on: model fallback, a goal
+   that is paused, blocked or out of budget. */
+.bb-agent-pills__pill[data-tone="warn"] {
+  border-color: color-mix(in oklab, var(--attention) 45%, var(--border));
+  color: color-mix(in oklab, var(--attention) 80%, var(--foreground));
+}
+
+.bb-agent-pills__pill[data-tone="warn"]:hover,
+.bb-agent-pills__pill[data-tone="warn"][aria-expanded="true"] {
+  border-color: var(--attention);
+  color: var(--attention);
+}
+
+/* Plan prompt and goal objective: long text, wrapped, scrolled inside the
+   popover rather than growing it. */
+.bb-agent-pills__panel-text {
+  max-height: 220px;
+  padding: 4px 8px;
+  overflow-y: auto;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bb-agent-pills__panel-note {
+  margin: 0;
+  padding: 4px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bb-agent-pills__panel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  color: var(--subtle-foreground);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bb-agent-pills__panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--border);
+}
+
+/* Small BB-like button, same family as the row items. */
+.bb-agent-pills__action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--pill-surface-border, var(--border));
+  border-radius: 6px;
+  background: var(--pill-surface, var(--surface-raised));
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.bb-agent-pills__action:hover:not(:disabled) {
+  border-color: var(--bb-agent-pills-outline);
+  background: var(--bb-agent-pills-surface-hover);
+}
+
+.bb-agent-pills__action:focus-visible {
+  outline: 1px solid var(--ring, var(--accent));
+  outline-offset: 1px;
+}
+
+.bb-agent-pills__action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.bb-agent-pills__row-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+/* A queued row with buttons needs a little air between preview and actions. */
+.bb-agent-pills__row-item:has(.bb-agent-pills__row-actions) {
+  gap: 8px;
+}
+
+/* To-do status dots: done, being worked on, still waiting. */
+.bb-agent-pills__dot[data-todo="completed"] {
+  background: var(--subtle-foreground);
+}
+
+.bb-agent-pills__dot[data-todo="in_progress"] {
+  background: var(--attention);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--attention) 18%, transparent);
+  animation: bb-agent-pills-breathe 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-agent-pills__dot[data-todo="in_progress"] {
+    animation: none;
+    opacity: 0.9;
+  }
+}
+
+.bb-agent-pills__row-item[data-todo="completed"] .bb-agent-pills__row-title {
+  color: var(--subtle-foreground);
+  text-decoration: line-through;
+}
+
+/* ── Flatten BB's context box into one wrapping pill row ───────────────── */
+
+/* The parent-thread and changed-files segments stay BB's own (so their
+   bodies, file lists and actions keep working); only their chrome changes. */
+section[aria-label="Thread context before sending"] {
+  border: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+  min-height: 0 !important;
+}
+
+section[aria-label="Thread context before sending"] > div:first-child {
+  flex-wrap: wrap;
+  gap: 4px !important;
+  padding: 0 !important;
+}
+
+section[aria-label="Thread context before sending"]
+  > div:first-child
+  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills])) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  height: 28px;
+  max-width: 300px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--bb-agent-pills-outline);
+  border-radius: 999px;
+  background: var(--bb-agent-pills-surface);
+  color: var(--pill-foreground, var(--muted-foreground));
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+section[aria-label="Thread context before sending"]
+  > div:first-child
+  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills]))
+  :is(a, span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+section[aria-label="Thread context before sending"]
+  > div:first-child
+  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills]))
+  [data-icon] {
+  width: 13px;
+  height: 13px;
+}
+
+section[aria-label="Thread context before sending"]
+  > div:first-child
+  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills])):hover {
+  border-color: var(--bb-agent-pills-outline);
+  background: var(--bb-agent-pills-surface-hover);
+  color: var(--foreground);
+}
+
+/* ── BB's full-width cards ─────────────────────────────────────────────── */
+
+/* Every card the pills replace is hidden by its section label. The parent
+   thread card and the changed-files segment stay: they are the composer's own
+   context, not a status box. */
+section[aria-label="Child threads"],
+section[aria-label="Background agents"],
+section[aria-label="Background commands"],
+section[aria-label="Background activity"],
+section[aria-label="Workflow"],
+section[aria-label="Workflows"],
+section[aria-label="To-do list"],
+section[aria-label="Model fallback"],
+section[aria-label="Machine status"],
+section[aria-label="Prompt mode"],
+section[aria-label="Goal"] {
+  display: none !important;
+}
+
+/* The archived / workspace-gone banner is the one box in "Thread history", and
+   an archived thread has no composer at all, so its pill row cannot exist to
+   replace it. Hide the banner only while a pill row is on the page. */
+body:has(.bb-agent-pills) section[aria-label="Thread history"] {
+  display: none !important;
+}
+
+/* BB's plan and goal cards carry their own labels, but a relabel upstream
+   would silently bring the card back; the dismiss buttons are the fallback
+   anchor. */
+section:has(button[aria-label="Exit plan mode"]),
+section:has(button[aria-label="Clear active Goal"]),
+section:has(button[aria-label="Clear Goal"]) {
+  display: none !important;
+}
+
+/* Editing a queued message happens in BB's own inline editor, inside the
+   "Queued messages" section; keep that one instance alive. */
+html:not([data-bb-agent-pills-show-queue])
+  section[aria-label="Queued messages"]:not(:has(form[data-promptbox])) {
+  display: none !important;
+}
+
+/* A pending approval or question swaps the composer stack for a short one
+   (child threads, plan, goal) and drops our pill row, so those boxes come
+   back for as long as an interaction card sits in the composer. */
+div[data-app-composer]:has(
+  section[data-testid="approval-banner"],
+  section[data-testid="user-question-banner"],
+  section[data-testid="plan-review-banner"],
+  section[data-testid="plugin-interaction-shell"]
+)
+  :is(
+    section[aria-label="Child threads"],
+    section[aria-label="Prompt mode"],
+    section[aria-label="Goal"]
+  ) {
+  display: revert !important;
+}
+
+/* ── Settings section ──────────────────────────────────────────────────── */
+
+.bb-agent-pills-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bb-agent-pills-settings__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.bb-agent-pills-settings__row input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.bb-agent-pills-settings__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bb-agent-pills-settings__title {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bb-agent-pills-settings__hint {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* ── Composer restyle (gated by the settings toggle) ───────────────────── */
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
+  position: relative;
+  border-radius: 26px;
+  border-color: var(--bb-agent-pills-outline);
+  background: var(--bb-agent-pills-surface);
+  box-shadow: none;
+}
+
+/* One row: editor on the left, execution controls and send on the right. */
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-main] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-input-region] {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-action-row] {
+  grid-column: 2;
+  grid-row: 1;
+  position: static;
+  align-self: center;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 0 10px 0 0;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-editor-scroll] {
+  display: flex;
+  align-items: center;
+  min-height: 48px !important;
+  padding: 13px 8px 13px 46px;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-editor-content] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Multi-line (set by the content script once the draft wraps or holds an
+   attachment): text and attachments take the full width, the paperclip and
+   controls drop to a bottom row that stays put as the box grows. */
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline] {
+  border-radius: 22px;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline] [data-promptbox-main] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline] [data-promptbox-input-region] {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 6px 10px 0;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline] [data-promptbox-editor-scroll] {
+  display: block;
+  min-height: 0 !important;
+  padding: 8px 8px 4px;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline]
+  [data-promptbox-main]
+  > [data-promptbox-expanded-only] {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+/* Padding on the contents, not the row, so an empty row keeps zero height
+   and the content script can tell the attachments are gone. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox][data-bb-agent-pills-multiline]
+  [data-promptbox-main]
+  > [data-promptbox-expanded-only]
+  > * {
+  padding: 4px 6px 0;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline] [data-promptbox-action-row] {
+  grid-column: 1;
+  grid-row: 3;
+  justify-content: flex-end;
+  min-height: 46px;
+  padding: 0 10px 0 0;
+}
+
+/* The placeholder sits on the same line as the submit button. Cursor says
+   "Do anything…"; keep BB's wording on the queued-message editor. */
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer]
+  .ProseMirror
+  p.is-editor-empty:first-child::before,
+html[data-bb-agent-pills-composer="cursor"]
+  [data-composer-box]:not([data-composer-box="queued"])
+  .ProseMirror
+  p.is-editor-empty:first-child::before {
+  content: "Do anything…" !important;
+}
+
+/* Attach becomes a paperclip at the far left, but still opens BB's + menu. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Prompt actions"] {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Prompt actions"]:hover {
+  background: var(--state-hover, var(--surface-selected));
+  color: var(--foreground);
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Prompt actions"] [data-icon] {
+  display: none;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Prompt actions"]::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.4 11.05 12.25 20.2a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.67 3.67 0 0 1 5.19 5.19l-9.2 9.19a1.83 1.83 0 1 1-2.59-2.59l8.49-8.49'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.4 11.05 12.25 20.2a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.67 3.67 0 0 1 5.19 5.19l-9.2 9.19a1.83 1.83 0 1 1-2.59-2.59l8.49-8.49'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-pills-multiline]
+  button[aria-label="Prompt actions"] {
+  top: auto;
+  bottom: 8px;
+  transform: none;
+}
+
+/* Execution controls are plain text and icons, not chips. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Collapse prompt box"] {
+  display: none;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"] {
+  height: 28px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"]
+  > [data-icon="ChevronDown"] {
+  display: none;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"]
+  > span.contents
+  > span:nth-child(2) {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"]
+  [data-provider-logo] {
+  width: 14px;
+  height: 14px;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"]
+  [data-promptbox-hide-compact] {
+  margin-left: 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-standard-actions] {
+  gap: 2px;
+}
+
+/* The left group carries the translate animation, and a transformed ancestor
+   would anchor the paperclip to itself. `display: contents` drops that box
+   (and its transform) so the paperclip can anchor to the form. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-action-row]
+  > [data-promptbox-standard-actions]:first-child {
+  display: contents;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-group] {
+  align-items: center;
+  gap: 0;
+  /* Same gap whether it holds the send menu or the stop button. */
+  margin-left: 6px;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-send-menu] {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  gap: 0;
+  border-radius: 999px;
+  background: var(--foreground) !important;
+  background-color: var(--foreground) !important;
+  color: var(--background) !important;
+  opacity: 1 !important;
+  overflow: visible;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action] {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--foreground) !important;
+  color: var(--background) !important;
+  opacity: 1 !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action]:hover {
+  background: var(--foreground) !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action]
+  [data-icon] {
+  display: none;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action]::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 19V5'/%3E%3Cpath d='m5.5 11.5 6.5-6.5 6.5 6.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 19V5'/%3E%3Cpath d='m5.5 11.5 6.5-6.5 6.5 6.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* While a run is going the same circle is "Stop run": draw a square. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action][aria-label="Stop run"]::before {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  -webkit-mask: none;
+  mask: none;
+}
+
+/* No send-options arrow, like Zeron. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Send options"] {
+  display: none !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Start voice input"],
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Stop voice input"] {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  color: var(--subtle-foreground);
+}
+
+/* The footer is the thin line under the box: project/environment on the
+   left, context ring on the right. The permission control is moved into the
+   box by the content script. */
+html[data-bb-agent-pills-composer="cursor"] [data-follow-up-composer] {
+  position: relative;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer] {
+  justify-content: space-between;
+  padding: 6px 8px 0 10px;
+  font-size: 11px;
+  color: var(--subtle-foreground);
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-app-composer] {
+  position: relative;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-new-thread-footer]
+  button[aria-label="Permission mode"] {
+  position: absolute;
+  z-index: 3;
+  height: 28px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+  font-size: 12px;
+  font-weight: 450;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-new-thread-footer]
+  button[aria-label="Permission mode"]
+  > [data-icon="ChevronDown"] {
+  display: none;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label="Permission mode"] {
+  position: absolute;
+  z-index: 3;
+  height: 28px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+  font-size: 12px;
+  font-weight: 450;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label="Permission mode"]
+  > [data-icon="ChevronDown"] {
+  display: none;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label="Permission mode"]:hover {
+  background: transparent;
+  color: var(--foreground);
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label^="Context window"] {
+  flex-direction: row-reverse;
+  gap: 5px;
+  width: auto;
+  height: 22px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--subtle-foreground);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label^="Context window"]
+  > span {
+  display: inline !important;
+  font-size: 11.5px;
+  color: var(--subtle-foreground);
+}
+
+/* Keep the ring from being squeezed by the label. */
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label^="Context window"]
+  > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+/* BB's track uses --border-hairline, which all but vanishes on dark themes,
+   so a low percentage reads as a dot. Draw the track like Zeron's. */
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label^="Context window"]
+  > svg
+  > circle:first-of-type {
+  stroke: var(--border);
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  [data-option-display] {
+  opacity: 0.8;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-action-row] {
+  padding-left: calc(var(--bb-agent-pills-perm-width, 0px) + 4px);
+}
+
+/* No dictation button. Hidden only while idle, so a recording started with
+   the keyboard shortcut still shows its stop control. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  span:has(> button[aria-label="Start voice input"]),
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label="Voice preferences"] {
+  display: none !important;
+}
+
+/* Zeron-style highlight: a soft rounded block behind the control on hover
+   and while its menu is open. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"],
+html[data-bb-agent-pills-composer="cursor"]
+  :is([data-follow-up-composer-footer], [data-new-thread-footer])
+  button[aria-label="Permission mode"] {
+  padding: 0 7px !important;
+  border-radius: 8px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  button[aria-label^="Provider, model and reasoning"]:is(:hover, [data-state="open"], [aria-expanded="true"]),
+html[data-bb-agent-pills-composer="cursor"]
+  :is([data-follow-up-composer-footer], [data-new-thread-footer])
+  button[aria-label="Permission mode"]:is(:hover, [data-state="open"], [aria-expanded="true"]) {
+  background: var(--state-hover, var(--surface-selected)) !important;
+  color: var(--foreground) !important;
+}
+
+/* Touch screens: BB grows these to 40-44px with max-md:pointer-coarse
+   utilities and pulls the context meter outwards with a negative margin.
+   Keep them on the composer's 28px line and inside the column. */
+html[data-bb-agent-pills-composer="cursor"]
+  :is([data-follow-up-composer-footer], [data-new-thread-footer])
+  button[aria-label="Permission mode"],
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  :is(button[aria-label^="Provider, model and reasoning"], button[aria-label="Prompt actions"], [data-promptbox-submit-action]) {
+  height: 28px !important;
+  min-height: 28px !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label^="Context window"] {
+  margin: 0 !important;
+  height: 22px !important;
+  padding: 0 2px !important;
+}
+
+/* Compact mode (phones, box not focused): BB renders only the placeholder and
+   the send/stop circle, no paperclip, so drop the paperclip's 46px gap. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox][data-promptbox-compact]
+  [data-promptbox-editor-scroll] {
+  padding: 0 8px 0 20px !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox][data-promptbox-compact]
+  [data-promptbox-action-row] {
+  padding: 0 10px 0 0 !important;
+}
+
+/* The strip under the composer is an opaque bg-background block; drop it so
+   the transcript scrolls visibly behind the floating box. */
+html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] > div {
+  background: transparent !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox],
+.bb-agent-pills__pill,
+section[aria-label="Thread context before sending"] > div:first-child > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills])) {
+  -webkit-backdrop-filter: var(--bb-agent-pills-blur);
+  backdrop-filter: var(--bb-agent-pills-blur);
+  box-shadow: none !important;
+}
+
+/* Themes may pin the composer to a solid colour (e.g. html.dark
+   form[data-promptbox].bg-background); the translucent surface must win. */
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
+  background-color: var(--bb-agent-pills-surface) !important;
+}
+
+/* Dark: the popover glass tint, the popover colour at 45%. */
+.dark {
+  --bb-agent-pills-surface: color-mix(in oklab, var(--popover) 45%, transparent);
+}
+
+/* A mask-image on the transcript scroller (the theme's dark top fade) stops
+   Chromium's backdrop-filter from reaching the content behind the composer,
+   so the frosting barely blurs. Drop the mask and redraw the same 40px fade
+   as an overlay on the scroller's parent. */
+html[data-bb-agent-pills-composer="cursor"] [data-page-scroll-viewport] {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"].dark :has(> [data-page-scroll-viewport])::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40px;
+  background: linear-gradient(var(--background), transparent);
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* BB's 24px overflow fade above the footer was made to meet a solid footer;
+   over the transparent one it reads as a dark line. Stretch it over the
+   whole footer instead, so the transcript fades out towards the bottom of
+   the window behind the frosted box. */
+html[data-bb-agent-pills-composer="cursor"]
+  [data-scroll-footer]
+  [data-overflow-fade="above"] {
+  top: -48px !important;
+  bottom: 0 !important;
+  height: auto !important;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--background) 55%, transparent) 45%,
+    var(--background) 100%
+  ) !important;
+}
+
+/* Narrow screens: a long model name squeezed the editor until the
+   placeholder wrapped and the box grew a scrollbar. Keep the placeholder on
+   one line and let the model label truncate instead. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [role="textbox"]
+  > p.is-editor-empty:only-child {
+  position: relative;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [role="textbox"]
+  > p.is-editor-empty:only-child::before {
+  /* The editor draws it as a zero-height float; take it out of flow so it
+     can be clipped to one line without moving the caret. */
+  position: absolute;
+  inset: 0 0 auto 0;
+  float: none;
+  height: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 767px) {
+  html[data-bb-agent-pills-composer="cursor"]
+    form[data-promptbox]
+    button[aria-label^="Provider, model and reasoning"] {
+    max-width: 38vw;
+  }
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  [data-follow-up-composer-footer]
+  button[aria-label="New thread in this environment"] {
+  display: none !important;
+}

@@ -1,0 +1,51 @@
+{
+  "name": "bb-plugin-agent-pills",
+  "version": "0.1.0",
+  "description": "Compact Cursor-style pills for child threads and background tasks above the composer.",
+  "author": {
+    "name": "WYEZ",
+    "url": "https://github.com/wy3z"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wy3z/bb-plugin-agent-pills.git"
+  },
+  "homepage": "https://github.com/wy3z/bb-plugin-agent-pills#readme",
+  "type": "module",
+  "files": [
+    "README.md",
+    "app.css",
+    "app.tsx",
+    "dist",
+    "src",
+    "server.ts"
+  ],
+  "scripts": {
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.48.1",
+    "bbPluginSdk": ">=0.6.104"
+  },
+  "bb": {
+    "name": "Agent Pills",
+    "description": "Cursor-style pills for child threads and background tasks, plus a Cursor-looking composer.",
+    "branding": {
+      "icon": "MessageCircle"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.104",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
