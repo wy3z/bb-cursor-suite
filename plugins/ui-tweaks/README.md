@@ -29,6 +29,10 @@ Small, configurable interface improvements for BB.
   apps. The categories are Default app, File managers, Editors & IDEs,
   Terminals, and Other applications. The first four are on by default.
 
+- **Alt+1** to **Alt+9** switch to the first nine tabs of the focused
+  surface's right panel, in the order BB's tab strip shows them. Rebind them
+  under BB's keyboard shortcuts as **Right panel: switch to tab N**.
+
 - **Reset to defaults** restores every setting above.
 
 Configure everything under **Settings → Plugins → UI Tweaks**.

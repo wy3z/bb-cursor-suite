@@ -1306,6 +1306,20 @@ function InterfaceSettings() {
 export default definePluginApp((app) => {
   registerIconPacks(app.experimental_icons.register);
 
+  // Alt+1..9 selects the nth tab in the focused surface's right panel,
+  // in the order bb's tab strip shows them.
+  for (let n = 1; n <= 9; n += 1) {
+    app.commands.register({
+      id: `panel-tab-${n}`,
+      title: `Right panel: switch to tab ${n}`,
+      defaultShortcut: { key: String(n), alt: true },
+      run: ({ experimental_panel }) => {
+        const tab = experimental_panel.getTabs().tabs[n - 1];
+        if (tab) experimental_panel.selectTab(tab.key);
+      },
+    });
+  }
+
   app.slots.settingsSection({
     id: "preferences",
     component: InterfaceSettings,
