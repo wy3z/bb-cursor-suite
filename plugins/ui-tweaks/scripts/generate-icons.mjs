@@ -1,22 +1,27 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { ICON_MAP } from "./icon-map.mjs";
+import { ICON_MAP, PACK_ICON_ALIASES } from "./icon-map.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const outputPath = join(root, "lib", "icon-data.ts");
 
 const packSources = {
-  solar: {
-    packageName: "@iconify-json/solar",
-    title: "Solar Icons (Linear) by 480 Design, CC BY 4.0",
-    url: "https://github.com/480-Design/Solar-Icon-Set",
-  },
   lucide: {
     packageName: "@iconify-json/lucide",
     title: "Lucide, ISC",
     url: "https://lucide.dev",
+  },
+  iconoir: {
+    packageName: "@iconify-json/iconoir",
+    title: "Iconoir, MIT",
+    url: "https://github.com/iconoir-icons/iconoir",
+  },
+  tabler: {
+    packageName: "@iconify-json/tabler",
+    title: "Tabler Icons (Outline), MIT",
+    url: "https://github.com/tabler/tabler-icons",
   },
 };
 
@@ -29,25 +34,79 @@ const FORBIDDEN_BODY_PATTERNS = [
   /(?:href|src|xlink:href)\s*=/iu,
 ];
 
-const loaded = {};
+const packs = {};
 for (const [pack, source] of Object.entries(packSources)) {
-  const json = JSON.parse(
+  packs[pack] = JSON.parse(
     await readFile(
       join(root, "node_modules", source.packageName, "icons.json"),
       "utf8",
     ),
   );
-  loaded[pack] = json.icons ?? {};
+}
+
+function hasIcon(pack, name) {
+  return (
+    packs[pack].icons[name] !== undefined ||
+    packs[pack].aliases?.[name] !== undefined
+  );
+}
+
+function resolveIcon(pack, name) {
+  const data = packs[pack];
+  const direct = data.icons[name];
+  if (direct !== undefined) return direct;
+
+  const alias = data.aliases?.[name];
+  if (alias === undefined) return undefined;
+  if (alias.hFlip === true || alias.vFlip === true || alias.rotate) {
+    throw new Error(`Transformed alias is not supported: ${pack}:${name}`);
+  }
+  return data.icons[alias.parent];
+}
+
+function round(value) {
+  return Number(value.toFixed(6));
+}
+
+function normalizeBody(icon, pack) {
+  const body = icon.body;
+  const width = icon.width ?? packs[pack].width ?? 24;
+  const height = icon.height ?? packs[pack].height ?? 24;
+  const left = icon.left ?? 0;
+  const top = icon.top ?? 0;
+
+  if (width === 24 && height === 24 && left === 0 && top === 0) return body;
+
+  const scaleX = 24 / width;
+  const scaleY = 24 / height;
+  const translateX = round(-left * scaleX);
+  const translateY = round(-top * scaleY);
+  return `<g transform="translate(${translateX} ${translateY}) scale(${round(scaleX)} ${round(scaleY)})">${body}</g>`;
 }
 
 const missing = [];
-const bodies = { solar: {}, lucide: {} };
+const skipped = {};
+const bodies = {};
+for (const pack of Object.keys(packSources)) {
+  bodies[pack] = {};
+  skipped[pack] = [];
+}
 
 for (const [bbName, mapping] of Object.entries(ICON_MAP)) {
   for (const pack of Object.keys(packSources)) {
-    const iconName = mapping[pack];
-    if (iconName === undefined) continue;
-    const icon = loaded[pack][iconName];
+    let iconName = mapping[pack];
+
+    if (iconName === undefined) {
+      iconName =
+        PACK_ICON_ALIASES[pack]?.[mapping.lucide] ??
+        (hasIcon(pack, mapping.lucide) ? mapping.lucide : undefined);
+      if (iconName === undefined) {
+        skipped[pack].push(`${bbName} (${mapping.lucide})`);
+        continue;
+      }
+    }
+
+    const icon = resolveIcon(pack, iconName);
     if (icon === undefined || typeof icon.body !== "string") {
       missing.push(`${pack}: ${bbName} -> ${iconName}`);
       continue;
@@ -55,7 +114,7 @@ for (const [bbName, mapping] of Object.entries(ICON_MAP)) {
     if (FORBIDDEN_BODY_PATTERNS.some((pattern) => pattern.test(icon.body))) {
       throw new Error(`Unsafe SVG body for ${pack}:${iconName}`);
     }
-    bodies[pack][bbName] = icon.body;
+    bodies[pack][bbName] = normalizeBody(icon, pack);
   }
 }
 
@@ -63,9 +122,9 @@ if (missing.length > 0) {
   throw new Error(`Unknown pack icons:\n${missing.join("\n")}`);
 }
 
-const entries = Object.keys(bodies.solar)
-  .concat(Object.keys(bodies.lucide).filter((name) => !(name in bodies.solar)))
-  .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+const entries = Object.keys(ICON_MAP).sort((a, b) =>
+  a < b ? -1 : a > b ? 1 : 0,
+);
 
 const renderPack = (pack) => {
   const source = packSources[pack];
@@ -88,25 +147,24 @@ const header = [
   "// Do not edit by hand. Run `npm run generate:icons` instead.",
   "//",
   "// Artwork licenses:",
-  "// - Solar Icons (Linear) by 480 Design, CC BY 4.0",
-  "//   https://github.com/480-Design/Solar-Icon-Set",
-  "// - Lucide, ISC — https://lucide.dev",
+  ...Object.values(packSources).map(
+    (source) => `// - ${source.title} — ${source.url}`,
+  ),
   "",
 ].join("\n");
 
 const content = `${header}export const ICON_BODIES = {
-${renderPack("solar")}
-${renderPack("lucide")}
+${Object.keys(packSources).map(renderPack).join("\n")}
 } as const;
-
-export type IconPackId = keyof typeof ICON_BODIES;
 `;
 
 await writeFile(outputPath, content, "utf8");
 
-const mappedNames = Object.keys(ICON_MAP).length;
-console.log(
-  `Wrote ${outputPath}: ${mappedNames} BB names, ` +
-    `solar ${Object.keys(bodies.solar).length}, ` +
-    `lucide ${Object.keys(bodies.lucide).length}.`,
-);
+console.log(`Wrote ${outputPath}: ${entries.length} BB names.`);
+for (const pack of Object.keys(packSources)) {
+  console.log(
+    `  ${pack}: ${Object.keys(bodies[pack]).length}, ` +
+      `skipped ${skipped[pack].length}` +
+      (skipped[pack].length > 0 ? ` (${skipped[pack].join("; ")})` : ""),
+  );
+}

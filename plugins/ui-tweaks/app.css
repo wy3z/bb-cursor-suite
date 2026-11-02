@@ -66,8 +66,53 @@ html[data-bb-ui-prompt-height="one-line"] [data-promptbox-editor-scroll] {
   }
 }
 
-html[data-bb-ui-hide-sidebar-toggle="true"] button[aria-label^="Toggle sidebar"],
-html[data-bb-ui-hide-panel-toggle="true"] button[aria-label^="Show right panel"],
-html[data-bb-ui-hide-panel-toggle="true"] button[aria-label^="Hide right panel"] {
-  display: none !important;
+/*
+ * Optional clearer hierarchy. Keep every role's own size and weight except:
+ * the open thread's title, the ordinary chat Markdown root, and bold prose.
+ * Headings and code keep their utilities; code inside bold prose keeps its
+ * previous bold weight.
+ */
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-testid="app-page-header-content-row"]
+  .bb-thread-title {
+  font-weight: 500;
+}
+
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-thread-window]
+  [data-message-column]
+  [data-sidebar-swipe-selectable]
+  [data-markdown-preview].text-sm {
+  font-size: calc(var(--text-sm) + 1px);
+  font-weight: 400;
+}
+
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-thread-window]
+  [data-message-column]
+  [data-sidebar-swipe-selectable]
+  [data-markdown-preview].text-sm
+  :is(strong, b):not(h1 *, h2 *, h3 *, h4 *, h5 *, h6 *, code *, pre *, kbd *, samp *) {
+  font-weight: 600;
+}
+
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-thread-window]
+  [data-message-column]
+  [data-sidebar-swipe-selectable]
+  [data-markdown-preview].text-sm
+  :is(strong, b)
+  :is(code, pre, kbd, samp):not(
+    h1 *,
+    h2 *,
+    h3 *,
+    h4 *,
+    h5 *,
+    h6 *,
+    pre *,
+    code *,
+    kbd *,
+    samp *
+  ) {
+  font-weight: var(--font-weight-bold, 700);
 }

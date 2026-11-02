@@ -24,59 +24,46 @@ class FakeRoot implements AttributeRoot {
   }
 }
 
-const HIDE_PANEL = "data-bb-ui-hide-panel-toggle";
-const HIDE_SIDEBAR = "data-bb-ui-hide-sidebar-toggle";
+const HIERARCHY = "data-bb-ui-clearer-hierarchy";
 const PROMPT_POSITION = "data-bb-ui-prompt-position";
 const PROMPT_HEIGHT = "data-bb-ui-prompt-height";
 
-test("hide-on writes the marker and cleanup restores visibility", () => {
+test("private marker on writes and cleanup removes it", () => {
   const root = new FakeRoot();
-  root.setAttribute(HIDE_PANEL, "true");
+  root.setAttribute(HIERARCHY, "true");
   const overrides = createRootOverrides();
 
-  setOwnedAttribute(overrides, root, HIDE_PANEL, "true", false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), "true");
+  setOwnedAttribute(overrides, root, HIERARCHY, "true", false, "private");
+  assert.equal(root.getAttribute(HIERARCHY), "true");
 
   releaseRootOverrides(overrides, root);
-  assert.equal(root.getAttribute(HIDE_PANEL), null);
+  assert.equal(root.getAttribute(HIERARCHY), null);
 });
 
-test("hide-off clears a stale marker without an ownership record", () => {
+test("private marker off clears a stale value without ownership", () => {
   const root = new FakeRoot();
-  root.setAttribute(HIDE_PANEL, "true");
+  root.setAttribute(HIERARCHY, "true");
   const overrides = createRootOverrides();
 
-  setOwnedAttribute(overrides, root, HIDE_PANEL, null, false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), null);
+  setOwnedAttribute(overrides, root, HIERARCHY, null, false, "private");
+  assert.equal(root.getAttribute(HIERARCHY), null);
 });
 
-test("false preferences clear stale hide markers for both toggles", () => {
-  const root = new FakeRoot();
-  root.setAttribute(HIDE_PANEL, "true");
-  root.setAttribute(HIDE_SIDEBAR, "true");
-  const overrides = createRootOverrides();
-
-  setOwnedAttribute(overrides, root, HIDE_PANEL, null, false, "private");
-  setOwnedAttribute(overrides, root, HIDE_SIDEBAR, null, false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), null);
-  assert.equal(root.getAttribute(HIDE_SIDEBAR), null);
-});
-
-test("hide then unhide works across a reload", () => {
+test("private marker on/off works across a reload", () => {
   const root = new FakeRoot();
   const first = createRootOverrides();
-  setOwnedAttribute(first, root, HIDE_PANEL, "true", false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), "true");
+  setOwnedAttribute(first, root, HIERARCHY, "true", false, "private");
+  assert.equal(root.getAttribute(HIERARCHY), "true");
   releaseRootOverrides(first, root);
-  assert.equal(root.getAttribute(HIDE_PANEL), null);
+  assert.equal(root.getAttribute(HIERARCHY), null);
 
   const second = createRootOverrides();
-  setOwnedAttribute(second, root, HIDE_PANEL, null, false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), null);
-  setOwnedAttribute(second, root, HIDE_PANEL, "true", false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), "true");
-  setOwnedAttribute(second, root, HIDE_PANEL, null, false, "private");
-  assert.equal(root.getAttribute(HIDE_PANEL), null);
+  setOwnedAttribute(second, root, HIERARCHY, null, false, "private");
+  assert.equal(root.getAttribute(HIERARCHY), null);
+  setOwnedAttribute(second, root, HIERARCHY, "true", false, "private");
+  assert.equal(root.getAttribute(HIERARCHY), "true");
+  setOwnedAttribute(second, root, HIERARCHY, null, false, "private");
+  assert.equal(root.getAttribute(HIERARCHY), null);
 });
 
 test("ordinary attributes keep the previous owner's value", () => {

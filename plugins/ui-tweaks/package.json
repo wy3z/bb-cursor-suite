@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-ui-tweaks",
-  "version": "0.26.2",
+  "version": "0.29.2",
   "description": "Small, configurable interface improvements for BB.",
   "author": {
     "name": "WYEZ",
@@ -48,8 +48,9 @@
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "0.6.104",
+    "@iconify-json/iconoir": "1.2.12",
     "@iconify-json/lucide": "^1.2.150",
-    "@iconify-json/solar": "^1.2.13",
+    "@iconify-json/tabler": "1.2.43",
     "@pierre/diffs": "^1.2.9",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-context-menu": "^2.3.3",

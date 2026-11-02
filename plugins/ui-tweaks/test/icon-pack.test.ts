@@ -36,30 +36,28 @@ function assertWellFormedSvg(name: string, body: string) {
 }
 
 test("generated pack artwork is safe, coloured, and well formed", () => {
-  const solar = Object.entries(ICON_BODIES.solar);
-  const lucide = Object.entries(ICON_BODIES.lucide);
-
-  assert.ok(solar.length >= 150, "solar covers the shared interface icons");
-  assert.ok(lucide.length >= 170, "lucide covers the shared interface icons");
-
-  for (const [name, body] of [...solar, ...lucide]) {
-    assertWellFormedSvg(`solar:${name}`, body);
+  for (const [pack, bodies] of Object.entries(ICON_BODIES)) {
+    assert.ok(
+      Object.keys(bodies).length >= 160,
+      `${pack} covers the shared interface icons`,
+    );
+    for (const [name, body] of Object.entries(bodies)) {
+      assertWellFormedSvg(`${pack}:${name}`, body);
+    }
   }
 });
 
-test("both packs map the same BB icon names", () => {
-  for (const name of Object.keys(ICON_BODIES.solar)) {
-    assert.ok(
-      Object.hasOwn(ICON_BODIES.lucide, name),
-      `${name} has a lucide fallback`,
-    );
+test("every pack supplies both spinner names", () => {
+  for (const [pack, bodies] of Object.entries(ICON_BODIES)) {
+    assert.ok(Object.hasOwn(bodies, "Loading"), `${pack} has Loading`);
+    assert.ok(Object.hasOwn(bodies, "Spinner"), `${pack} has Spinner`);
   }
 });
 
 test("parses stored icon packs and falls back to BB Default", () => {
   assert.deepEqual(
     ICON_PACK_OPTIONS.map((option) => option.id),
-    ["default", "solar", "lucide"],
+    ["default", "lucide", "iconoir", "tabler"],
   );
 
   for (const option of ICON_PACK_OPTIONS) {
@@ -67,7 +65,7 @@ test("parses stored icon packs and falls back to BB Default", () => {
     assert.equal(isIconPack(option.id), true);
   }
 
-  for (const value of [undefined, null, "", "solar-linear", 0, {}, []]) {
+  for (const value of [undefined, null, "", "solar", "phosphor", "solar-linear", 0, {}, []]) {
     assert.equal(parseIconPack(value), "default");
     assert.equal(isIconPack(value), false);
   }

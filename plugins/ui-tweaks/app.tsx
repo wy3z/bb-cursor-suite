@@ -5,12 +5,17 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import {
   IconPackPreview,
+  SpinnerStylePreview,
   registerIconPacks,
 } from "./lib/icon-pack.js";
 import {
   ICON_PACK_OPTIONS,
+  SPINNER_STYLE_OPTIONS,
+  normalizeRetiredIconAppearance,
   parseIconPack,
+  parseSpinnerStyle,
   type IconPack,
+  type SpinnerStyle,
 } from "./lib/icon-pack-preference.js";
 import {
   PREFERENCES_CHANGE_EVENT as CHANGE_EVENT,
@@ -27,18 +32,6 @@ import {
   type WorkspaceAppCategory,
 } from "./lib/workspace-apps.js";
 import {
-  CODE_FONT_SIZE_SECTION,
-  FONT_SIZE_SECTIONS,
-  SECTION_FONT_SIZE_MAX,
-  SECTION_FONT_SIZE_MIN,
-  mountFontSizeModifier,
-  readFontSizeOffset,
-  readSectionFontSize,
-  readSectionFontSizes,
-  type FontSizeSectionId,
-  type SectionFontSizes,
-} from "./lib/font-size.js";
-import {
   createRootOverrides,
   releaseRootOverrides,
   setOwnedAttribute,
@@ -48,8 +41,6 @@ import "./app.css";
 
 const WORKSPACE_APPS_STORAGE_KEY = "bb-plugin-ui-tweaks.workspace-apps.v3";
 const LEGACY_PROMPT_POSITION_KEY = "bb-plugin-prompt-box-position";
-const PANEL_TOGGLE_MIGRATION_KEY =
-  "bb-plugin-ui-tweaks.show-panel-toggle-migration.v1";
 const WORKSPACE_APPS_CHANGE_EVENT = "bb:ui-tweaks-workspace-apps-change";
 const WORKSPACE_APPS_REFRESH_EVENT = "bb:ui-tweaks-workspace-apps-refresh";
 const WORKSPACE_APPS_STATUS_EVENT = "bb:ui-tweaks-workspace-apps-status";
@@ -79,15 +70,13 @@ const WORKSPACE_APP_CATEGORY_OPTIONS = [
 ] as const satisfies ReadonlyArray<readonly [WorkspaceAppCategory, string]>;
 
 interface Preferences {
-  fontSizeOffset: number;
-  sectionFontSizes: SectionFontSizes;
   promptPosition: PromptPosition;
   promptHeight: PromptHeight;
   iconPack: IconPack;
+  spinnerStyle: SpinnerStyle;
+  clearerHierarchy: boolean;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
-  hideSidebarToggle: boolean;
-  hidePanelToggle: boolean;
 }
 
 type WorkspaceAppDiscoveryStatus =
@@ -97,14 +86,13 @@ type WorkspaceAppDiscoveryStatus =
   | "unavailable"
   | "error";
 let workspaceAppDiscoveryStatus: WorkspaceAppDiscoveryStatus = "loading";
-let panelToggleMigrationDone = false;
 
 const DEFAULT_PREFERENCES: Preferences = {
-  fontSizeOffset: 0,
-  sectionFontSizes: {},
   promptPosition: "bottom",
   promptHeight: "default",
   iconPack: "default",
+  spinnerStyle: "follow",
+  clearerHierarchy: true,
   workspaceAppCategories: [
     "default-app",
     "file-manager",
@@ -112,8 +100,6 @@ const DEFAULT_PREFERENCES: Preferences = {
     "terminal",
   ],
   hiddenWorkspaceApps: [],
-  hideSidebarToggle: false,
-  hidePanelToggle: false,
 };
 
 interface OwnedTextValue {
@@ -163,58 +149,60 @@ function readWorkspaceAppCategories(value: unknown): WorkspaceAppCategory[] {
   ];
 }
 
-/**
- * Restore the right-pane button once per client. Older builds could leave a
- * stale hide marker with no persisted preference behind it. All other stored
- * fields are copied through unchanged, and the marker is written even when the
- * flag was already false or preferences were absent, so a later deliberate
- * re-enable is not undone on the next load.
- */
-function migratePanelToggleVisibility() {
-  if (panelToggleMigrationDone) return;
-  panelToggleMigrationDone = true;
+const RETIRED_PREFERENCE_KEYS = [
+  "fontSizeOffset",
+  "sectionFontSizes",
+  "hideSidebarToggle",
+  "hidePanelToggle",
+] as const;
 
+/**
+ * Remove retired preference keys while copying every other stored field
+ * through unchanged. Deleting absent keys is a no-op, so this stays idempotent
+ * without a migration marker.
+ */
+function deleteRetiredPreferences() {
   try {
-    if (window.localStorage.getItem(PANEL_TOGGLE_MIGRATION_KEY) === "1") return;
+    window.localStorage.removeItem(
+      "bb-plugin-ui-tweaks.show-panel-toggle-migration.v1",
+    );
 
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      try {
-        const value: unknown = JSON.parse(stored);
-        if (
-          typeof value === "object" &&
-          value !== null &&
-          !Array.isArray(value)
-        ) {
-          window.localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              ...(value as Record<string, unknown>),
-              hidePanelToggle: false,
-            }),
-          );
-        }
-      } catch {
-        // A malformed blob falls back to defaults when it is read below.
+    if (stored === null) return;
+    const value: unknown = JSON.parse(stored);
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value)
+    ) {
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    const next = { ...record };
+    let changed = false;
+    for (const key of RETIRED_PREFERENCE_KEYS) {
+      if (Object.hasOwn(next, key)) {
+        delete next[key];
+        changed = true;
       }
     }
-
-    window.localStorage.setItem(PANEL_TOGGLE_MIGRATION_KEY, "1");
+    if (normalizeRetiredIconAppearance(next)) changed = true;
+    if (changed) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    }
   } catch {
-    // Storage blocked: the session still starts with the panel button visible.
+    // Storage unreadable or malformed; leave it for the normal defaults path.
   }
 }
 
 function readPersistedPreferences(): Preferences {
-  migratePanelToggleVisibility();
+  deleteRetiredPreferences();
 
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const value = JSON.parse(stored) as Partial<Preferences>;
       return {
-        fontSizeOffset: readFontSizeOffset(value.fontSizeOffset),
-        sectionFontSizes: readSectionFontSizes(value.sectionFontSizes),
         promptPosition: isPromptPosition(value.promptPosition)
           ? value.promptPosition
           : DEFAULT_PREFERENCES.promptPosition,
@@ -222,12 +210,12 @@ function readPersistedPreferences(): Preferences {
           ? value.promptHeight
           : DEFAULT_PREFERENCES.promptHeight,
         iconPack: parseIconPack(value.iconPack),
+        spinnerStyle: parseSpinnerStyle(value.spinnerStyle),
+        clearerHierarchy: value.clearerHierarchy !== false,
         workspaceAppCategories: readWorkspaceAppCategories(
           value.workspaceAppCategories,
         ),
         hiddenWorkspaceApps: readStringArray(value.hiddenWorkspaceApps),
-        hideSidebarToggle: value.hideSidebarToggle === true,
-        hidePanelToggle: value.hidePanelToggle === true,
       };
     }
 
@@ -278,20 +266,13 @@ function applyRootPreferences(
     "data-bb-ui-prompt-height",
     preferences.promptHeight === "default" ? null : preferences.promptHeight,
     reclaimExternal,
-  );
-  setOwnedAttribute(
-    overrides,
-    root,
-    "data-bb-ui-hide-sidebar-toggle",
-    preferences.hideSidebarToggle ? "true" : null,
-    reclaimExternal,
     "private",
   );
   setOwnedAttribute(
     overrides,
     root,
-    "data-bb-ui-hide-panel-toggle",
-    preferences.hidePanelToggle ? "true" : null,
+    "data-bb-ui-clearer-hierarchy",
+    preferences.clearerHierarchy ? "true" : null,
     reclaimExternal,
     "private",
   );
@@ -890,58 +871,6 @@ function ToggleSwitch({
   );
 }
 
-function SectionFontSizeSettings({
-  sizes,
-  onChange,
-}: {
-  sizes: SectionFontSizes;
-  onChange: (sizes: SectionFontSizes) => void;
-}) {
-  const sections = [...FONT_SIZE_SECTIONS, CODE_FONT_SIZE_SECTION];
-  const setSize = (id: FontSizeSectionId, size: number) =>
-    onChange(readSectionFontSizes({ ...getPreferences().sectionFontSizes, [id]: size }));
-  const anyChanged = Object.values(sizes).some((size) => size !== 0);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">Text size by section</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Resize text in one part of BB, 1 pt per press. Adds to the global size.
-          </p>
-        </div>
-        <button type="button" className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"
-          disabled={!anyChanged} onClick={() => onChange({})}>Reset all</button>
-      </div>
-      <ul className="divide-y divide-border rounded-md border border-border">
-        {sections.map((section) => {
-          const size = readSectionFontSize(sizes[section.id]);
-          return (
-            <li key={section.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
-              <div className="min-w-0">
-                <div className="text-sm text-foreground">{section.label}</div>
-                <div className="text-xs text-muted-foreground">{section.description}</div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2" role="group" aria-label={`${section.label} text size`}>
-                <button type="button" className="size-8 rounded-md border border-border hover:bg-muted disabled:opacity-50"
-                  aria-label={`Decrease ${section.label} text size by 1 pt`} disabled={size <= SECTION_FONT_SIZE_MIN}
-                  onClick={() => setSize(section.id, size - 1)}>−</button>
-                <output className="min-w-12 text-center text-sm" aria-live="polite">
-                  {size > 0 ? "+" : ""}{size} pt
-                </output>
-                <button type="button" className="size-8 rounded-md border border-border hover:bg-muted disabled:opacity-50"
-                  aria-label={`Increase ${section.label} text size by 1 pt`} disabled={size >= SECTION_FONT_SIZE_MAX}
-                  onClick={() => setSize(section.id, size + 1)}>+</button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 function IconPackSettings({
   value,
   onChange,
@@ -1002,19 +931,84 @@ function IconPackSettings({
         })}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Solar Icons (Linear) by 480 Design,{" "}
-        <UrlLink
-          className="underline"
-          href="https://github.com/480-Design/Solar-Icon-Set"
-        >
-          CC BY 4.0
-        </UrlLink>
-        . Lucide,{" "}
+        Lucide,{" "}
         <UrlLink className="underline" href="https://lucide.dev">
           ISC
         </UrlLink>
-        .
+        .{" "}
+        <UrlLink
+          className="underline"
+          href="https://github.com/iconoir-icons/iconoir"
+        >
+          Iconoir
+        </UrlLink>{" "}
+        and{" "}
+        <UrlLink
+          className="underline"
+          href="https://github.com/tabler/tabler-icons"
+        >
+          Tabler Icons
+        </UrlLink>
+        , MIT.
       </p>
+    </fieldset>
+  );
+}
+
+function SpinnerStyleSettings({
+  value,
+  onChange,
+}: {
+  value: SpinnerStyle;
+  onChange: (style: SpinnerStyle) => void;
+}) {
+  return (
+    <fieldset>
+      <legend className="text-sm font-medium text-foreground">Spinner</legend>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Choose the spinner for BB's shared loading indicators. Other icons keep
+        the main icon pack.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {SPINNER_STYLE_OPTIONS.map((option) => {
+          const selected = value === option.id;
+          return (
+            <label
+              key={option.id}
+              className={`flex cursor-pointer flex-col gap-2 rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring ${
+                selected
+                  ? "border-foreground ring-1 ring-foreground"
+                  : "border-border hover:bg-muted/50"
+              }`}
+            >
+              <input
+                checked={selected}
+                className="sr-only"
+                name="ui-tweaks-spinner-style"
+                type="radio"
+                value={option.id}
+                onChange={() => onChange(option.id)}
+              />
+              <span
+                aria-hidden="true"
+                className="flex h-6 items-center text-foreground"
+              >
+                <SpinnerStylePreview
+                  className="size-5 animate-spin motion-reduce:animate-none"
+                  name="Loading"
+                  spinnerStyle={option.id}
+                />
+              </span>
+              <span className="text-sm font-medium text-foreground">
+                {option.label}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {option.description}
+              </span>
+            </label>
+          );
+        })}
+      </div>
     </fieldset>
   );
 }
@@ -1070,33 +1064,24 @@ function InterfaceSettings() {
   }, []);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-bb-ui-tweaks-settings="">
       <div className="space-y-5 rounded-lg border border-border bg-card p-3">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium text-foreground">Global font size</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground" id="ui-tweaks-font-description">
-            Add or remove 1 pt on all text per press. Spacing stays put.
+          <h3 className="text-sm font-medium text-foreground">
+            Clearer hierarchy
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Bolder thread titles, slightly larger chat prose, and semibold bold
+            text. Other sizes and weights stay put.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2" role="group" aria-label="Global font size" aria-describedby="ui-tweaks-font-description">
-          <button type="button" className="size-9 rounded-md border border-border hover:bg-muted disabled:opacity-50"
-            aria-label="Decrease font size by 1 pt" disabled={preferences.fontSizeOffset <= -6}
-            onClick={() => update({ fontSizeOffset: readFontSizeOffset(getPreferences().fontSizeOffset - 1) })}>−</button>
-          <output className="min-w-12 text-center text-sm" aria-live="polite">
-            {preferences.fontSizeOffset > 0 ? "+" : ""}{preferences.fontSizeOffset} pt
-          </output>
-          <button type="button" className="size-9 rounded-md border border-border hover:bg-muted disabled:opacity-50"
-            aria-label="Increase font size by 1 pt" disabled={preferences.fontSizeOffset >= 18}
-            onClick={() => update({ fontSizeOffset: readFontSizeOffset(getPreferences().fontSizeOffset + 1) })}>+</button>
-          <button type="button" className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted"
-            onClick={() => update({ fontSizeOffset: 0 })}>Reset</button>
-        </div>
+        <ToggleSwitch
+          ariaLabel="Clearer hierarchy"
+          checked={preferences.clearerHierarchy}
+          onCheckedChange={(checked) => update({ clearerHierarchy: checked })}
+        />
       </div>
-      <SectionFontSizeSettings
-        sizes={preferences.sectionFontSizes}
-        onChange={(sectionFontSizes) => update({ sectionFontSizes })}
-      />
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
         <div>
           <label
@@ -1161,24 +1146,10 @@ function InterfaceSettings() {
         value={preferences.iconPack}
         onChange={(iconPack) => update({ iconPack })}
       />
-      {(
-        [
-          ["hideSidebarToggle", "Hide sidebar button", "Removes the left sidebar toggle. The keyboard shortcut still works."],
-          ["hidePanelToggle", "Hide right panel button", "Removes the show/hide right panel button. The keyboard shortcut still works."],
-        ] as const
-      ).map(([key, label, description]) => (
-        <div key={key} className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-medium text-foreground">{label}</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-          </div>
-          <ToggleSwitch
-            ariaLabel={label}
-            checked={preferences[key]}
-            onCheckedChange={(checked) => update({ [key]: checked })}
-          />
-        </div>
-      ))}
+      <SpinnerStyleSettings
+        value={preferences.spinnerStyle}
+        onChange={(spinnerStyle) => update({ spinnerStyle })}
+      />
 
       </div>
 
@@ -1314,16 +1285,14 @@ function InterfaceSettings() {
           type="button"
           onClick={() =>
             update({
-              fontSizeOffset: DEFAULT_PREFERENCES.fontSizeOffset,
-              sectionFontSizes: DEFAULT_PREFERENCES.sectionFontSizes,
               promptPosition: DEFAULT_PREFERENCES.promptPosition,
               promptHeight: DEFAULT_PREFERENCES.promptHeight,
               iconPack: DEFAULT_PREFERENCES.iconPack,
+              spinnerStyle: DEFAULT_PREFERENCES.spinnerStyle,
+              clearerHierarchy: DEFAULT_PREFERENCES.clearerHierarchy,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
               hiddenWorkspaceApps: DEFAULT_PREFERENCES.hiddenWorkspaceApps,
-              hideSidebarToggle: DEFAULT_PREFERENCES.hideSidebarToggle,
-              hidePanelToggle: DEFAULT_PREFERENCES.hidePanelToggle,
             })
           }
         >
@@ -1346,7 +1315,6 @@ export default definePluginApp((app) => {
     id: "apply-preferences",
     mount: ({ signal }) => {
       const overrides = createRootOverrides();
-      const fontSize = mountFontSizeModifier(getPreferences);
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
 
@@ -1379,6 +1347,19 @@ export default definePluginApp((app) => {
         });
       }
 
+      for (const stale of Array.from(
+        document.querySelectorAll<HTMLStyleElement>(
+          'style[data-bb-ui-tweaks-font-size]',
+        ),
+      )) {
+        stale.remove();
+      }
+      document.documentElement.removeAttribute(
+        "data-bb-ui-hide-sidebar-toggle",
+      );
+      document.documentElement.removeAttribute(
+        "data-bb-ui-hide-panel-toggle",
+      );
       applyPreferences(getPreferences(), overrides);
       observeDynamicSurfaces();
       void populateWorkspaceAppCatalog(signal);
@@ -1388,7 +1369,6 @@ export default definePluginApp((app) => {
         currentPreferences = next;
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
-        fontSize.refresh();
         observeDynamicSurfaces();
       };
       const onStorage = (event: StorageEvent) => {
@@ -1396,7 +1376,6 @@ export default definePluginApp((app) => {
         const next = reloadPersistedPreferences();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
-        fontSize.refresh();
         observeDynamicSurfaces();
       };
 
@@ -1437,7 +1416,6 @@ export default definePluginApp((app) => {
 
       return () => {
         rootObserver.disconnect();
-        fontSize.dispose();
         workspaceObserver.disconnect();
         if (refreshFrame !== 0) window.cancelAnimationFrame(refreshFrame);
         clearWorkspaceAppMenuMarkers();

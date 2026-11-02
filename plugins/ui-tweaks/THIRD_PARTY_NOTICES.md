@@ -4,16 +4,6 @@ This plugin ships a small, fixed set of SVG path bodies for its optional icon
 packs. The full icon packages are development dependencies only and are not
 distributed.
 
-## Solar Icons
-
-The Solar Linear icon pack artwork is from
-[Solar Icons](https://github.com/480-Design/Solar-Icon-Set) by 480 Design,
-licensed under
-[Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
-
-Changes: only the mapped icon bodies are extracted, unmodified, from the
-`@iconify-json/solar` package into `lib/icon-data.ts`.
-
 ## Lucide
 
 The Lucide icon pack artwork is from [Lucide](https://lucide.dev), licensed
@@ -46,6 +36,68 @@ airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circl
 The MIT License (MIT) (for the icons listed above)
 
 Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Iconoir
+
+The Iconoir icon pack artwork is from
+[Iconoir](https://github.com/iconoir-icons/iconoir), licensed under the MIT
+License. Only the mapped icon bodies are extracted, unmodified, from the
+`@iconify-json/iconoir` package into `lib/icon-data.ts`.
+
+```text
+MIT License
+
+Copyright (c) 2021 Luca Burgio
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Tabler Icons
+
+The Tabler Outline icon pack artwork is from
+[Tabler Icons](https://github.com/tabler/tabler-icons), licensed under the MIT
+License. Only the mapped icon bodies are extracted, unmodified, from the
+`@iconify-json/tabler` package into `lib/icon-data.ts`.
+
+```text
+MIT License
+
+Copyright (c) 2020-2026 Paweł Kuna
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
