@@ -1,19 +1,14 @@
-/**
- * A "+18 −2" pill for the thread's uncommitted (or, failing that, branch)
- * changes. BB's own changed-files segment gets no environment for project
- * checkouts, so it never shows on most threads; this reads the same git
- * status from BB's git plugin, keyed by the thread's environment id.
- */
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import {
   experimental_Icon as Icon,
+  experimental_useAppPanel,
   experimental_useRpcKeyedQuery,
+  useBbNavigate,
   type ExperimentalThreadContextSegmentProps,
 } from "@get-bb/plugin-sdk/app";
 import { useActivity } from "./pill-data";
 
-/** Just enough of `bb--git`'s `status` method to call it; rows are parsed below. */
 const gitRpcContract = {
   status: {
     input: z.object({ keys: z.array(z.string()) }),
@@ -51,7 +46,6 @@ export interface Changes {
   files: z.infer<typeof fileSchema>[];
 }
 
-/** BB's order: the working tree first, then commits ahead of the merge base. */
 function pickChanges(row: unknown): Changes | null {
   const parsed = statusSchema.safeParse(row);
   if (!parsed.success) return null;
@@ -73,7 +67,17 @@ function pickChanges(row: unknown): Changes | null {
   return null;
 }
 
-/** The segment's environment, or the thread's when BB passes none. */
+function openDiff(panel: ReturnType<typeof experimental_useAppPanel>) {
+  const diff = panel
+    .getTabs()
+    .tabs.find((tab) => tab.detail.kind === "plugin" && tab.detail.pluginId === "bb--git" && tab.detail.tab.id === "diff");
+  if (diff && panel.selectTab(diff.key)) return;
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "d", code: "KeyD", metaKey: mac, ctrlKey: !mac, bubbles: true, cancelable: true }),
+  );
+}
+
 function useEnvironmentId({ threadId, environment }: ExperimentalThreadContextSegmentProps | {
   threadId: string;
   environment: { id: string } | null;
@@ -119,13 +123,11 @@ const STATUS_TONE: Record<string, string> = {
   C: "purple",
 };
 
-/**
- * "Changes +18 −2", after Cursor's review-changes-pill, opening a tray of the
- * changed files (Cursor opens its review surface; BB gives plugins no way to
- * open its own diff tab, so the files list stays).
- */
 export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
   const changes = useChanges(props);
+  const environmentId = useEnvironmentId(props);
+  const navigate = useBbNavigate();
+  const panel = experimental_useAppPanel();
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(FIRST_PAGE);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -181,6 +183,18 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
             <button
               type="button"
               className="bb-agent-pills__tray-icon-button"
+              aria-label="Open diff"
+              title="Open diff"
+              onClick={() => {
+                setOpen(false);
+                openDiff(panel);
+              }}
+            >
+              <Icon name="FileDiff" />
+            </button>
+            <button
+              type="button"
+              className="bb-agent-pills__tray-icon-button"
               aria-label="Minimize"
               title="Minimize (Esc)"
               onClick={() => setOpen(false)}
@@ -190,11 +204,22 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
           </div>
           <div className="bb-agent-pills__tray-rows">
             {files.slice(0, shown).map((file) => (
-              <div
+              <button
+                type="button"
                 role="menuitem"
-                aria-disabled="true"
                 key={`${file.status}:${file.path}`}
                 className="bb-agent-pills__tray-row"
+                disabled={environmentId === null || file.status === "D"}
+                onClick={() => {
+                  if (environmentId === null) return;
+                  if (
+                    navigate.experimental_openFilePreview({
+                      target: { kind: "workspace", environmentId, path: file.path },
+                      location: null,
+                    })
+                  )
+                    setOpen(false);
+                }}
               >
                 <span
                   className="bb-agent-pills__tray-leading bb-agent-pills__file-status"
@@ -214,7 +239,7 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
                     </span>
                   </span>
                 ) : null}
-              </div>
+              </button>
             ))}
             {hidden > 0 ? (
               <button

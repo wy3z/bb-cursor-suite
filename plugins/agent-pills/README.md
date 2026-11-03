@@ -41,8 +41,10 @@ status swaps for actions on hover, five rows then "More".
 - **Changes.** "Changes +18 -2", after Cursor's review-changes pill, for the
   checkout's uncommitted changes, or the branch's changes against its merge
   base when the tree is clean; the tray lists each file with its status and
-  line counts. (Cursor opens its review view; plugins can't open BB's diff
-  tab, so the file list stays.) BB's own changed-files
+  line counts. Clicking a file opens it in BB's file preview, and the tray's
+  diff button selects BB's Diff tab (falling back to its Ctrl/Cmd+D
+  shortcut). Plugins can't open another plugin's tab at a file, so the diff
+  starts at the top. BB's own changed-files
   segment only appears for worktree environments (segments get no environment
   for project checkouts), so this reads the same status from BB's git plugin
   by the thread's environment id, and BB's segment is hidden.

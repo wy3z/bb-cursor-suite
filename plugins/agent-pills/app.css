@@ -1328,8 +1328,19 @@ section[aria-label="Thread context before sending"] #thread-prompt-banner-git-bo
   text-align: left;
   cursor: pointer;
 }
-.bb-agent-pills__tray-row[aria-disabled="true"] {
+.bb-agent-pills__tray-row[aria-disabled="true"],
+.bb-agent-pills__tray-row:disabled {
   cursor: default;
+}
+button.bb-agent-pills__tray-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+}
+button.bb-agent-pills__tray-row:disabled:hover {
+  background: none;
 }
 .bb-agent-pills__tray-row:hover,
 .bb-agent-pills__tray-row:focus-visible {
