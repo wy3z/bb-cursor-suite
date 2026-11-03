@@ -8,6 +8,10 @@ Tweaks**, and most changes apply as you toggle them.
 semibold bold text. Headings, code, and other sizes and weights stay put. This
 is on by default.
 
+**Better CSS highlighting.** An optional CSS tokenizer for the File Editor that
+tells selectors, `@media` queries, value keywords and functions apart, so CSS
+looks closer to Zed or VS Code. Off by default; your theme picks the colours.
+
 **Prompt placement.** Put the New thread composer at the top, center, or bottom
 of the empty thread. Set its starting height to default, two lines, or one
 line. It still grows as you type.
@@ -31,7 +35,10 @@ the right panel. This is always on.
 
 ## How it works
 
-Settings are stored in the browser's local storage for the BB client. Icon
+Settings are saved on the BB server, so every device signed in to the same BB
+(desktop, browser, phone) shares them. Each client keeps a local copy so the
+interface applies instantly, and picks up changes from other devices when it
+loads or regains focus. Icon
 artwork ships inside the plugin as a small set of SVG bodies, so no icon
 package is downloaded at runtime.
 

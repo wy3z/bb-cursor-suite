@@ -10,6 +10,11 @@ Small, configurable interface improvements for BB.
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger
   chat prose, and semibold bold text. Other sizes and weights stay put.
 
+- **Better CSS highlighting in the File Editor** (off by default): swaps
+  Monaco's CSS tokenizer for one that understands `@media`, nested rules,
+  pseudo-classes, attribute selectors, value keywords and functions. Your BB
+  theme still picks the colours. Turning it off restores Monaco's own tokenizer.
+
 - Put the New thread prompt at the **Top**, **Center**, or **Bottom**. Bottom
   is the default.
 

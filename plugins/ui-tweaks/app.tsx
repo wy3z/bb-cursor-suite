@@ -21,6 +21,12 @@ import {
   PREFERENCES_CHANGE_EVENT as CHANGE_EVENT,
   PREFERENCES_STORAGE_KEY as STORAGE_KEY,
 } from "./lib/preferences-storage.js";
+import { setMonacoCssTokenizer } from "./lib/monaco-css-tokenizer.js";
+import {
+  fetchRemotePreferences,
+  pushRemotePreferences,
+  setPreferencesPluginId,
+} from "./lib/preferences-sync.js";
 import {
   WORKSPACE_APP_CATEGORIES,
   legacyWorkspaceAppKey,
@@ -75,6 +81,7 @@ interface Preferences {
   iconPack: IconPack;
   spinnerStyle: SpinnerStyle;
   clearerHierarchy: boolean;
+  editorCssHighlighting: boolean;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
 }
@@ -93,6 +100,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   iconPack: "default",
   spinnerStyle: "follow",
   clearerHierarchy: true,
+  editorCssHighlighting: false,
   workspaceAppCategories: [
     "default-app",
     "file-manager",
@@ -212,6 +220,7 @@ function readPersistedPreferences(): Preferences {
         iconPack: parseIconPack(value.iconPack),
         spinnerStyle: parseSpinnerStyle(value.spinnerStyle),
         clearerHierarchy: value.clearerHierarchy !== false,
+        editorCssHighlighting: value.editorCssHighlighting === true,
         workspaceAppCategories: readWorkspaceAppCategories(
           value.workspaceAppCategories,
         ),
@@ -318,6 +327,7 @@ function applyPreferences(
 ) {
   applyRootPreferences(preferences, overrides, reclaimExternal);
   applyDynamicDomPreferences(preferences);
+  setMonacoCssTokenizer(preferences.editorCssHighlighting);
 }
 
 function readWorkspaceAppCatalog(): WorkspaceAppCatalogItem[] {
@@ -804,6 +814,41 @@ function savePreferences(preferences: Preferences) {
   window.dispatchEvent(
     new CustomEvent<Preferences>(CHANGE_EVENT, { detail: preferences }),
   );
+  pushRemotePreferences(preferences);
+}
+
+async function syncRemotePreferences(signal: AbortSignal) {
+  let remote: Record<string, unknown> | null;
+  try {
+    remote = await fetchRemotePreferences();
+  } catch {
+    return;
+  }
+  if (signal.aborted) return;
+
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+
+  if (remote === null) {
+    if (stored !== null) pushRemotePreferences(getPreferences());
+    return;
+  }
+
+  const serialized = JSON.stringify(remote);
+  if (serialized === stored) return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, serialized);
+  } catch {
+    return;
+  }
+  const next = reloadPersistedPreferences();
+  window.dispatchEvent(
+    new CustomEvent<Preferences>(CHANGE_EVENT, { detail: next }),
+  );
 }
 
 function usePreferences() {
@@ -1082,6 +1127,25 @@ function InterfaceSettings() {
           onCheckedChange={(checked) => update({ clearerHierarchy: checked })}
         />
       </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">
+            Better CSS highlighting in the File Editor
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Replaces Monaco's CSS tokenizer so selectors, @media queries,
+            values and functions get their own colours, closer to Zed and VS
+            Code. Your theme still picks the colours.
+          </p>
+        </div>
+        <ToggleSwitch
+          ariaLabel="Better CSS highlighting in the File Editor"
+          checked={preferences.editorCssHighlighting}
+          onCheckedChange={(checked) =>
+            update({ editorCssHighlighting: checked })
+          }
+        />
+      </div>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
         <div>
           <label
@@ -1290,6 +1354,7 @@ function InterfaceSettings() {
               iconPack: DEFAULT_PREFERENCES.iconPack,
               spinnerStyle: DEFAULT_PREFERENCES.spinnerStyle,
               clearerHierarchy: DEFAULT_PREFERENCES.clearerHierarchy,
+              editorCssHighlighting: DEFAULT_PREFERENCES.editorCssHighlighting,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
               hiddenWorkspaceApps: DEFAULT_PREFERENCES.hiddenWorkspaceApps,
@@ -1327,7 +1392,8 @@ export default definePluginApp((app) => {
 
   app.contentScripts.register({
     id: "apply-preferences",
-    mount: ({ signal }) => {
+    mount: ({ signal, pluginId }) => {
+      setPreferencesPluginId(pluginId);
       const overrides = createRootOverrides();
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
@@ -1428,6 +1494,18 @@ export default definePluginApp((app) => {
       window.addEventListener(CHANGE_EVENT, onChange, { signal });
       window.addEventListener("storage", onStorage, { signal });
 
+      let lastRemoteSync = 0;
+      const syncRemote = () => {
+        if (document.visibilityState !== "visible") return;
+        const now = Date.now();
+        if (now - lastRemoteSync < 2000) return;
+        lastRemoteSync = now;
+        void syncRemotePreferences(signal);
+      };
+      syncRemote();
+      window.addEventListener("focus", syncRemote, { signal });
+      document.addEventListener("visibilitychange", syncRemote, { signal });
+
       return () => {
         rootObserver.disconnect();
         workspaceObserver.disconnect();
@@ -1435,6 +1513,7 @@ export default definePluginApp((app) => {
         clearWorkspaceAppMenuMarkers();
         clearPromptContainerMarker();
         releaseRootOverrides(overrides, document.documentElement);
+        setMonacoCssTokenizer(false);
       };
     },
   });
