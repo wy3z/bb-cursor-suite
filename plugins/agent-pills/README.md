@@ -53,9 +53,10 @@ The pills for BB's own cards are hidden with CSS on their `aria-label`s:
 Child threads, Background agents/commands/activity, Workflow(s), To-do list,
 Model fallback, Machine status, Prompt mode, Goal, and Queued messages
 (except while BB's inline editor is open). If a BB update renames them, the
-old boxes come back next to the pills. "Thread history" is hidden only while
-a pill row is on the page, so an archived thread keeps BB's own Unarchive
-banner. While an approval or question is pending, BB swaps in its short
+old boxes come back next to the pills. "Thread history" is hidden only in a
+thread pane whose pill row carries the Archived or Workspace removed pill, so
+an archived thread keeps BB's own Unarchive banner and another split pane is
+left alone. While an approval or question is pending, BB swaps in its short
 composer stack: the child-thread, plan and goal boxes are shown again and the
 pill row is absent.
 
@@ -73,6 +74,10 @@ plain text, and a round send button. The restyle selects BB's
 - **Hidden:** the dictation button, the send-options arrow, the collapse
   button and **New thread in this environment**. While a turn runs, the send
   circle shows a stop square.
+- **Prompt height.** UI Tweaks' One line and Two lines settings win: when
+  `data-bb-ui-prompt-height` is set, the composer drops its own 48px floor and
+  taller block padding, leaving the height to UI Tweaks. Without it, the
+  original Cursor-sized box is unchanged.
 - **Under the box:** the project and environment on the left, and the
   context ring and percentage on the right.
 - **Glass.** The box and the pills share the theme's `--border` outline and a

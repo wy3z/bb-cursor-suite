@@ -470,9 +470,12 @@ section[aria-label="Goal"] {
 }
 
 /* The archived / workspace-gone banner is the one box in "Thread history", and
-   an archived thread has no composer at all, so its pill row cannot exist to
-   replace it. Hide the banner only while a pill row is on the page. */
-body:has(.bb-agent-pills) section[aria-label="Thread history"] {
+   the plugin's own Archived / Workspace removed pill offers the same action.
+   Hide the banner only in the thread pane that carries that pill: another
+   split pane, or a pill row another plugin draws with these classes, must not
+   remove it. */
+[data-thread-window]:has(.bb-agent-pills__pill[data-group="thread"])
+  section[aria-label="Thread history"] {
   display: none !important;
 }
 
@@ -585,8 +588,21 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-editor-scroll] {
   display: flex;
   align-items: center;
-  min-height: 48px !important;
   padding: 13px 8px 13px 46px;
+}
+
+/* UI Tweaks owns the editor height when data-bb-ui-prompt-height is set, and
+   its line maths assumes BB's own 0.5rem block padding. Keep the 48px floor
+   and the taller padding only while that setting is absent, so One line and
+   Two lines still apply. */
+html[data-bb-agent-pills-composer="cursor"]:not([data-bb-ui-prompt-height])
+  form[data-promptbox] [data-promptbox-editor-scroll] {
+  min-height: 48px !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"][data-bb-ui-prompt-height]
+  form[data-promptbox] [data-promptbox-editor-scroll] {
+  padding-block: 0.5rem;
 }
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-editor-content] {
@@ -1337,11 +1353,11 @@ section[aria-label="Thread context before sending"] #thread-prompt-banner-git-bo
   width: 14px;
   height: 14px;
 }
-.bb-agent-pills__tray-leading[data-tone="green"] { color: #3fb950; }
-.bb-agent-pills__tray-leading[data-tone="red"] { color: #f85149; }
-.bb-agent-pills__tray-leading[data-tone="orange"] { color: #db6d28; }
-.bb-agent-pills__tray-leading[data-tone="yellow"] { color: #d29922; }
-.bb-agent-pills__tray-leading[data-tone="purple"] { color: #a371f7; }
+.bb-agent-pills__tray-leading[data-tone="green"] { color: var(--success, #3fb950); }
+.bb-agent-pills__tray-leading[data-tone="red"] { color: var(--destructive-text, #f85149); }
+.bb-agent-pills__tray-leading[data-tone="orange"] { color: var(--warning-text, #db6d28); }
+.bb-agent-pills__tray-leading[data-tone="yellow"] { color: var(--attention, #d29922); }
+.bb-agent-pills__tray-leading[data-tone="purple"] { color: var(--pr-merged, #a371f7); }
 .bb-agent-pills__tray-label {
   flex: 0 1 auto;
   min-width: 0;
