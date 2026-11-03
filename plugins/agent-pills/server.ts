@@ -272,11 +272,15 @@ async function readThread(
         // BB only offers the "Restore workspace" banner when the provider can
         // bring a destroyed workspace back, which is exactly this flag.
         workspaceGone: thread.canRestoreEnvironment,
+        environmentId: thread.environmentId,
       },
       environmentId: thread.environmentId,
     };
   } catch {
-    return { state: { archived: false, workspaceGone: false }, environmentId: null };
+    return {
+      state: { archived: false, workspaceGone: false, environmentId: null },
+      environmentId: null,
+    };
   }
 }
 

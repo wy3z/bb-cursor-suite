@@ -14,6 +14,7 @@ import { usePillActions } from "./pills/actions";
 import { PillPanel } from "./pills/panels";
 import { useTracks, type Track } from "./pills/tracks";
 import { StateDot } from "./pills/primitives";
+import { AgentsChip, AgentsTray } from "./pills/AgentsTray";
 
 function TrackPill({
   track,
@@ -54,10 +55,13 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
   const actions = usePillActions({ threadId, refresh, dismissFallback });
 
   const openTrack = tracks.find((track) => track.id === open) ?? null;
+  const hasAgents = activity.subagents.length > 0;
+  const agentsOpen = open === "subagents" && hasAgents;
+  const anyOpen = openTrack !== null || agentsOpen;
 
   // Close on a click outside or Escape, like a menu.
   useEffect(() => {
-    if (openTrack === null) return;
+    if (!anyOpen) return;
     const onPointer = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(null);
     };
@@ -70,13 +74,13 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
       document.removeEventListener("pointerdown", onPointer, true);
       document.removeEventListener("keydown", onKey, true);
     };
-  }, [openTrack]);
+  }, [anyOpen]);
 
   // A pill that just disappeared (goal cleared, queue drained) must not leave
   // its popover behind.
   useEffect(() => {
-    if (open !== null && openTrack === null) setOpen(null);
-  }, [open, openTrack]);
+    if (open !== null && !anyOpen) setOpen(null);
+  }, [open, anyOpen]);
 
   // BB's queue box was brought back for editing; hide it again once the
   // queue is empty or this thread's row goes away.
@@ -86,11 +90,18 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
   }, [queueEmpty]);
   useEffect(() => () => document.documentElement.removeAttribute(SHOW_QUEUE_ATTRIBUTE), [threadId]);
 
-  if (tracks.length === 0) return null;
+  if (tracks.length === 0 && !hasAgents) return null;
 
   return (
     <div className="bb-agent-pills" data-bb-agent-pills="" ref={rootRef}>
       <div className="bb-agent-pills__row">
+        {hasAgents ? (
+          <AgentsChip
+            subagents={activity.subagents}
+            open={agentsOpen}
+            onToggle={() => setOpen((current) => (current === "subagents" ? null : "subagents"))}
+          />
+        ) : null}
         {tracks.map((track) => (
           <TrackPill
             key={track.id}
@@ -100,6 +111,9 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
           />
         ))}
       </div>
+      {agentsOpen ? (
+        <AgentsTray subagents={activity.subagents} onDismiss={() => setOpen(null)} refresh={refresh} />
+      ) : null}
       {openTrack ? (
         <Popover
           track={openTrack}

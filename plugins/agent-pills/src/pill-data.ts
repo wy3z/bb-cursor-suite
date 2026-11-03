@@ -117,7 +117,11 @@ function childState(thread: SidebarThread): PillState | null {
   return null;
 }
 
-const IDLE_THREAD: ThreadState = { archived: false, workspaceGone: false };
+const IDLE_THREAD: ThreadState = {
+  archived: false,
+  workspaceGone: false,
+  environmentId: null,
+};
 
 const EMPTY: Activity = {
   subagents: [],

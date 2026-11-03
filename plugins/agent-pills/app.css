@@ -1088,6 +1088,14 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
 /* Dark: the popover glass tint, the popover colour at 45%. */
 .dark {
   --bb-agent-pills-surface: color-mix(in oklab, var(--popover) 45%, transparent);
+  /* Glass edge, as dark themes draw the composer: foreground at 12%. */
+  --bb-agent-pills-outline: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+/* Themes may give the composer its own edge colour; keep it identical to the
+   pills' outline. */
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
+  border-color: var(--bb-agent-pills-outline) !important;
 }
 
 /* A mask-image on the transcript scroller (the theme's dark top fade) stops
@@ -1164,4 +1172,311 @@ html[data-bb-agent-pills-composer="cursor"]
   [data-follow-up-composer-footer]
   button[aria-label="New thread in this environment"] {
   display: none !important;
+}
+
+/* Draft and placeholder a touch heavier than BB's 400. */
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [role="textbox"],
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [role="textbox"]
+  p.is-editor-empty::before {
+  font-weight: 450;
+}
+
+/* ── Changes pill (git +/-) ────────────────────────────────────────────── */
+
+.bb-agent-pills__pill[data-group="changes"] {
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bb-agent-pills__diff[data-sign="plus"] {
+  color: var(--success, oklch(0.72 0.17 150));
+}
+
+.bb-agent-pills__diff[data-sign="minus"] {
+  color: var(--destructive, oklch(0.65 0.2 25));
+}
+
+.bb-agent-pills__file-status {
+  flex: none;
+  width: 12px;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  text-align: center;
+}
+
+.bb-agent-pills__row-item .bb-agent-pills__row-title[dir="rtl"] {
+  text-align: left;
+}
+
+/* BB's own changed-files segment (shown for worktree environments) would
+   double the pill above; its expanding file list does not suit a pill row. */
+section[aria-label="Thread context before sending"] [data-bb-plugin-root][data-bb-plugin="bb--git"],
+section[aria-label="Thread context before sending"] #thread-prompt-banner-git-body {
+  display: none !important;
+}
+
+/* ── Cursor trays ──────────────────────────────────────────────────────
+   Shared by the Agents and Changes trays here, and by the Pull Requests
+   and Subscriptions plugins: a chip ("Working 2", "PRs 3", "Listening 1")
+   in the pill row opens a tray above it, after Cursor's agent-panel trays
+   (Tray.js, TrayRow.js, list-tray-more-row, tray-section-subheader).
+   Pages show 5 rows, then "More" adds 8. */
+
+.bb-agent-pills__chip-count {
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+.bb-agent-pills__chip-lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+.bb-agent-pills__chip-lead svg,
+.bb-agent-pills__chip-lead [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+.bb-agent-pills__tray {
+  width: min(460px, calc(100vw - 32px));
+  overflow-y: auto;
+}
+.bb-agent-pills__tray-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 2px 4px 2px 8px;
+}
+.bb-agent-pills__tray-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.bb-agent-pills__tray-header-action {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bb-agent-pills__tray-header-action:hover,
+.bb-agent-pills__tray-icon-button:hover {
+  background: var(--state-hover);
+  color: var(--foreground);
+}
+.bb-agent-pills__tray-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.bb-agent-pills__tray-icon-button svg,
+.bb-agent-pills__tray-icon-button [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+.bb-agent-pills__tray-rows {
+  display: flex;
+  flex-direction: column;
+}
+.bb-agent-pills__tray-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.bb-agent-pills__tray-row[aria-disabled="true"] {
+  cursor: default;
+}
+.bb-agent-pills__tray-row:hover,
+.bb-agent-pills__tray-row:focus-visible {
+  background: var(--state-hover);
+  outline: none;
+}
+.bb-agent-pills__tray-row[data-active] {
+  background: var(--state-active, var(--state-hover));
+}
+.bb-agent-pills__tray-leading {
+  display: inline-flex;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+}
+.bb-agent-pills__tray-leading svg,
+.bb-agent-pills__tray-leading [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+.bb-agent-pills__tray-leading[data-tone="green"] { color: #3fb950; }
+.bb-agent-pills__tray-leading[data-tone="red"] { color: #f85149; }
+.bb-agent-pills__tray-leading[data-tone="orange"] { color: #db6d28; }
+.bb-agent-pills__tray-leading[data-tone="yellow"] { color: #d29922; }
+.bb-agent-pills__tray-leading[data-tone="purple"] { color: #a371f7; }
+.bb-agent-pills__tray-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-agent-pills__tray-label[dir="rtl"] {
+  text-align: left;
+}
+.bb-agent-pills__tray-suffix {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+/* Cursor's inline description: muted, after the label, first to truncate. */
+.bb-agent-pills__tray-description {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-agent-pills__tray-description[data-shimmer] {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: bb-agent-pills-shimmer 2s linear infinite;
+}
+@keyframes bb-agent-pills-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-agent-pills__tray-description[data-shimmer] {
+    animation: none;
+    color: var(--muted-foreground);
+    background: none;
+  }
+}
+/* Meta (time, status word) sits right; hover actions replace it. */
+.bb-agent-pills__tray-end {
+  display: inline-grid;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-items: end;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.bb-agent-pills__tray-end > * {
+  grid-area: 1 / 1;
+}
+.bb-agent-pills__tray-meta {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bb-agent-pills__tray-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+.bb-agent-pills__tray-row:hover .bb-agent-pills__tray-actions,
+.bb-agent-pills__tray-row:focus-within .bb-agent-pills__tray-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.bb-agent-pills__tray-row:hover .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta,
+.bb-agent-pills__tray-row:focus-within .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta {
+  opacity: 0;
+}
+/* Allow / Answer buttons stay visible, inline before the end column. */
+.bb-agent-pills__tray-inline {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+.bb-agent-pills__tray-button {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bb-agent-pills__tray-button[data-tone="primary"] {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.bb-agent-pills__tray-subheader {
+  padding: 8px 8px 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.bb-agent-pills__tray-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.bb-agent-pills__tray-more::before {
+  content: "";
+  flex: 0 0 14px;
+}
+.bb-agent-pills__tray-more:hover {
+  background: var(--state-hover);
+  color: var(--foreground);
+}
+.bb-agent-pills__tray-empty {
+  padding: 6px 8px 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
 }

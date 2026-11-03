@@ -98,17 +98,7 @@ export function useTracks(activity: Activity): Track[] {
   return useMemo(() => {
     const tracks: (Track | null)[] = [];
 
-    if (activity.subagents.length > 0) {
-      const count = activity.subagents.length;
-      tracks.push({
-        id: "subagents",
-        title: plural(count, "subagent", "subagents"),
-        segments: buildSegments(
-          activity.subagents.map((item) => item.state),
-          plural(count, "subagent", "subagents"),
-        ),
-      });
-    }
+    // Subagents are the Agents chip and tray (AgentsTray.tsx), not a track.
     if (activity.background.length > 0) {
       const title = backgroundTitle(activity);
       tracks.push({

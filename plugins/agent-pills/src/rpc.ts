@@ -95,6 +95,8 @@ export type QueuedMessage = z.infer<typeof queuedMessageSchema>;
 const threadStateSchema = z.object({
   archived: z.boolean(),
   workspaceGone: z.boolean(),
+  /** For the changes pill: BB hands segments no environment for project checkouts. */
+  environmentId: z.string().nullable(),
 });
 
 export type ThreadState = z.infer<typeof threadStateSchema>;

@@ -5,10 +5,19 @@ restyles the composer to look like Cursor's and Zeron's.
 
 ## Pills
 
-- **Subagents.** One pill for a thread's child threads, split by status in
-  the style of Paseo's composer tracks: "1 needs input", "2 working",
-  "1 failed", "1 ready to review". Click it to open a list above the pill;
-  click a row to open that thread.
+The Agents and Changes chips, and the Pull Requests and Subscriptions
+plugins' chips, share one Cursor tray style from `app.css` (`__tray-*`): a
+muted "N Things" header with a minimise button, one-line rows whose time or
+status swaps for actions on hover, five rows then "More".
+
+- **Agents.** After Cursor's agent tray: a chip reading "Agents", or
+  "Working 2" with bb's spinner while child threads run, opens a tray headed
+  "N Agents". Running and waiting agents come first, finished ones under
+  "Recent" (five, then "More"). Rows show bb's status glyph, the title, a
+  description ("Working", "Needs input", with the model) and elapsed time;
+  hover swaps the time for × (stop a running one, mark a finished one read).
+  An Answer button appears when a child waits on you. The header has Stop All
+  (click twice to confirm) or Clear All. Ctrl or Alt-click opens a split.
 - **Background tasks.** The same for the thread's background agents and
   commands.
 - **Workflow.** "name · 3/5 agents" for one running workflow, "2 workflows"
@@ -29,8 +38,16 @@ restyles the composer to look like Cursor's and Zeron's.
   workspace" where the composer still exists.
 - **Machine.** "Machine paused" / "Machine resuming…" for cloud machines,
   with a "Resume" button.
-- **Parent thread and changed files.** BB's own segments are kept, but drawn
-  as pills on the same row.
+- **Changes.** "Changes +18 -2", after Cursor's review-changes pill, for the
+  checkout's uncommitted changes, or the branch's changes against its merge
+  base when the tree is clean; the tray lists each file with its status and
+  line counts. (Cursor opens its review view; plugins can't open BB's diff
+  tab, so the file list stays.) BB's own changed-files
+  segment only appears for worktree environments (segments get no environment
+  for project checkouts), so this reads the same status from BB's git plugin
+  by the thread's environment id, and BB's segment is hidden.
+- **Parent thread.** BB's own segment is kept, but drawn as a pill on the
+  same row.
 
 The pills for BB's own cards are hidden with CSS on their `aria-label`s:
 Child threads, Background agents/commands/activity, Workflow(s), To-do list,

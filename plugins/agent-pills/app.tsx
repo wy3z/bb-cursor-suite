@@ -9,6 +9,7 @@ import {
   experimental_THREAD_CONTEXT_SEGMENT_GROUPS,
 } from "@get-bb/plugin-sdk/app";
 import { AgentPillsSummary } from "./src/PillRow";
+import { ChangesPill, useChanges } from "./src/ChangesPill";
 import { useActivity } from "./src/pill-data";
 import {
   applyComposerRestyle,
@@ -101,6 +102,17 @@ export default definePluginApp((app) => {
     order: 20,
     summary: AgentPillsSummary,
     useVisible: usePillsVisible,
+  });
+
+  // Git +/- for the thread's checkout, in BB's git group (after the thread
+  // group's pills). BB's own changed-files segment is hidden in app.css.
+  app.slots.experimental_threadContextSegment({
+    id: "changes",
+    title: "Changed files",
+    group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.git,
+    order: 10,
+    summary: ChangesPill,
+    useVisible: (input) => useChanges(input) !== null,
   });
 
   app.slots.settingsSection({
