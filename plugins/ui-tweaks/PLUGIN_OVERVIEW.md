@@ -4,13 +4,17 @@ Tweaks**, and most changes apply as you toggle them.
 
 ## What you get
 
+**Faster thread switching.** A checkbox reduces unnecessary plugin styling work
+when opening threads. Checked by default; changes apply immediately and persist.
+
 **Clearer hierarchy.** Bolder thread titles, slightly larger chat prose, and
 semibold bold text. Headings, code, and other sizes and weights stay put. This
 is on by default.
 
-**Better CSS highlighting.** An optional CSS tokenizer for the File Editor that
-tells selectors, `@media` queries, value keywords and functions apart, so CSS
-looks closer to Zed or VS Code. Off by default; your theme picks the colours.
+**Better syntax highlighting.** Optional File Editor tokenizers for CSS,
+TypeScript and JavaScript that tell functions, constants, operators, built-in
+types, selectors and `@media` queries apart, so code looks closer to Zed or VS
+Code. Off by default; your theme picks the colours.
 
 **Prompt placement.** Put the New thread composer at the top, center, or bottom
 of the empty thread. Set its starting height to default, two lines, or one

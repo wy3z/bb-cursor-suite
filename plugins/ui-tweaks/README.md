@@ -4,16 +4,22 @@ Small, configurable interface improvements for BB.
 
 ## Features
 
+- **Faster thread switching** (checked by default): reduces unnecessary plugin
+  style calculations when opening threads. Uncheck it to restore the original
+  plugin styles. The change applies immediately and persists across reloads.
+
 - Match the left sidebar's open and close animation to the right panel. This
   is always on and has no setting.
 
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger
   chat prose, and semibold bold text. Other sizes and weights stay put.
 
-- **Better CSS highlighting in the File Editor** (off by default): swaps
-  Monaco's CSS tokenizer for one that understands `@media`, nested rules,
-  pseudo-classes, attribute selectors, value keywords and functions. Your BB
-  theme still picks the colours. Turning it off restores Monaco's own tokenizer.
+- **Better syntax highlighting in the File Editor** (off by default): teaches
+  Monaco more about CSS, TypeScript and JavaScript. CSS gets a tokenizer that
+  understands `@media`, nested rules, pseudo-classes, attribute selectors,
+  value keywords and functions; TypeScript and JavaScript tell functions,
+  constants, operators, built-in types and `null`/`this` apart. Your BB theme
+  still picks the colours. Turning it off restores Monaco's own tokenizers.
 
 - Put the New thread prompt at the **Top**, **Center**, or **Bottom**. Bottom
   is the default.

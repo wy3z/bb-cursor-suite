@@ -21,7 +21,8 @@ import {
   PREFERENCES_CHANGE_EVENT as CHANGE_EVENT,
   PREFERENCES_STORAGE_KEY as STORAGE_KEY,
 } from "./lib/preferences-storage.js";
-import { setMonacoCssTokenizer } from "./lib/monaco-css-tokenizer.js";
+import { setMonacoEnhancedTokenizers } from "./lib/monaco-tokenizers.js";
+import { startPluginUtilityScopeOptimization } from "./lib/plugin-utility-scopes.js";
 import {
   fetchRemotePreferences,
   pushRemotePreferences,
@@ -81,7 +82,8 @@ interface Preferences {
   iconPack: IconPack;
   spinnerStyle: SpinnerStyle;
   clearerHierarchy: boolean;
-  editorCssHighlighting: boolean;
+  optimizePluginStyles: boolean;
+  editorSyntaxHighlighting: boolean;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
 }
@@ -100,7 +102,8 @@ const DEFAULT_PREFERENCES: Preferences = {
   iconPack: "default",
   spinnerStyle: "follow",
   clearerHierarchy: true,
-  editorCssHighlighting: false,
+  optimizePluginStyles: true,
+  editorSyntaxHighlighting: false,
   workspaceAppCategories: [
     "default-app",
     "file-manager",
@@ -220,7 +223,11 @@ function readPersistedPreferences(): Preferences {
         iconPack: parseIconPack(value.iconPack),
         spinnerStyle: parseSpinnerStyle(value.spinnerStyle),
         clearerHierarchy: value.clearerHierarchy !== false,
-        editorCssHighlighting: value.editorCssHighlighting === true,
+        optimizePluginStyles: value.optimizePluginStyles !== false,
+        editorSyntaxHighlighting:
+          (value.editorSyntaxHighlighting ??
+            (value as { editorCssHighlighting?: unknown })
+              .editorCssHighlighting) === true,
         workspaceAppCategories: readWorkspaceAppCategories(
           value.workspaceAppCategories,
         ),
@@ -327,7 +334,7 @@ function applyPreferences(
 ) {
   applyRootPreferences(preferences, overrides, reclaimExternal);
   applyDynamicDomPreferences(preferences);
-  setMonacoCssTokenizer(preferences.editorCssHighlighting);
+  setMonacoEnhancedTokenizers(preferences.editorSyntaxHighlighting);
 }
 
 function readWorkspaceAppCatalog(): WorkspaceAppCatalogItem[] {
@@ -1113,6 +1120,32 @@ function InterfaceSettings() {
       <div className="space-y-5 rounded-lg border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-4">
         <div>
+          <label
+            className="text-sm font-medium text-foreground"
+            htmlFor="ui-tweaks-optimize-plugin-styles"
+          >
+            Faster thread switching
+          </label>
+          <p
+            className="mt-0.5 text-xs text-muted-foreground"
+            id="ui-tweaks-optimize-plugin-styles-description"
+          >
+            Reduce unnecessary styling work when opening threads. Applies immediately.
+          </p>
+        </div>
+        <input
+          id="ui-tweaks-optimize-plugin-styles"
+          type="checkbox"
+          className="size-4 shrink-0 accent-primary"
+          aria-describedby="ui-tweaks-optimize-plugin-styles-description"
+          checked={preferences.optimizePluginStyles}
+          onChange={(event) =>
+            update({ optimizePluginStyles: event.currentTarget.checked })
+          }
+        />
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
           <h3 className="text-sm font-medium text-foreground">
             Clearer hierarchy
           </h3>
@@ -1130,19 +1163,20 @@ function InterfaceSettings() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-medium text-foreground">
-            Better CSS highlighting in the File Editor
+            Better syntax highlighting in the File Editor
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Replaces Monaco's CSS tokenizer so selectors, @media queries,
-            values and functions get their own colours, closer to Zed and VS
-            Code. Your theme still picks the colours.
+            Teaches Monaco more about CSS, TypeScript and JavaScript:
+            functions, constants, operators, built-in types, @media queries
+            and selectors get their own colours, closer to Zed and VS Code.
+            Your theme still picks the colours.
           </p>
         </div>
         <ToggleSwitch
-          ariaLabel="Better CSS highlighting in the File Editor"
-          checked={preferences.editorCssHighlighting}
+          ariaLabel="Better syntax highlighting in the File Editor"
+          checked={preferences.editorSyntaxHighlighting}
           onCheckedChange={(checked) =>
-            update({ editorCssHighlighting: checked })
+            update({ editorSyntaxHighlighting: checked })
           }
         />
       </div>
@@ -1354,7 +1388,9 @@ function InterfaceSettings() {
               iconPack: DEFAULT_PREFERENCES.iconPack,
               spinnerStyle: DEFAULT_PREFERENCES.spinnerStyle,
               clearerHierarchy: DEFAULT_PREFERENCES.clearerHierarchy,
-              editorCssHighlighting: DEFAULT_PREFERENCES.editorCssHighlighting,
+              optimizePluginStyles: DEFAULT_PREFERENCES.optimizePluginStyles,
+              editorSyntaxHighlighting:
+                DEFAULT_PREFERENCES.editorSyntaxHighlighting,
               workspaceAppCategories:
                 DEFAULT_PREFERENCES.workspaceAppCategories,
               hiddenWorkspaceApps: DEFAULT_PREFERENCES.hiddenWorkspaceApps,
@@ -1395,6 +1431,15 @@ export default definePluginApp((app) => {
     mount: ({ signal, pluginId }) => {
       setPreferencesPluginId(pluginId);
       const overrides = createRootOverrides();
+      let stopPluginUtilityScopes: (() => void) | null = null;
+      const syncPluginUtilityScopes = (preferences: Preferences) => {
+        if (preferences.optimizePluginStyles) {
+          stopPluginUtilityScopes ??= startPluginUtilityScopeOptimization(signal);
+        } else {
+          stopPluginUtilityScopes?.();
+          stopPluginUtilityScopes = null;
+        }
+      };
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
 
@@ -1441,6 +1486,7 @@ export default definePluginApp((app) => {
         "data-bb-ui-hide-panel-toggle",
       );
       applyPreferences(getPreferences(), overrides);
+      syncPluginUtilityScopes(getPreferences());
       observeDynamicSurfaces();
       void populateWorkspaceAppCatalog(signal);
 
@@ -1449,6 +1495,7 @@ export default definePluginApp((app) => {
         currentPreferences = next;
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
+        syncPluginUtilityScopes(next);
         observeDynamicSurfaces();
       };
       const onStorage = (event: StorageEvent) => {
@@ -1456,6 +1503,7 @@ export default definePluginApp((app) => {
         const next = reloadPersistedPreferences();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
+        syncPluginUtilityScopes(next);
         observeDynamicSurfaces();
       };
 
@@ -1507,13 +1555,14 @@ export default definePluginApp((app) => {
       document.addEventListener("visibilitychange", syncRemote, { signal });
 
       return () => {
+        stopPluginUtilityScopes?.();
         rootObserver.disconnect();
         workspaceObserver.disconnect();
         if (refreshFrame !== 0) window.cancelAnimationFrame(refreshFrame);
         clearWorkspaceAppMenuMarkers();
         clearPromptContainerMarker();
         releaseRootOverrides(overrides, document.documentElement);
-        setMonacoCssTokenizer(false);
+        setMonacoEnhancedTokenizers(false);
       };
     },
   });
