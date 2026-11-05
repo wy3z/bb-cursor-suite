@@ -11,6 +11,7 @@ import {
 import { AgentPillsSummary } from "./src/PillRow";
 import { ChangesPill, useChanges } from "./src/ChangesPill";
 import { useActivity } from "./src/pill-data";
+import { CompactPill, useCompactToggleVisible } from "./src/CompactPill";
 import {
   applyComposerRestyle,
   readComposerRestyle,
@@ -102,6 +103,15 @@ export default definePluginApp((app) => {
     order: 20,
     summary: AgentPillsSummary,
     useVisible: usePillsVisible,
+  });
+
+  app.slots.experimental_threadContextSegment({
+    id: "compact-before-send",
+    title: "Compact before sending",
+    group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.thread,
+    order: 30,
+    summary: CompactPill,
+    useVisible: () => useCompactToggleVisible(),
   });
 
   // Git +/- for the thread's checkout, in BB's git group (after the thread

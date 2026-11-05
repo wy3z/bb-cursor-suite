@@ -361,7 +361,7 @@ button.bb-agent-pills__row-item {
 }
 
 /* A queued row with buttons needs a little air between preview and actions. */
-.bb-agent-pills__row-item:has(.bb-agent-pills__row-actions) {
+.bb-agent-pills__row-item[data-bb-agent-pills-has-row-actions] {
   gap: 8px;
 }
 
@@ -407,7 +407,7 @@ section[aria-label="Thread context before sending"] > div:first-child {
 
 section[aria-label="Thread context before sending"]
   > div:first-child
-  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills])) {
+  > :is(div, button)[data-bb-agent-pills-context-segment] {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -426,7 +426,7 @@ section[aria-label="Thread context before sending"]
 
 section[aria-label="Thread context before sending"]
   > div:first-child
-  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills]))
+  > :is(div, button)[data-bb-agent-pills-context-segment]
   :is(a, span) {
   min-width: 0;
   overflow: hidden;
@@ -436,7 +436,7 @@ section[aria-label="Thread context before sending"]
 
 section[aria-label="Thread context before sending"]
   > div:first-child
-  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills]))
+  > :is(div, button)[data-bb-agent-pills-context-segment]
   [data-icon] {
   width: 13px;
   height: 13px;
@@ -444,7 +444,7 @@ section[aria-label="Thread context before sending"]
 
 section[aria-label="Thread context before sending"]
   > div:first-child
-  > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills])):hover {
+  > :is(div, button)[data-bb-agent-pills-context-segment]:hover {
   border-color: var(--bb-agent-pills-outline);
   background: var(--bb-agent-pills-surface-hover);
   color: var(--foreground);
@@ -474,7 +474,7 @@ section[aria-label="Goal"] {
    Hide the banner only in the thread pane that carries that pill: another
    split pane, or a pill row another plugin draws with these classes, must not
    remove it. */
-[data-thread-window]:has(.bb-agent-pills__pill[data-group="thread"])
+[data-thread-window][data-bb-agent-pills-has-thread-pill][data-bb-agent-pills-has-thread-pill]
   section[aria-label="Thread history"] {
   display: none !important;
 }
@@ -482,28 +482,21 @@ section[aria-label="Goal"] {
 /* BB's plan and goal cards carry their own labels, but a relabel upstream
    would silently bring the card back; the dismiss buttons are the fallback
    anchor. */
-section:has(button[aria-label="Exit plan mode"]),
-section:has(button[aria-label="Clear active Goal"]),
-section:has(button[aria-label="Clear Goal"]) {
+section:is(section[data-bb-agent-pills-has-status-card]) {
   display: none !important;
 }
 
 /* Editing a queued message happens in BB's own inline editor, inside the
    "Queued messages" section; keep that one instance alive. */
 html:not([data-bb-agent-pills-show-queue])
-  section[aria-label="Queued messages"]:not(:has(form[data-promptbox])) {
+  section[aria-label="Queued messages"]:is(section):not([data-bb-agent-pills-has-queue-editor]) {
   display: none !important;
 }
 
 /* A pending approval or question swaps the composer stack for a short one
    (child threads, plan, goal) and drops our pill row, so those boxes come
    back for as long as an interaction card sits in the composer. */
-div[data-app-composer]:has(
-  section[data-testid="approval-banner"],
-  section[data-testid="user-question-banner"],
-  section[data-testid="plan-review-banner"],
-  section[data-testid="plugin-interaction-shell"]
-)
+div[data-app-composer]:is(div[data-bb-agent-pills-has-interaction])
   :is(
     section[aria-label="Child threads"],
     section[aria-label="Prompt mode"],
@@ -1016,7 +1009,7 @@ html[data-bb-agent-pills-composer="cursor"]
    the keyboard shortcut still shows its stop control. */
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
-  span:has(> button[aria-label="Start voice input"]),
+  span:is(span[data-bb-agent-pills-has-voice]),
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
   button[aria-label="Voice preferences"] {
@@ -1089,7 +1082,7 @@ html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] > div {
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox],
 .bb-agent-pills__pill,
-section[aria-label="Thread context before sending"] > div:first-child > :is(div, button):not([data-bb-plugin-root], [data-bb-agent-pills], :has([data-bb-agent-pills])) {
+section[aria-label="Thread context before sending"] > div:first-child > :is(div, button)[data-bb-agent-pills-context-segment] {
   -webkit-backdrop-filter: var(--bb-agent-pills-blur);
   backdrop-filter: var(--bb-agent-pills-blur);
   box-shadow: none !important;
@@ -1123,7 +1116,7 @@ html[data-bb-agent-pills-composer="cursor"] [data-page-scroll-viewport] {
   mask-image: none !important;
 }
 
-html[data-bb-agent-pills-composer="cursor"].dark :has(> [data-page-scroll-viewport])::after {
+html[data-bb-agent-pills-composer="cursor"].dark [data-bb-agent-pills-has-scroll-frame]::after {
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
@@ -1506,4 +1499,41 @@ button.bb-agent-pills__tray-row:disabled:hover {
   padding: 6px 8px 8px;
   color: var(--muted-foreground);
   font-size: 13px;
+}
+
+.bb-agent-pills__pill[data-group="compact"] {
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bb-agent-pills__pill[data-group="compact"] [data-icon-root],
+.bb-agent-pills__pill[data-group="compact"] svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.bb-agent-pills__pill[data-group="compact"][data-tone="compact"] {
+  border-color: color-mix(in oklab, var(--warning) 20%, var(--bb-agent-pills-outline));
+  background:
+    linear-gradient(color-mix(in oklab, var(--warning) 5%, transparent), color-mix(in oklab, var(--warning) 5%, transparent)),
+    var(--bb-agent-pills-surface);
+  color: var(--warning-text);
+}
+
+.bb-agent-pills__pill[data-group="compact"][data-tone="compact"]:hover {
+  border-color: color-mix(in oklab, var(--warning) 35%, var(--bb-agent-pills-outline));
+  background:
+    linear-gradient(color-mix(in oklab, var(--warning) 10%, transparent), color-mix(in oklab, var(--warning) 10%, transparent)),
+    var(--bb-agent-pills-surface);
+  color: var(--warning-text);
+}
+
+[data-thread-window][data-bb-agent-pills-has-compact-pill][data-bb-agent-pills-has-compact-pill]
+  form[data-promptbox]
+  :is(
+    button[aria-pressed][aria-label^="Compact "][aria-label$=" tokens before sending"],
+    button[aria-pressed][aria-label^="Keep all "][aria-label$=" tokens of history"]
+  ) {
+  display: none !important;
 }

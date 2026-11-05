@@ -6,6 +6,7 @@
  * width changes with the model name.
  */
 import { readComposerRestyle } from "./preferences";
+import { startRelationalMarkers } from "./relational-markers";
 
 const PINNED = new WeakMap<
   HTMLElement,
@@ -32,6 +33,21 @@ function clear(entry: { permission: HTMLElement; right: string; top: string }) {
 
 
 const MULTILINE = "data-bb-agent-pills-multiline";
+const CONTEXT_SEGMENT = "data-bb-agent-pills-context-segment";
+
+function syncContextSegments(): void {
+  for (const segment of document.querySelectorAll<HTMLElement>(
+    'section[aria-label="Thread context before sending"] > div:first-child > :is(div, button)',
+  )) {
+    const native =
+      !segment.hasAttribute("data-bb-plugin-root") &&
+      !segment.hasAttribute("data-bb-agent-pills") &&
+      segment.querySelector("[data-bb-agent-pills]") === null;
+    if (segment.hasAttribute(CONTEXT_SEGMENT) !== native) {
+      segment.toggleAttribute(CONTEXT_SEGMENT, native);
+    }
+  }
+}
 
 /** Typing inside a composer, watched per form rather than across the page. */
 let formWatcher: MutationObserver | null = null;
@@ -129,6 +145,7 @@ export function syncComposerLayout(enabled: boolean): void {
 }
 
 export function startComposerLayout(signal: AbortSignal): () => void {
+  startRelationalMarkers(signal);
   if (resizeObserver === null && typeof ResizeObserver !== "undefined") {
     resizeObserver = new ResizeObserver(() => schedule());
   }
@@ -142,11 +159,20 @@ export function startComposerLayout(signal: AbortSignal): () => void {
     });
   }
 
-  const mutations = new MutationObserver(schedule);
-  mutations.observe(document.body, { childList: true, subtree: true });
+  const mutations = new MutationObserver(() => {
+    syncContextSegments();
+    schedule();
+  });
+  mutations.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-bb-plugin-root", "data-bb-agent-pills"],
+  });
   formWatcher = new MutationObserver(schedule);
   watchedForms = new WeakSet<HTMLElement>();
   window.addEventListener("resize", schedule);
+  syncContextSegments();
   schedule();
 
   signal.addEventListener("abort", () => {
@@ -158,6 +184,9 @@ export function startComposerLayout(signal: AbortSignal): () => void {
     resizeObserver?.disconnect();
     resizeObserver = null;
     syncComposerLayout(false);
+    for (const segment of document.querySelectorAll(`[${CONTEXT_SEGMENT}]`)) {
+      segment.removeAttribute(CONTEXT_SEGMENT);
+    }
   });
 
   return schedule;

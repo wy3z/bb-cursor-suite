@@ -48,6 +48,11 @@ status swaps for actions on hover, five rows then "More".
   segment only appears for worktree environments (segments get no environment
   for project checkouts), so this reads the same status from BB's git plugin
   by the thread's environment id, and BB's segment is hidden.
+- **Compact before sending.** BB's "Compact 120k / Keep history" toggle,
+  shown when the prompt cache has expired, moves out of the prompt box into
+  the pill row. It keeps BB's warning colour while compacting is on. The pill
+  mirrors BB's hidden button and clicks it, so BB still owns the state. The
+  touch-screen version (an icon with a menu) is left in the box.
 - **Parent thread.** BB's own segment is kept, but drawn as a pill on the
   same row.
 
