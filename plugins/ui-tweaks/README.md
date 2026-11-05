@@ -14,6 +14,10 @@ Small, configurable interface improvements for BB.
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger
   chat prose, and semibold bold text. Other sizes and weights stay put.
 
+- **Hide Steer labels in chats** (off by default): removes the Steer tag
+  shown on messages that steered a running agent, including pending and
+  failed ones.
+
 - **Better syntax highlighting in the File Editor** (off by default): teaches
   Monaco more about CSS, TypeScript and JavaScript. CSS gets a tokenizer that
   understands `@media`, nested rules, pseudo-classes, attribute selectors,

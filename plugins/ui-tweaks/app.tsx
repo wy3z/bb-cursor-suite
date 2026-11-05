@@ -82,6 +82,7 @@ interface Preferences {
   iconPack: IconPack;
   spinnerStyle: SpinnerStyle;
   clearerHierarchy: boolean;
+  hideSteerLabels: boolean;
   optimizePluginStyles: boolean;
   editorSyntaxHighlighting: boolean;
   workspaceAppCategories: WorkspaceAppCategory[];
@@ -102,6 +103,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   iconPack: "default",
   spinnerStyle: "follow",
   clearerHierarchy: true,
+  hideSteerLabels: false,
   optimizePluginStyles: true,
   editorSyntaxHighlighting: false,
   workspaceAppCategories: [
@@ -223,6 +225,7 @@ function readPersistedPreferences(): Preferences {
         iconPack: parseIconPack(value.iconPack),
         spinnerStyle: parseSpinnerStyle(value.spinnerStyle),
         clearerHierarchy: value.clearerHierarchy !== false,
+        hideSteerLabels: value.hideSteerLabels === true,
         optimizePluginStyles: value.optimizePluginStyles !== false,
         editorSyntaxHighlighting:
           (value.editorSyntaxHighlighting ??
@@ -289,6 +292,14 @@ function applyRootPreferences(
     root,
     "data-bb-ui-clearer-hierarchy",
     preferences.clearerHierarchy ? "true" : null,
+    reclaimExternal,
+    "private",
+  );
+  setOwnedAttribute(
+    overrides,
+    root,
+    "data-bb-ui-hide-steer-labels",
+    preferences.hideSteerLabels ? "true" : null,
     reclaimExternal,
     "private",
   );
@@ -1163,6 +1174,22 @@ function InterfaceSettings() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-medium text-foreground">
+            Hide Steer labels in chats
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Drop the Steer tag above messages you sent to steer a running
+            agent. Pending and failed steers are hidden too.
+          </p>
+        </div>
+        <ToggleSwitch
+          ariaLabel="Hide Steer labels in chats"
+          checked={preferences.hideSteerLabels}
+          onCheckedChange={(checked) => update({ hideSteerLabels: checked })}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">
             Better syntax highlighting in the File Editor
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -1388,6 +1415,7 @@ function InterfaceSettings() {
               iconPack: DEFAULT_PREFERENCES.iconPack,
               spinnerStyle: DEFAULT_PREFERENCES.spinnerStyle,
               clearerHierarchy: DEFAULT_PREFERENCES.clearerHierarchy,
+              hideSteerLabels: DEFAULT_PREFERENCES.hideSteerLabels,
               optimizePluginStyles: DEFAULT_PREFERENCES.optimizePluginStyles,
               editorSyntaxHighlighting:
                 DEFAULT_PREFERENCES.editorSyntaxHighlighting,

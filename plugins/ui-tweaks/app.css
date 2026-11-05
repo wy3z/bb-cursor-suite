@@ -116,3 +116,11 @@ html[data-bb-ui-clearer-hierarchy="true"]
   ) {
   font-weight: var(--font-weight-bold, 700);
 }
+
+html[data-bb-ui-hide-steer-labels="true"]
+  [data-thread-window]
+  div.flex.items-center.gap-2:has(
+    > span.shrink-0.whitespace-nowrap.text-xs.leading-none.text-muted-foreground:only-child
+  ) {
+  display: none !important;
+}

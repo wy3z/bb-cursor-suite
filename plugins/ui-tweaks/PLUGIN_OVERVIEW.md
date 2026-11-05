@@ -11,6 +11,9 @@ when opening threads. Checked by default; changes apply immediately and persist.
 semibold bold text. Headings, code, and other sizes and weights stay put. This
 is on by default.
 
+**Hide Steer labels.** Optionally removes the Steer tag on messages that
+steered a running agent. Off by default.
+
 **Better syntax highlighting.** Optional File Editor tokenizers for CSS,
 TypeScript and JavaScript that tell functions, constants, operators, built-in
 types, selectors and `@media` queries apart, so code looks closer to Zed or VS
