@@ -1839,3 +1839,6 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:not(:disabled):hover > span {
   color: var(--foreground);
 }
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] > span {
+  transform: rotate(180deg);
+}
