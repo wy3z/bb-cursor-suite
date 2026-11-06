@@ -22,11 +22,10 @@
      BB's composer is bg-background + border-border. */
   /* Translucent so the transcript shows through as it scrolls under the
      composer; the blur keeps the draft readable over it. */
-  --bb-agent-pills-surface: color-mix(in oklab, var(--background) 60%, transparent);
-  /* Same frosting as the theme's popovers (blur(28px) saturate(160%)). */
-  --bb-agent-pills-blur: blur(28px) saturate(160%);
-  --bb-agent-pills-outline: var(--border);
-  --bb-agent-pills-surface-hover: var(--surface-selected, var(--state-hover));
+  --bb-agent-pills-surface: var(--bbs-glass-surface);
+  --bb-agent-pills-blur: var(--bbs-glass-blur);
+  --bb-agent-pills-outline: var(--bbs-glass-outline);
+  --bb-agent-pills-surface-hover: var(--bbs-glass-surface-hover);
 }
 
 .bb-agent-pills__pill {
@@ -1083,16 +1082,14 @@ section[aria-label="Thread context before sending"] > div:first-child > :is(div,
 
 /* Themes may pin the composer to a solid colour (e.g. html.dark
    form[data-promptbox].bg-background); the translucent surface must win. */
-html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox],
+html[data-bb-agent-pills-composer="cursor"].dark form[data-promptbox].bg-background,
+html[data-bb-agent-pills-composer="cursor"]:not(.dark) form[data-promptbox].bg-background {
   background-color: var(--bb-agent-pills-surface) !important;
+  -webkit-backdrop-filter: var(--bb-agent-pills-blur) !important;
+  backdrop-filter: var(--bb-agent-pills-blur) !important;
 }
 
-/* Dark: the popover glass tint, the popover colour at 45%. */
-.dark {
-  --bb-agent-pills-surface: color-mix(in oklab, var(--popover) 45%, transparent);
-  /* Glass edge, as dark themes draw the composer: foreground at 12%. */
-  --bb-agent-pills-outline: color-mix(in oklab, var(--foreground) 12%, transparent);
-}
 
 /* Themes may give the composer its own edge colour; keep it identical to the
    pills' outline. */
