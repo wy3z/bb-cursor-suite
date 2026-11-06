@@ -1195,11 +1195,11 @@ html[data-bb-agent-pills-composer="cursor"]
 }
 
 .bb-agent-pills__diff[data-sign="plus"] {
-  color: var(--bbs-green);
+  color: var(--diff-added, var(--bbs-green));
 }
 
 .bb-agent-pills__diff[data-sign="minus"] {
-  color: var(--destructive, oklch(0.65 0.2 25));
+  color: var(--diff-removed, var(--bbs-red));
 }
 
 .bb-agent-pills__file-status {
