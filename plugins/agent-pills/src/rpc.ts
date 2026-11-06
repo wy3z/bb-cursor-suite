@@ -186,6 +186,7 @@ export const agentPillsRpcContract = defineRpcContract({
       environmentId: environmentIdSchema,
       message: z.string().max(20_000),
       push: z.boolean(),
+      includeUntracked: z.boolean().default(false),
     }),
     output: gitActionResultSchema,
   },

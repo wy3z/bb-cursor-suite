@@ -49,6 +49,10 @@ status swaps for actions on hover, five rows then "More".
   (leave it empty for BB's generated message; Ctrl+Enter commits,
   Ctrl+Shift+Enter commits and pushes), then **Commit**, **Commit & Push**
   and **Create PR**. With a clean tree it offers **Push** and **Create PR**.
+  Commits stage tracked files only. Untracked files go in only when you tick
+  **Include N untracked files**; while untracked files are left out, a
+  generated-message commit is refused (BB's commit could sweep them in), so
+  the box asks for a typed message.
   Create PR commits first if needed, pushes the branch and runs
   `gh pr create --fill` against the environment's base branch, or returns the
   pull request already open for the branch. Progress and the result show
@@ -93,9 +97,12 @@ plain text, and a round send button. The restyle selects BB's
   full width and the paperclip and controls move to a bottom row. It returns
   to one row when the draft is empty. Attachments sit between the text and
   the controls.
-- **Hidden:** the dictation button, the send-options arrow, the collapse
-  button and **New thread in this environment**. While a turn runs, the send
-  circle shows a stop square.
+- **Hidden:** the dictation button, the collapse button and **New thread in
+  this environment**. BB's Send options menu (Save draft, Send later, and any
+  plugin's send items) stays, as a small chevron left of the send circle.
+  The circle is drawn with an inset box-shadow, because BB's composer forces
+  its buttons transparent with a layered `!important` utility. It dims while
+  the draft is empty, and shows a stop square while a turn runs.
 - **Prompt height.** UI Tweaks' One line and Two lines settings win: when
   `data-bb-ui-prompt-height` is set, the composer drops its own 48px floor and
   taller block padding, leaving the height to UI Tweaks. Without it, the

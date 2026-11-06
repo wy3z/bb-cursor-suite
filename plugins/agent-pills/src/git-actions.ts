@@ -106,17 +106,30 @@ async function head(path: string): Promise<{ sha: string; subject: string }> {
   return { sha: sha ?? "", subject: subject ?? "" };
 }
 
-export function commit(bb: BbPluginApi, input: { environmentId: string; message: string; push: boolean }) {
+async function untrackedCount(path: string): Promise<number> {
+  const out = await must("git", ["ls-files", "--others", "--exclude-standard", "-z"], path, "Couldn't list untracked files");
+  return out.split("\0").filter((item) => item !== "").length;
+}
+
+export function commit(bb: BbPluginApi, input: { environmentId: string; message: string; push: boolean; includeUntracked: boolean }) {
   return guard(async () => {
     const target = await checkout(bb, input.environmentId);
     if (!(await hasChanges(target.path))) throw new ActionError("Nothing to commit");
     const message = input.message.trim();
+    const untracked = await untrackedCount(target.path);
     let created: { sha: string; subject: string };
     if (message === "") {
+      if (untracked > 0 && !input.includeUntracked) {
+        throw new ActionError(`Type a commit message: ${untracked} untracked ${untracked === 1 ? "file is" : "files are"} left out, and a generated commit could include them`);
+      }
       const result = await bb.sdk.environments.commit({ environmentId: input.environmentId });
       created = { sha: result.commitSha, subject: result.commitSubject };
     } else {
-      await must("git", ["add", "-A"], target.path, "Couldn't stage the changes");
+      await must("git", ["add", input.includeUntracked ? "-A" : "-u"], target.path, "Couldn't stage the changes");
+      const staged = await run("git", ["diff", "--cached", "--quiet"], target.path);
+      if (staged.code === 0) {
+        throw new ActionError(untracked > 0 ? "Only untracked files changed. Tick Include untracked to commit them" : "Nothing to commit");
+      }
       await must("git", ["commit", "-F", "-"], target.path, "Commit failed", { input: `${message}\n` });
       created = await head(target.path);
     }

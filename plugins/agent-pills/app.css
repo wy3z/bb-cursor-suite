@@ -860,13 +860,6 @@ html[data-bb-agent-pills-composer="cursor"]
   mask: none;
 }
 
-/* No send-options arrow, like Zeron. */
-html[data-bb-agent-pills-composer="cursor"]
-  form[data-promptbox]
-  button[aria-label="Send options"] {
-  display: none !important;
-}
-
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
   button[aria-label="Start voice input"],
@@ -1539,44 +1532,12 @@ button.bb-agent-pills__tray-row:disabled:hover {
 }
 
 .bb-agent-pills__orb {
-  --bb-agent-pills-orb: #3b82f6;
-  position: relative;
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
   border-radius: 9999px;
-  background: radial-gradient(
-    circle at 35% 30%,
-    color-mix(in oklab, var(--bb-agent-pills-orb) 30%, white) 0%,
-    var(--bb-agent-pills-orb) 55%,
-    color-mix(in oklab, var(--bb-agent-pills-orb) 70%, black) 100%
-  );
-  box-shadow:
-    0 0 4px 1px color-mix(in oklab, var(--bb-agent-pills-orb) 70%, transparent),
-    0 0 10px 2px color-mix(in oklab, var(--bb-agent-pills-orb) 35%, transparent);
-  animation: bb-agent-pills-orb 1.8s ease-in-out infinite;
-}
-.bb-agent-pills__orb::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  background: radial-gradient(circle, color-mix(in oklab, var(--bb-agent-pills-orb) 45%, transparent) 0%, transparent 70%);
-  animation: bb-agent-pills-orb-halo 1.8s ease-in-out infinite;
-}
-@keyframes bb-agent-pills-orb {
-  0%, 100% { transform: scale(0.85); filter: brightness(0.95); }
-  50% { transform: scale(1); filter: brightness(1.25); }
-}
-@keyframes bb-agent-pills-orb-halo {
-  0%, 100% { opacity: 0.35; transform: scale(0.8); }
-  50% { opacity: 0.9; transform: scale(1.35); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .bb-agent-pills__orb,
-  .bb-agent-pills__orb::after {
-    animation: none;
-  }
+  background: var(--timeline-accent, #3b82f6);
 }
 .bb-agent-pills__tray-leading .bb-agent-pills__glyph {
   display: inline-flex;
@@ -1782,4 +1743,102 @@ button.bb-agent-pills__tray-row:disabled:hover {
   .bb-agent-pills__commit-button:active:not(:disabled) {
     transform: none;
   }
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox]:focus-within {
+  border-color: color-mix(in oklab, var(--foreground) 22%, var(--bb-agent-pills-outline));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action] {
+  transition: background-color 160ms ease, color 160ms ease, transform 80ms ease;
+}
+
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]
+  [data-promptbox-submit-action]:active {
+  transform: scale(0.92);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-submit-action]:active {
+    transform: none;
+  }
+}
+
+.bb-agent-pills__commit-untracked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+.bb-agent-pills__commit-untracked input {
+  margin: 0;
+  accent-color: #3b82f6;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] {
+  width: auto !important;
+  gap: 2px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] {
+  order: -1;
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+  opacity: 1 !important;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:hover {
+  background: var(--state-hover) !important;
+  color: var(--foreground) !important;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] [data-icon-root],
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] svg {
+  width: 14px;
+  height: 14px;
+  opacity: 1 !important;
+}
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]:has(.ProseMirror > p[data-placeholder]:only-child):not(:has([data-promptbox-attachments] *))
+  [data-promptbox-submit-action]:not([aria-label="Stop run"]) {
+  background: color-mix(in srgb, var(--foreground) 20%, transparent) !important;
+  color: color-mix(in srgb, var(--foreground) 70%, transparent) !important;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] [data-promptbox-submit-action] {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 9999px !important;
+  box-shadow: inset 0 0 0 14px var(--foreground) !important;
+  color: var(--background) !important;
+  opacity: 1 !important;
+  transition: box-shadow 160ms ease, color 160ms ease, transform 80ms ease;
+}
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]:has(.ProseMirror > p[data-placeholder]:only-child):not(:has([data-promptbox-attachments] *))
+  [data-promptbox-send-menu]
+  [data-promptbox-submit-action]:not([aria-label="Stop run"]) {
+  box-shadow: inset 0 0 0 14px color-mix(in srgb, var(--foreground) 20%, transparent) !important;
+  color: color-mix(in srgb, var(--foreground) 70%, transparent) !important;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] > span {
+  opacity: 1 !important;
+  color: color-mix(in srgb, var(--foreground) 38%, transparent);
+  transition: color 120ms ease;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:not(:disabled) > span {
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:not(:disabled):hover > span {
+  color: var(--foreground);
 }

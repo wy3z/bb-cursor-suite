@@ -25,10 +25,14 @@ function shortSha(sha: string | undefined): string {
 export function CommitBar({
   environmentId,
   uncommitted,
+  untracked,
 }: {
   environmentId: string;
   uncommitted: boolean;
+  untracked: number;
 }) {
+  const [includeUntracked, setIncludeUntracked] = useState(false);
+  const needsMessage = untracked > 0 && !includeUntracked;
   const rpc = useRpc<typeof agentPillsRpcContract>();
   const [message, setMessage] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -57,7 +61,7 @@ export function CommitBar({
       }
       let committed: GitActionResult | null = null;
       if (uncommitted) {
-        committed = await rpc.call("gitCommit", { environmentId, message, push: action === "commit-push" });
+        committed = await rpc.call("gitCommit", { environmentId, message, push: action === "commit-push", includeUntracked });
         if (!committed.ok) return fail(committed, "Commit failed");
         setMessage("");
       }
@@ -88,7 +92,7 @@ export function CommitBar({
           rows={1}
           value={message}
           disabled={busy}
-          placeholder="Commit message (empty to generate)"
+          placeholder={needsMessage ? "Commit message (required while untracked files are left out)" : "Commit message (empty to generate)"}
           aria-label="Commit message"
           onChange={(event) => setMessage(event.currentTarget.value)}
           onKeyDown={(event) => {
@@ -99,6 +103,19 @@ export function CommitBar({
             }
           }}
         />
+      ) : null}
+      {uncommitted && untracked > 0 ? (
+        <label className="bb-agent-pills__commit-untracked">
+          <input
+            type="checkbox"
+            checked={includeUntracked}
+            disabled={busy}
+            onChange={(event) => setIncludeUntracked(event.currentTarget.checked)}
+          />
+          <span>
+            Include {untracked} untracked {untracked === 1 ? "file" : "files"}
+          </span>
+        </label>
       ) : null}
       <div className="bb-agent-pills__commit-actions">
         {uncommitted ? (

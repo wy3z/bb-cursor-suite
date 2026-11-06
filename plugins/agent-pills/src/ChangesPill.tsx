@@ -259,7 +259,11 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
               <div className="bb-agent-pills__tray-empty">and {fileCount - files.length} more not listed</div>
             ) : null}
           </div>
-          {environmentId !== null ? <CommitBar environmentId={environmentId} uncommitted={changes.uncommitted} /> : null}
+          {environmentId !== null ? <CommitBar
+              environmentId={environmentId}
+              uncommitted={changes.uncommitted}
+              untracked={files.filter((file) => file.status === "??").length}
+            /> : null}
         </div>
       ) : null}
     </div>
