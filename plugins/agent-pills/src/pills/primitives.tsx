@@ -3,21 +3,11 @@
  * dot and the two glyphs BB uses for background work.
  */
 import { useEffect, useState } from "react";
+import { duration, elapsed } from "@wy3z/bb-suite/time";
 import type { PillState } from "../pill-data";
 
-export function formatElapsed(startedAt: number, now: number): string {
-  return formatDuration(Math.max(0, Math.round((now - startedAt) / 1000)));
-}
-
-/** "45s", "12m", "2h 5m", "3d 4h" — the same ladder BB's cards use. */
-export function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ${minutes % 60}m`;
-  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-}
+export const formatElapsed = (startedAt: number, now: number): string => elapsed(startedAt, now);
+export const formatDuration = (seconds: number): string => duration(seconds);
 
 /** "1.2k" for token counts, plain below a thousand. */
 export function formatTokens(tokens: number): string {

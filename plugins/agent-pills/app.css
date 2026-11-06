@@ -80,8 +80,8 @@ span.bb-agent-pills__pill {
 }
 
 .bb-agent-pills__dot[data-state="needs-input"] {
-  background: var(--attention);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--attention) 18%, transparent);
+  background: var(--bbs-amber);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--bbs-amber) 18%, transparent);
 }
 
 .bb-agent-pills__dot[data-state="error"] {
@@ -265,14 +265,14 @@ button.bb-agent-pills__row-item {
 /* A pill reporting something you may want to act on: model fallback, a goal
    that is paused, blocked or out of budget. */
 .bb-agent-pills__pill[data-tone="warn"] {
-  border-color: color-mix(in oklab, var(--attention) 45%, var(--border));
-  color: color-mix(in oklab, var(--attention) 80%, var(--foreground));
+  border-color: color-mix(in oklab, var(--bbs-amber) 45%, var(--border));
+  color: color-mix(in oklab, var(--bbs-amber) 80%, var(--foreground));
 }
 
 .bb-agent-pills__pill[data-tone="warn"]:hover,
 .bb-agent-pills__pill[data-tone="warn"][aria-expanded="true"] {
-  border-color: var(--attention);
-  color: var(--attention);
+  border-color: var(--bbs-amber);
+  color: var(--bbs-amber);
 }
 
 /* Plan prompt and goal objective: long text, wrapped, scrolled inside the
@@ -371,8 +371,8 @@ button.bb-agent-pills__row-item {
 }
 
 .bb-agent-pills__dot[data-todo="in_progress"] {
-  background: var(--attention);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--attention) 18%, transparent);
+  background: var(--bbs-amber);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--bbs-amber) 18%, transparent);
   animation: bb-agent-pills-breathe 1.8s ease-in-out infinite;
 }
 
@@ -1195,7 +1195,7 @@ html[data-bb-agent-pills-composer="cursor"]
 }
 
 .bb-agent-pills__diff[data-sign="plus"] {
-  color: var(--success, oklch(0.72 0.17 150));
+  color: var(--bbs-green);
 }
 
 .bb-agent-pills__diff[data-sign="minus"] {
@@ -1350,11 +1350,11 @@ button.bb-agent-pills__tray-row:disabled:hover {
   width: 14px;
   height: 14px;
 }
-.bb-agent-pills__tray-leading[data-tone="green"] { color: var(--success, #3fb950); }
-.bb-agent-pills__tray-leading[data-tone="red"] { color: var(--destructive-text, #f85149); }
-.bb-agent-pills__tray-leading[data-tone="orange"] { color: var(--warning-text, #db6d28); }
-.bb-agent-pills__tray-leading[data-tone="yellow"] { color: var(--attention, #d29922); }
-.bb-agent-pills__tray-leading[data-tone="purple"] { color: var(--pr-merged, #a371f7); }
+.bb-agent-pills__tray-leading[data-tone="green"] { color: var(--bbs-green); }
+.bb-agent-pills__tray-leading[data-tone="red"] { color: var(--destructive-text, var(--bbs-red)); }
+.bb-agent-pills__tray-leading[data-tone="orange"] { color: var(--warning-text, var(--bbs-orange)); }
+.bb-agent-pills__tray-leading[data-tone="yellow"] { color: var(--bbs-amber); }
+.bb-agent-pills__tray-leading[data-tone="purple"] { color: var(--pr-merged, var(--bbs-purple)); }
 .bb-agent-pills__tray-label {
   flex: 0 1 auto;
   min-width: 0;
@@ -1537,7 +1537,7 @@ button.bb-agent-pills__tray-row:disabled:hover {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: var(--timeline-accent, #3b82f6);
+  background: var(--bbs-accent);
 }
 .bb-agent-pills__tray-leading .bb-agent-pills__glyph {
   display: inline-flex;
@@ -1621,8 +1621,8 @@ button.bb-agent-pills__tray-row:disabled:hover {
   color: var(--muted-foreground);
 }
 .bb-agent-pills__commit-message:focus {
-  border-color: color-mix(in oklab, #3b82f6 60%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in oklab, #3b82f6 18%, transparent);
+  border-color: color-mix(in oklab, var(--bbs-accent) 60%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--bbs-accent) 18%, transparent);
 }
 .bb-agent-pills__commit-message:disabled {
   opacity: 0.6;
@@ -1665,11 +1665,11 @@ button.bb-agent-pills__tray-row:disabled:hover {
 }
 .bb-agent-pills__commit-button[data-variant="primary"] {
   border-color: transparent;
-  background: #3b82f6;
+  background: var(--bbs-accent);
   color: white;
 }
 .bb-agent-pills__commit-button[data-variant="primary"]:hover:not(:disabled) {
-  background: color-mix(in oklab, #3b82f6 88%, white);
+  background: color-mix(in oklab, var(--bbs-accent) 88%, white);
 }
 .bb-agent-pills__commit-button:disabled {
   opacity: 0.5;
@@ -1700,7 +1700,7 @@ button.bb-agent-pills__tray-row:disabled:hover {
   color: var(--destructive);
 }
 .bb-agent-pills__commit-link {
-  color: #3b82f6;
+  color: var(--bbs-accent);
   text-decoration: none;
 }
 .bb-agent-pills__commit-link:hover {
@@ -1717,7 +1717,7 @@ button.bb-agent-pills__tray-row:disabled:hover {
   height: 14px;
 }
 .bb-agent-pills__commit-icon[data-tone="good"] {
-  color: var(--success, #22c55e);
+  color: var(--bbs-green);
 }
 .bb-agent-pills__commit-icon[data-tone="bad"] {
   color: var(--destructive);
@@ -1726,7 +1726,7 @@ button.bb-agent-pills__tray-row:disabled:hover {
   animation: bb-agent-pills-rise 180ms ease-out;
 }
 .bb-agent-pills__apply-status[data-kind="done"] {
-  color: var(--success, #22c55e);
+  color: var(--bbs-green);
 }
 .bb-agent-pills__apply-status[data-kind="error"] {
   color: var(--destructive);
@@ -1779,7 +1779,7 @@ html[data-bb-agent-pills-composer="cursor"]
 }
 .bb-agent-pills__commit-untracked input {
   margin: 0;
-  accent-color: #3b82f6;
+  accent-color: var(--bbs-accent);
 }
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] {
