@@ -1844,3 +1844,11 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] > span {
   transform: rotate(180deg);
 }
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"],
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:disabled {
+  visibility: hidden !important;
+  background: transparent !important;
+}
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] > * {
+  display: none !important;
+}
