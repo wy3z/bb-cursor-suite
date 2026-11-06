@@ -11,15 +11,17 @@ muted "N Things" header with a minimise button, one-line rows whose time or
 status swaps for actions on hover, five rows then "More".
 
 - **Agents.** After Cursor's agent tray: a chip reading "Agents", or
-  "Working 2" with bb's spinner while child threads run, opens a tray headed
-  "N Agents". Running and waiting agents come first, finished ones under
-  "Recent" (five, then "More"). Rows show bb's status glyph, the title, a
-  description ("Working", "Needs input", with the model) and elapsed time;
-  hover swaps the time for × (stop a running one, mark a finished one read).
-  An Answer button appears when a child waits on you. The header has Stop All
-  (click twice to confirm) or Clear All. Ctrl or Alt-click opens a split.
-- **Background tasks.** The same for the thread's background agents and
-  commands.
+  "Working 2" with a glowing orb while child threads or background tasks run,
+  opens a tray headed "N Agents" ("N Tasks" once a background command is in
+  it). Child threads and the thread's background agents and commands share
+  the tray. Running and waiting items come first, finished ones under
+  "Recent" (five, then "More"). Rows show bb's status glyph (the orb while
+  running), the title, a description ("Working", "Needs input", with the
+  model) and elapsed time. On child-thread rows, hover swaps the time for ×
+  (stop a running one, mark a finished one read); background tasks have no
+  stop in the SDK, so their rows are read-only. An Answer button appears when
+  a child waits on you. The header has Stop All (click twice to confirm) or
+  Clear All, both for child threads. Ctrl or Alt-click opens a split.
 - **Workflow.** "name · 3/5 agents" for one running workflow, "2 workflows"
   for several; the popover lists each with its agent count and elapsed time.
 - **Plan mode.** "Plan mode"; the popover shows the plan prompt and an
@@ -43,7 +45,20 @@ status swaps for actions on hover, five rows then "More".
   base when the tree is clean; the tray lists each file with its status and
   line counts. Clicking a file opens it in BB's file preview, and the tray's
   diff button selects BB's Diff tab (falling back to its Ctrl/Cmd+D
-  shortcut). Plugins can't open another plugin's tab at a file, so the diff
+  shortcut). Under the files, a commit bar: a message box
+  (leave it empty for BB's generated message; Ctrl+Enter commits,
+  Ctrl+Shift+Enter commits and pushes), then **Commit**, **Commit & Push**
+  and **Create PR**. With a clean tree it offers **Push** and **Create PR**.
+  Create PR commits first if needed, pushes the branch and runs
+  `gh pr create --fill` against the environment's base branch, or returns the
+  pull request already open for the branch. Progress and the result show
+  under the buttons. These run git and `gh` from the plugin's backend, so they
+  only work for environments on the BB server's own machine.
+- **Apply locally.** A child thread in its own worktree gets a download
+  button on hover in the Agents tray. It copies everything the worktree has
+  against the parent's checkout (commits, uncommitted and untracked files,
+  binaries) into the parent's checkout as uncommitted changes. It refuses
+  rather than half-applying when the patch doesn't apply cleanly. Plugins can't open another plugin's tab at a file, so the diff
   starts at the top. BB's own changed-files
   segment only appears for worktree environments (segments get no environment
   for project checkouts), so this reads the same status from BB's git plugin

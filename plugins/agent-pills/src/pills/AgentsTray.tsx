@@ -1,21 +1,14 @@
-/**
- * Subagents, after Cursor's agent tray (subagent-tray.surfaces,
- * subagent-tray-rows): a chip reading "Agents", or "Working 2" with a
- * spinner while children run, opens a tray headed "N Agents". Running and
- * waiting agents come first, finished ones under "Recent". Each row has bb's
- * status glyph, the title, an inline description, and the elapsed time,
- * which hover swaps for a close button. Stop All (confirmed) or Clear All
- * sits in the header.
- */
 import { useState } from "react";
 import {
   experimental_Icon as Icon,
   experimental_ThreadStatusGlyph as ThreadStatusGlyph,
   useBbNavigate,
+  useRpc,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import type { PillState, SubagentItem } from "../pill-data";
-import { formatElapsed, shortModel, useNow } from "./primitives";
+import { agentPillsRpcContract } from "../rpc";
+import { STATE_ORDER, type PillState, type SubagentItem, type TaskItem } from "../pill-data";
+import { AgentIcon, CommandIcon, Orb, formatElapsed, shortModel, useNow } from "./primitives";
 
 const FIRST_PAGE = 5;
 const NEXT_PAGE = 8;
@@ -36,21 +29,59 @@ const DESCRIPTION: Record<PillState, string> = {
   done: "Done",
 };
 
-function isActive(item: SubagentItem): boolean {
+export type TrayItem =
+  | { type: "thread"; key: string; state: PillState; title: string; model: string | null; startedAt: number; thread: SubagentItem }
+  | { type: "task"; key: string; state: PillState; title: string; model: string | null; startedAt: number; task: TaskItem };
+
+function isActive(item: { state: PillState }): boolean {
   return item.state === "running" || item.state === "needs-input";
 }
 
+export function trayItems(subagents: readonly SubagentItem[], background: readonly TaskItem[]): TrayItem[] {
+  const items: TrayItem[] = [
+    ...subagents.map((thread): TrayItem => ({
+      type: "thread",
+      key: `thread:${thread.threadId}`,
+      state: thread.state,
+      title: thread.title,
+      model: thread.model,
+      startedAt: thread.createdAt,
+      thread,
+    })),
+    ...background.map((task): TrayItem => ({
+      type: "task",
+      key: `task:${task.id}`,
+      state: task.state,
+      title: task.title,
+      model: task.model,
+      startedAt: task.startedAt,
+      task,
+    })),
+  ];
+  return items.sort((left, right) => {
+    const rank = STATE_ORDER[left.state] - STATE_ORDER[right.state];
+    return rank !== 0 ? rank : right.startedAt - left.startedAt;
+  });
+}
+
+function trayTitle(items: readonly TrayItem[]): string {
+  const total = items.length;
+  const commands = items.some((item) => item.type === "task" && item.task.kind === "command");
+  if (commands) return `${total} ${total === 1 ? "Task" : "Tasks"}`;
+  return `${total} ${total === 1 ? "Agent" : "Agents"}`;
+}
+
 export function AgentsChip({
-  subagents,
+  items,
   open,
   onToggle,
 }: {
-  subagents: readonly SubagentItem[];
+  items: readonly TrayItem[];
   open: boolean;
   onToggle: () => void;
 }) {
-  const working = subagents.filter(isActive).length;
-  const needsYou = subagents.some((item) => item.state === "needs-input");
+  const working = items.filter(isActive).length;
+  const needsYou = items.some((item) => item.state === "needs-input");
   return (
     <button
       type="button"
@@ -67,7 +98,7 @@ export function AgentsChip({
         </span>
       ) : working > 0 ? (
         <span className="bb-agent-pills__chip-lead" aria-hidden="true">
-          <ThreadStatusGlyph indicator="runtime" />
+          <Orb />
         </span>
       ) : null}
       <span className="bb-agent-pills__label">{working > 0 ? "Working" : "Agents"}</span>
@@ -76,47 +107,84 @@ export function AgentsChip({
   );
 }
 
+function Leading({ item }: { item: TrayItem }) {
+  if (item.state === "running") return <Orb />;
+  if (item.type === "thread") return <ThreadStatusGlyph indicator={INDICATOR[item.state]} />;
+  return (
+    <span className="bb-agent-pills__glyph" data-kind={item.task.kind} data-state={item.state}>
+      {item.task.kind === "agent" ? <AgentIcon /> : <CommandIcon />}
+    </span>
+  );
+}
+
+type ApplyState = { kind: "busy" } | { kind: "done"; text: string } | { kind: "error"; text: string };
+
 function AgentRow({
   item,
   now,
+  canApply,
+  apply,
   onOpen,
   onClose,
+  onApply,
 }: {
-  item: SubagentItem;
+  item: TrayItem;
   now: number;
+  canApply: boolean;
+  apply: ApplyState | undefined;
   onOpen: (item: SubagentItem, split: boolean) => void;
   onClose: (item: SubagentItem) => void;
+  onApply: (item: SubagentItem) => void;
 }) {
   const description = DESCRIPTION[item.state];
+  const thread = item.type === "thread" ? item.thread : null;
   return (
     <div
       role="menuitem"
-      tabIndex={0}
+      tabIndex={thread ? 0 : -1}
+      aria-disabled={thread ? undefined : true}
       className="bb-agent-pills__tray-row"
+      data-kind={item.type}
       aria-label={`${item.title}, ${description}`}
-      onClick={(event) => onOpen(item, event.metaKey || event.ctrlKey || event.altKey)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen(item, false);
-        }
-      }}
+      onClick={thread ? (event) => onOpen(thread, event.metaKey || event.ctrlKey || event.altKey) : undefined}
+      onKeyDown={
+        thread
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onOpen(thread, false);
+              }
+            }
+          : undefined
+      }
     >
       <span className="bb-agent-pills__tray-leading" aria-hidden="true">
-        <ThreadStatusGlyph indicator={INDICATOR[item.state]} />
+        <Leading item={item} />
       </span>
       <span className="bb-agent-pills__tray-label" title={item.title}>
         {item.title}
       </span>
-      <span
-        className="bb-agent-pills__tray-description"
-        data-shimmer={item.state === "running" || undefined}
-        title={item.model ?? undefined}
-      >
-        {description}
-        {item.model ? ` · ${shortModel(item.model)}` : ""}
-      </span>
-      {item.state === "needs-input" ? (
+      {apply ? (
+        <span
+          className="bb-agent-pills__tray-description bb-agent-pills__apply-status"
+          data-kind={apply.kind}
+          data-shimmer={apply.kind === "busy" || undefined}
+          title={apply.kind === "busy" ? undefined : apply.text}
+          key={apply.kind}
+        >
+          {apply.kind === "busy" ? "Applying…" : apply.text}
+        </span>
+      ) : (
+        <span
+          className="bb-agent-pills__tray-description"
+          data-shimmer={item.state === "running" || undefined}
+          title={item.model ?? undefined}
+        >
+          {item.type === "task" && item.task.kind === "command" ? "Command" : description}
+          {item.model ? ` · ${shortModel(item.model)}` : ""}
+        </span>
+      )}
+      {thread && item.state === "needs-input" ? (
         <span className="bb-agent-pills__tray-inline">
           <button
             type="button"
@@ -124,7 +192,7 @@ function AgentRow({
             data-tone="primary"
             onClick={(event) => {
               event.stopPropagation();
-              onOpen(item, false);
+              onOpen(thread, false);
             }}
           >
             Answer
@@ -132,69 +200,117 @@ function AgentRow({
         </span>
       ) : null}
       <span className="bb-agent-pills__tray-end">
-        <span className="bb-agent-pills__tray-actions">
-          <button
-            type="button"
-            className="bb-agent-pills__tray-icon-button"
-            aria-label={`${isActive(item) ? "Stop" : "Close"} ${item.title}`}
-            title={isActive(item) ? "Stop" : "Close"}
-            onClick={(event) => {
-              event.stopPropagation();
-              onClose(item);
-            }}
-          >
-            <Icon name="X" />
-          </button>
-        </span>
-        <span className="bb-agent-pills__tray-meta">{formatElapsed(item.createdAt, now)}</span>
+        {thread ? (
+          <span className="bb-agent-pills__tray-actions">
+            {canApply ? (
+              <button
+                type="button"
+                className="bb-agent-pills__tray-icon-button"
+                aria-label={`Apply ${thread.title} locally`}
+                title="Apply locally: copy this worktree's changes into your checkout"
+                disabled={apply?.kind === "busy"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onApply(thread);
+                }}
+              >
+                <Icon name="Download" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="bb-agent-pills__tray-icon-button"
+              aria-label={`${isActive(thread) ? "Stop" : "Close"} ${thread.title}`}
+              title={isActive(thread) ? "Stop" : "Close"}
+              onClick={(event) => {
+                event.stopPropagation();
+                onClose(thread);
+              }}
+            >
+              <Icon name="X" />
+            </button>
+          </span>
+        ) : null}
+        <span className="bb-agent-pills__tray-meta">{formatElapsed(item.startedAt, now)}</span>
       </span>
     </div>
   );
 }
 
 export function AgentsTray({
-  subagents,
+  items,
+  parentEnvironmentId,
   onDismiss,
   refresh,
 }: {
-  subagents: readonly SubagentItem[];
+  items: readonly TrayItem[];
+  parentEnvironmentId: string | null;
   onDismiss: () => void;
   refresh: () => void;
 }) {
   const navigate = useBbNavigate();
   const sdk = useSdk();
+  const rpc = useRpc<typeof agentPillsRpcContract>();
+  const [applies, setApplies] = useState<Record<string, ApplyState>>({});
+  const canApply = (item: SubagentItem) =>
+    parentEnvironmentId !== null &&
+    item.isWorktree &&
+    item.environmentId !== null &&
+    item.environmentId !== parentEnvironmentId;
+  const applyLocally = (item: SubagentItem) => {
+    if (!canApply(item) || applies[item.threadId]?.kind === "busy") return;
+    const set = (state: ApplyState) => setApplies((current) => ({ ...current, [item.threadId]: state }));
+    set({ kind: "busy" });
+    rpc
+      .call("gitApplyLocally", { sourceEnvironmentId: item.environmentId!, targetEnvironmentId: parentEnvironmentId! })
+      .then(
+        (result) =>
+          result.ok
+            ? set({ kind: "done", text: `Applied ${result.files ?? 0} ${result.files === 1 ? "file" : "files"}` })
+            : set({ kind: "error", text: result.error ?? "Apply failed" }),
+        (error: unknown) => set({ kind: "error", text: error instanceof Error ? error.message : "Apply failed" }),
+      );
+  };
   const now = useNow(true);
   const [confirmStop, setConfirmStop] = useState(false);
   const [recentShown, setRecentShown] = useState(FIRST_PAGE);
 
-  const active = subagents.filter(isActive);
-  const recent = subagents.filter((item) => !isActive(item));
-  const running = subagents.filter((item) => item.state === "running");
-  const total = subagents.length;
+  const threads = items.flatMap((item) => (item.type === "thread" ? [item.thread] : []));
+  const active = items.filter(isActive);
+  const recent = items.filter((item) => !isActive(item));
+  const running = threads.filter((item) => item.state === "running");
+  const recentThreads = threads.filter((item) => !isActive(item));
 
   const open = (item: SubagentItem, split: boolean) => {
     onDismiss();
     navigate.toThread(item.threadId, split ? { split: true } : undefined);
   };
-  const stop = (items: readonly SubagentItem[]) => {
-    void Promise.allSettled(items.map((item) => sdk.threads.stop({ threadId: item.threadId }))).then(refresh);
+  const stop = (list: readonly SubagentItem[]) => {
+    void Promise.allSettled(list.map((item) => sdk.threads.stop({ threadId: item.threadId }))).then(refresh);
   };
-  const clear = (items: readonly SubagentItem[]) => {
-    void Promise.allSettled(items.map((item) => sdk.threads.markRead({ threadId: item.threadId }))).then(refresh);
+  const clear = (list: readonly SubagentItem[]) => {
+    void Promise.allSettled(list.map((item) => sdk.threads.markRead({ threadId: item.threadId }))).then(refresh);
   };
   const close = (item: SubagentItem) => (isActive(item) ? stop([item]) : clear([item]));
 
-  const row = (item: SubagentItem) => (
-    <AgentRow key={item.threadId} item={item} now={now} onOpen={open} onClose={close} />
+  const row = (item: TrayItem) => (
+    <AgentRow
+      key={item.key}
+      item={item}
+      now={now}
+      canApply={item.type === "thread" && canApply(item.thread)}
+      apply={item.type === "thread" ? applies[item.thread.threadId] : undefined}
+      onOpen={open}
+      onClose={close}
+      onApply={applyLocally}
+    />
   );
   const hidden = Math.max(0, recent.length - recentShown);
 
   return (
     <div className="bb-agent-pills__panel bb-agent-pills__tray" role="menu" aria-label="Agents">
       <div className="bb-agent-pills__tray-header">
-        <span className="bb-agent-pills__tray-title">
-          {total} {total === 1 ? "Agent" : "Agents"}
-        </span>
+        <span className="bb-agent-pills__tray-title">{trayTitle(items)}</span>
         {running.length > 0 ? (
           <button
             type="button"
@@ -215,12 +331,12 @@ export function AgentsTray({
           >
             {confirmStop ? "Confirm" : "Stop All"}
           </button>
-        ) : recent.length > 0 ? (
+        ) : recentThreads.length > 0 ? (
           <button
             type="button"
             className="bb-agent-pills__tray-header-action"
-            aria-label={`Clear ${recent.length} completed ${recent.length === 1 ? "agent" : "agents"}`}
-            onClick={() => clear(recent)}
+            aria-label={`Clear ${recentThreads.length} completed ${recentThreads.length === 1 ? "agent" : "agents"}`}
+            onClick={() => clear(recentThreads)}
           >
             Clear All
           </button>
@@ -235,14 +351,12 @@ export function AgentsTray({
           <Icon name="Minus" />
         </button>
       </div>
-      {total === 0 ? (
+      {items.length === 0 ? (
         <div className="bb-agent-pills__tray-empty">No recent agents yet.</div>
       ) : (
         <div className="bb-agent-pills__tray-rows">
           {active.map(row)}
-          {active.length > 0 && recent.length > 0 ? (
-            <div className="bb-agent-pills__tray-subheader">Recent</div>
-          ) : null}
+          {active.length > 0 && recent.length > 0 ? <div className="bb-agent-pills__tray-subheader">Recent</div> : null}
           {recent.slice(0, recentShown).map(row)}
           {hidden > 0 ? (
             <button

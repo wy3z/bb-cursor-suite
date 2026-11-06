@@ -4,7 +4,6 @@
  */
 import { useMemo } from "react";
 import type { Activity, PillGroup, PillState } from "../pill-data";
-import { STATE_ORDER } from "../pill-data";
 import type { ActiveGoal } from "../rpc";
 import { formatDuration } from "./primitives";
 
@@ -19,45 +18,6 @@ export interface Track {
   title: string;
   segments: Segment[];
   tone?: "warn";
-}
-
-/** Paseo's wording: one segment per non-empty bucket, "done" never shown. */
-function segmentText(state: PillState, count: number): string {
-  switch (state) {
-    case "needs-input":
-      return count === 1 ? "1 needs input" : `${count} need input`;
-    case "running":
-      return `${count} working`;
-    case "error":
-      return `${count} failed`;
-    case "done-unread":
-      return `${count} ready to review`;
-    case "done":
-      return `${count} done`;
-  }
-}
-
-function buildSegments(states: readonly PillState[], fallback: string): Segment[] {
-  const counts = new Map<PillState, number>();
-  for (const state of states) {
-    if (state !== "done") counts.set(state, (counts.get(state) ?? 0) + 1);
-  }
-  if (counts.size === 0) return [{ state: null, text: fallback }];
-  return [...counts.entries()]
-    .sort(([left], [right]) => STATE_ORDER[left] - STATE_ORDER[right])
-    .map(([state, count]) => ({ state, text: segmentText(state, count) }));
-}
-
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? `1 ${one}` : `${count} ${many}`;
-}
-
-function backgroundTitle(activity: Activity): string {
-  const count = activity.background.length;
-  const agents = activity.background.filter((task) => task.kind === "agent").length;
-  if (agents === count) return plural(count, "background agent", "background agents");
-  if (agents === 0) return plural(count, "background command", "background commands");
-  return `${count} background tasks`;
 }
 
 const GOAL_LABELS: Record<ActiveGoal["status"], string> = {
@@ -97,19 +57,6 @@ function workflowTrack(activity: Activity): Track | null {
 export function useTracks(activity: Activity): Track[] {
   return useMemo(() => {
     const tracks: (Track | null)[] = [];
-
-    // Subagents are the Agents chip and tray (AgentsTray.tsx), not a track.
-    if (activity.background.length > 0) {
-      const title = backgroundTitle(activity);
-      tracks.push({
-        id: "background",
-        title,
-        segments: buildSegments(
-          activity.background.map((item) => item.state),
-          title,
-        ),
-      });
-    }
 
     tracks.push(workflowTrack(activity));
 

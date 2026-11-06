@@ -8,6 +8,7 @@ import {
   type ExperimentalThreadContextSegmentProps,
 } from "@get-bb/plugin-sdk/app";
 import { useActivity } from "./pill-data";
+import { CommitBar } from "./CommitBar";
 
 const gitRpcContract = {
   status: {
@@ -40,6 +41,7 @@ const statusSchema = z.object({
 
 export interface Changes {
   title: string;
+  uncommitted: boolean;
   insertions: number;
   deletions: number;
   fileCount: number;
@@ -53,6 +55,7 @@ function pickChanges(row: unknown): Changes | null {
   if (workingTree.fileCount > 0) {
     return {
       title: workingTree.state === "untracked" ? "Untracked changes" : "Uncommitted changes",
+      uncommitted: true,
       ...workingTree,
     };
   }
@@ -61,6 +64,7 @@ function pickChanges(row: unknown): Changes | null {
       title: mergeBase.mergeBaseBranch
         ? `Changes against ${mergeBase.mergeBaseBranch}`
         : "Committed changes",
+      uncommitted: false,
       ...mergeBase,
     };
   }
@@ -175,7 +179,7 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
         </button>
       </div>
       {open ? (
-        <div className="bb-agent-pills__panel bb-agent-pills__tray" role="menu" aria-label={title}>
+        <div className="bb-agent-pills__panel bb-agent-pills__tray" role="dialog" aria-label={title}>
           <div className="bb-agent-pills__tray-header">
             <span className="bb-agent-pills__tray-title" title={title}>
               {fileCount} {fileWord}
@@ -255,6 +259,7 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
               <div className="bb-agent-pills__tray-empty">and {fileCount - files.length} more not listed</div>
             ) : null}
           </div>
+          {environmentId !== null ? <CommitBar environmentId={environmentId} uncommitted={changes.uncommitted} /> : null}
         </div>
       ) : null}
     </div>

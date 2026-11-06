@@ -8,8 +8,6 @@ import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { Activity } from "../pill-data";
 import type { PillActions } from "./actions";
 import {
-  AgentIcon,
-  CommandIcon,
   StateDot,
   formatDuration,
   formatElapsed,
@@ -98,35 +96,6 @@ export function PillPanel({ track, activity, actions, onClose }: PanelProps) {
             {formatElapsed(item.createdAt, now)}
           </span>
         </button>
-      ));
-      break;
-
-    case "background":
-      body = activity.background.map((item) => (
-        <div
-          role="menuitem"
-          aria-disabled="true"
-          key={item.id}
-          className="bb-agent-pills__row-item"
-          data-state={item.state}
-        >
-          <span className="bb-agent-pills__glyph" data-kind={item.kind} aria-hidden="true">
-            {item.kind === "agent" ? <AgentIcon /> : <CommandIcon />}
-          </span>
-          <span className="bb-agent-pills__row-text">
-            <span className="bb-agent-pills__row-title" title={item.title}>
-              {item.title}
-            </span>
-            {item.model ? (
-              <span className="bb-agent-pills__row-model" title={item.model}>
-                {shortModel(item.model)}
-              </span>
-            ) : null}
-          </span>
-          <span className="bb-agent-pills__row-time">
-            {formatElapsed(item.startedAt, now)}
-          </span>
-        </div>
       ));
       break;
 

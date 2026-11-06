@@ -46,6 +46,10 @@ export function StateDot({ state }: { state: PillState }) {
   return <span className="bb-agent-pills__dot" data-state={state} aria-hidden="true" />;
 }
 
+export function Orb() {
+  return <span className="bb-agent-pills__orb" aria-hidden="true" />;
+}
+
 export function AgentIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

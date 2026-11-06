@@ -6,7 +6,7 @@
  * popover above it with that group's members and actions.
  * Styling lives in app.css.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExperimentalThreadContextSegmentProps } from "@get-bb/plugin-sdk/app";
 import { SHOW_QUEUE_ATTRIBUTE } from "./channels";
 import { useActivity, type Activity, type PillGroup } from "./pill-data";
@@ -14,7 +14,7 @@ import { usePillActions } from "./pills/actions";
 import { PillPanel } from "./pills/panels";
 import { useTracks, type Track } from "./pills/tracks";
 import { StateDot } from "./pills/primitives";
-import { AgentsChip, AgentsTray } from "./pills/AgentsTray";
+import { AgentsChip, AgentsTray, trayItems } from "./pills/AgentsTray";
 
 function TrackPill({
   track,
@@ -55,7 +55,11 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
   const actions = usePillActions({ threadId, refresh, dismissFallback });
 
   const openTrack = tracks.find((track) => track.id === open) ?? null;
-  const hasAgents = activity.subagents.length > 0;
+  const agentItems = useMemo(
+    () => trayItems(activity.subagents, activity.background),
+    [activity.subagents, activity.background],
+  );
+  const hasAgents = agentItems.length > 0;
   const agentsOpen = open === "subagents" && hasAgents;
   const anyOpen = openTrack !== null || agentsOpen;
 
@@ -97,7 +101,7 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
       <div className="bb-agent-pills__row">
         {hasAgents ? (
           <AgentsChip
-            subagents={activity.subagents}
+            items={agentItems}
             open={agentsOpen}
             onToggle={() => setOpen((current) => (current === "subagents" ? null : "subagents"))}
           />
@@ -112,7 +116,7 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
         ))}
       </div>
       {agentsOpen ? (
-        <AgentsTray subagents={activity.subagents} onDismiss={() => setOpen(null)} refresh={refresh} />
+        <AgentsTray items={agentItems} parentEnvironmentId={activity.thread.environmentId} onDismiss={() => setOpen(null)} refresh={refresh} />
       ) : null}
       {openTrack ? (
         <Popover

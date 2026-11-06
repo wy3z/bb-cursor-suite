@@ -9,6 +9,7 @@
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { AGENT_PILLS_CHANNEL } from "./src/channels";
+import { applyLocally, commit, createPullRequest, pushBranch } from "./src/git-actions";
 import {
   agentPillsRpcContract,
   type ActionResult,
@@ -67,6 +68,10 @@ export default function plugin(bb: BbPluginApi) {
       runAction(() => bb.sdk.threads.restoreEnvironment({ threadId })),
     resumeHost: ({ hostId }) =>
       runAction(() => bb.sdk.hosts.experimental_resume({ hostId })),
+    gitCommit: (input) => commit(bb, input),
+    gitPush: (input) => pushBranch(bb, input),
+    gitCreatePullRequest: (input) => createPullRequest(bb, input),
+    gitApplyLocally: (input) => applyLocally(bb, input),
   });
 
   bb.events.on("experimental_thread.events", ({ thread }) => {

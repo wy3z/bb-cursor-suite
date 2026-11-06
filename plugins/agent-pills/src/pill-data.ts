@@ -44,6 +44,8 @@ export interface SubagentItem {
   state: PillState;
   model: string | null;
   createdAt: number;
+  environmentId: string | null;
+  isWorktree: boolean;
 }
 
 export interface TaskItem {
@@ -112,6 +114,8 @@ function childState(thread: SidebarThread): PillState | null {
     return "needs-input";
   }
   if (ACTIVE_RUNTIME_STATUSES.has(thread.runtimeStatus)) return "running";
+  const { backgroundAgents, backgroundCommands, workflows } = thread.activity;
+  if (backgroundAgents + backgroundCommands + workflows > 0) return "running";
   if (thread.indicator === "unread-error") return "error";
   if (thread.indicator === "unread-success") return "done-unread";
   return null;
@@ -246,6 +250,8 @@ export function useActivity(threadId: string): ActivityState {
         state: childState(thread)!,
         model: models.get(thread.id) ?? null,
         createdAt: thread.createdAt,
+        environmentId: thread.environment?.id ?? null,
+        isWorktree: thread.environment?.isWorktree === true,
       })),
       background: (response?.tasks ?? []).map((task) => ({
         id: task.id,

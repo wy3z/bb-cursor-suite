@@ -1537,3 +1537,249 @@ button.bb-agent-pills__tray-row:disabled:hover {
   ) {
   display: none !important;
 }
+
+.bb-agent-pills__orb {
+  --bb-agent-pills-orb: #3b82f6;
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in oklab, var(--bb-agent-pills-orb) 30%, white) 0%,
+    var(--bb-agent-pills-orb) 55%,
+    color-mix(in oklab, var(--bb-agent-pills-orb) 70%, black) 100%
+  );
+  box-shadow:
+    0 0 4px 1px color-mix(in oklab, var(--bb-agent-pills-orb) 70%, transparent),
+    0 0 10px 2px color-mix(in oklab, var(--bb-agent-pills-orb) 35%, transparent);
+  animation: bb-agent-pills-orb 1.8s ease-in-out infinite;
+}
+.bb-agent-pills__orb::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: radial-gradient(circle, color-mix(in oklab, var(--bb-agent-pills-orb) 45%, transparent) 0%, transparent 70%);
+  animation: bb-agent-pills-orb-halo 1.8s ease-in-out infinite;
+}
+@keyframes bb-agent-pills-orb {
+  0%, 100% { transform: scale(0.85); filter: brightness(0.95); }
+  50% { transform: scale(1); filter: brightness(1.25); }
+}
+@keyframes bb-agent-pills-orb-halo {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 0.9; transform: scale(1.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-agent-pills__orb,
+  .bb-agent-pills__orb::after {
+    animation: none;
+  }
+}
+.bb-agent-pills__tray-leading .bb-agent-pills__glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+}
+.bb-agent-pills__tray-leading .bb-agent-pills__glyph[data-state="error"] {
+  color: var(--destructive);
+}
+.bb-agent-pills__tray-row[data-kind="task"] {
+  cursor: default;
+}
+.bb-agent-pills__tray-header-action[data-tone="primary"] {
+  color: var(--primary);
+}
+.bb-agent-pills__tray-error {
+  padding: 4px 10px 6px;
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+.bb-agent-pills__panel {
+  transform-origin: bottom left;
+  animation: bb-agent-pills-pop 160ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+@keyframes bb-agent-pills-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.bb-agent-pills__pill {
+  transition-property: background-color, color, border-color, transform;
+}
+.bb-agent-pills__pill:active {
+  transform: scale(0.96);
+}
+.bb-agent-pills__tray-row,
+.bb-agent-pills__tray-icon-button,
+.bb-agent-pills__tray-header-action {
+  transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+.bb-agent-pills__tray-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bb-agent-pills__tray:has(.bb-agent-pills__commit) {
+  overflow: hidden;
+}
+.bb-agent-pills__tray:has(.bb-agent-pills__commit) .bb-agent-pills__tray-rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.bb-agent-pills__commit {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px -4px -4px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+.bb-agent-pills__commit-message {
+  width: 100%;
+  min-height: 30px;
+  max-height: 96px;
+  padding: 6px 8px;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--background) 60%, transparent);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+.bb-agent-pills__commit-message::placeholder {
+  color: var(--muted-foreground);
+}
+.bb-agent-pills__commit-message:focus {
+  border-color: color-mix(in oklab, #3b82f6 60%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklab, #3b82f6 18%, transparent);
+}
+.bb-agent-pills__commit-message:disabled {
+  opacity: 0.6;
+}
+.bb-agent-pills__commit-actions {
+  display: flex;
+  gap: 6px;
+}
+.bb-agent-pills__commit-button {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease, opacity 120ms ease;
+}
+.bb-agent-pills__commit-button svg,
+.bb-agent-pills__commit-button [data-icon-root] {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+.bb-agent-pills__commit-button:hover:not(:disabled) {
+  background: var(--state-hover);
+}
+.bb-agent-pills__commit-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.bb-agent-pills__commit-button[data-variant="primary"] {
+  border-color: transparent;
+  background: #3b82f6;
+  color: white;
+}
+.bb-agent-pills__commit-button[data-variant="primary"]:hover:not(:disabled) {
+  background: color-mix(in oklab, #3b82f6 88%, white);
+}
+.bb-agent-pills__commit-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bb-agent-pills__commit-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 12px;
+  animation: bb-agent-pills-rise 180ms ease-out;
+}
+@keyframes bb-agent-pills-rise {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.bb-agent-pills__commit-text,
+.bb-agent-pills__commit-link {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-agent-pills__commit-status[data-kind="error"] .bb-agent-pills__commit-text {
+  color: var(--destructive);
+}
+.bb-agent-pills__commit-link {
+  color: #3b82f6;
+  text-decoration: none;
+}
+.bb-agent-pills__commit-link:hover {
+  text-decoration: underline;
+}
+.bb-agent-pills__commit-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  animation: bb-agent-pills-pop 220ms cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.bb-agent-pills__commit-icon svg,
+.bb-agent-pills__commit-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+.bb-agent-pills__commit-icon[data-tone="good"] {
+  color: var(--success, #22c55e);
+}
+.bb-agent-pills__commit-icon[data-tone="bad"] {
+  color: var(--destructive);
+}
+.bb-agent-pills__apply-status {
+  animation: bb-agent-pills-rise 180ms ease-out;
+}
+.bb-agent-pills__apply-status[data-kind="done"] {
+  color: var(--success, #22c55e);
+}
+.bb-agent-pills__apply-status[data-kind="error"] {
+  color: var(--destructive);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-agent-pills__panel,
+  .bb-agent-pills__commit-status,
+  .bb-agent-pills__commit-icon,
+  .bb-agent-pills__apply-status {
+    animation: none;
+  }
+  .bb-agent-pills__pill:active,
+  .bb-agent-pills__commit-button:active:not(:disabled) {
+    transform: none;
+  }
+}
