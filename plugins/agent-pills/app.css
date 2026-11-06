@@ -1785,16 +1785,18 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   background: transparent !important;
   background-color: transparent !important;
 }
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] {
+  position: relative;
+}
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] {
-  order: -1;
-  width: 18px !important;
-  min-width: 18px !important;
+  position: absolute !important;
+  inset: 0;
+  width: 28px !important;
+  min-width: 0 !important;
   height: 28px !important;
   padding: 0 !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  color: var(--muted-foreground) !important;
-  opacity: 1 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:hover {
   background: var(--state-hover) !important;

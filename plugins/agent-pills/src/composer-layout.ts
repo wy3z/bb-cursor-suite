@@ -7,6 +7,7 @@
  */
 import { readComposerRestyle } from "./preferences";
 import { startRelationalMarkers } from "./relational-markers";
+import { startSendContextMenu } from "./send-context-menu";
 
 const PINNED = new WeakMap<
   HTMLElement,
@@ -146,6 +147,7 @@ export function syncComposerLayout(enabled: boolean): void {
 
 export function startComposerLayout(signal: AbortSignal): () => void {
   startRelationalMarkers(signal);
+  startSendContextMenu(signal);
   if (resizeObserver === null && typeof ResizeObserver !== "undefined") {
     resizeObserver = new ResizeObserver(() => schedule());
   }

@@ -99,7 +99,8 @@ plain text, and a round send button. The restyle selects BB's
   the controls.
 - **Hidden:** the dictation button, the collapse button and **New thread in
   this environment**. BB's Send options menu (Save draft, Send later, and any
-  plugin's send items) stays, as a small chevron left of the send circle.
+  plugin's send items) opens by right-clicking the send circle; its chevron
+  is hidden.
   The circle is drawn with an inset box-shadow, because BB's composer forces
   its buttons transparent with a layered `!important` utility. It dims while
   the draft is empty, and shows a stop square while a turn runs.
