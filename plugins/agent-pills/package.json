@@ -39,7 +39,8 @@
     "app": "./app.tsx"
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@wy3z/bb-suite": "file:../bb-suite-shared"
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "0.6.104",

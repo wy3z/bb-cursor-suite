@@ -116,20 +116,6 @@ const okSchema = z.object({ ok: z.boolean() });
 
 export type ActionResult = z.infer<typeof okSchema>;
 
-const environmentIdSchema = z.string().trim().min(1).max(200);
-
-const gitActionResultSchema = z.object({
-  ok: z.boolean(),
-  error: z.string().optional(),
-  sha: z.string().optional(),
-  subject: z.string().optional(),
-  branch: z.string().optional(),
-  url: z.string().optional(),
-  existed: z.boolean().optional(),
-  files: z.number().optional(),
-});
-
-export type GitActionResult = z.infer<typeof gitActionResultSchema>;
 
 export const agentPillsRpcContract = defineRpcContract({
   threadActivity: {
@@ -180,30 +166,6 @@ export const agentPillsRpcContract = defineRpcContract({
   restoreEnvironment: {
     input: threadIdSchema,
     output: okSchema,
-  },
-  gitCommit: {
-    input: z.object({
-      environmentId: environmentIdSchema,
-      message: z.string().max(20_000),
-      push: z.boolean(),
-      includeUntracked: z.boolean().default(false),
-    }),
-    output: gitActionResultSchema,
-  },
-  gitPush: {
-    input: z.object({ environmentId: environmentIdSchema }),
-    output: gitActionResultSchema,
-  },
-  gitCreatePullRequest: {
-    input: z.object({ environmentId: environmentIdSchema }),
-    output: gitActionResultSchema,
-  },
-  gitApplyLocally: {
-    input: z.object({
-      sourceEnvironmentId: environmentIdSchema,
-      targetEnvironmentId: environmentIdSchema,
-    }),
-    output: gitActionResultSchema,
   },
   resumeHost: {
     input: threadIdSchema.extend({

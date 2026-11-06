@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { experimental_Icon as Icon, useRpc } from "@get-bb/plugin-sdk/app";
-import { agentPillsRpcContract, type GitActionResult } from "./rpc";
+import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
+import type { GitActionResult } from "@wy3z/bb-suite/contracts";
+import { useGitActions } from "./git-client";
 import { Orb } from "./pills/primitives";
 
 type Action = "commit" | "commit-push" | "push" | "pr";
@@ -33,7 +34,7 @@ export function CommitBar({
 }) {
   const [includeUntracked, setIncludeUntracked] = useState(false);
   const needsMessage = untracked > 0 && !includeUntracked;
-  const rpc = useRpc<typeof agentPillsRpcContract>();
+  const rpc = useGitActions();
   const [message, setMessage] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const textRef = useRef<HTMLTextAreaElement>(null);

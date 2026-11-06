@@ -3,10 +3,9 @@ import {
   experimental_Icon as Icon,
   experimental_ThreadStatusGlyph as ThreadStatusGlyph,
   useBbNavigate,
-  useRpc,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { agentPillsRpcContract } from "../rpc";
+import { useGitActions } from "../git-client";
 import { STATE_ORDER, type PillState, type SubagentItem, type TaskItem } from "../pill-data";
 import { AgentIcon, CommandIcon, Orb, formatElapsed, shortModel, useNow } from "./primitives";
 
@@ -250,7 +249,7 @@ export function AgentsTray({
 }) {
   const navigate = useBbNavigate();
   const sdk = useSdk();
-  const rpc = useRpc<typeof agentPillsRpcContract>();
+  const rpc = useGitActions();
   const [applies, setApplies] = useState<Record<string, ApplyState>>({});
   const canApply = (item: SubagentItem) =>
     parentEnvironmentId !== null &&
