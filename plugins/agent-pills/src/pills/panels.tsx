@@ -171,7 +171,7 @@ export function PillPanel({ track, activity, actions, onClose }: PanelProps) {
           data-todo={item.status}
         >
           <span
-            className="bb-agent-pills__dot"
+            className={item.status === "in_progress" ? "bbs-live-orb" : "bb-agent-pills__dot"}
             data-todo={item.status}
             aria-hidden="true"
           />

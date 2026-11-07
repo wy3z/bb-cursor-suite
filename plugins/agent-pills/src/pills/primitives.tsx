@@ -33,11 +33,12 @@ export function useNow(active: boolean): number {
 }
 
 export function StateDot({ state }: { state: PillState }) {
+  if (state === "running") return <Orb />;
   return <span className="bb-agent-pills__dot" data-state={state} aria-hidden="true" />;
 }
 
 export function Orb() {
-  return <span className="bb-agent-pills__orb" aria-hidden="true" />;
+  return <span className="bbs-live-orb" aria-hidden="true" />;
 }
 
 export function AgentIcon() {

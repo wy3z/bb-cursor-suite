@@ -7,7 +7,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { useGitActions } from "../git-client";
 import { STATE_ORDER, type PillState, type SubagentItem, type TaskItem } from "../pill-data";
-import { AgentIcon, CommandIcon, Orb, formatElapsed, shortModel, useNow } from "./primitives";
+import { AgentIcon, CommandIcon, Orb, StateDot, formatElapsed, shortModel, useNow } from "./primitives";
 
 const FIRST_PAGE = 5;
 const NEXT_PAGE = 8;
@@ -108,7 +108,10 @@ export function AgentsChip({
 
 function Leading({ item }: { item: TrayItem }) {
   if (item.state === "running") return <Orb />;
-  if (item.type === "thread") return <ThreadStatusGlyph indicator={INDICATOR[item.state]} />;
+  if (item.type === "thread") {
+    if (item.state === "done-unread") return <StateDot state={item.state} />;
+    return <ThreadStatusGlyph indicator={INDICATOR[item.state]} />;
+  }
   return (
     <span className="bb-agent-pills__glyph" data-kind={item.task.kind} data-state={item.state}>
       {item.task.kind === "agent" ? <AgentIcon /> : <CommandIcon />}

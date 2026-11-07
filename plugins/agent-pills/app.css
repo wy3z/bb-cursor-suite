@@ -92,28 +92,7 @@ span.bb-agent-pills__pill {
 }
 
 .bb-agent-pills__dot[data-state="done-unread"] {
-  background: var(--accent);
-}
-
-.bb-agent-pills__dot[data-state="running"] {
-  animation: bb-agent-pills-breathe 1.8s ease-in-out infinite;
-}
-
-@keyframes bb-agent-pills-breathe {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bb-agent-pills__dot[data-state="running"] {
-    animation: none;
-    opacity: 0.8;
-  }
+  background: var(--bbs-done-color);
 }
 
 .bb-agent-pills__glyph {
@@ -364,22 +343,8 @@ button.bb-agent-pills__row-item {
   gap: var(--bbs-gap);
 }
 
-/* To-do status dots: done, being worked on, still waiting. */
 .bb-agent-pills__dot[data-todo="completed"] {
   background: var(--subtle-foreground);
-}
-
-.bb-agent-pills__dot[data-todo="in_progress"] {
-  background: var(--bbs-amber);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--bbs-amber) 18%, transparent);
-  animation: bb-agent-pills-breathe 1.8s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bb-agent-pills__dot[data-todo="in_progress"] {
-    animation: none;
-    opacity: 0.9;
-  }
 }
 
 .bb-agent-pills__row-item[data-todo="completed"] .bb-agent-pills__row-title {
@@ -1540,14 +1505,6 @@ button.bb-agent-pills__tray-row:disabled:hover {
   display: none !important;
 }
 
-.bb-agent-pills__orb {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--bbs-pill-radius);
-  background: var(--bbs-accent);
-}
 .bb-agent-pills__tray-leading .bb-agent-pills__glyph {
   display: inline-flex;
   width: var(--bbs-icon);
