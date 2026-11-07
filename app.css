@@ -18,8 +18,8 @@
   .cs-move-dialog select { min-height: 44px; touch-action: manipulation; }
   [data-cursor-sidebar-root] button:has(> :is(svg, [data-icon-root]):only-child):not(.cs-icon-btn):not(.cs-new-project):not(.cs-row-action):not(.cs-board-row__toggle) { min-width: 44px; }
   [data-cursor-sidebar-root] button[aria-expanded]:not(.cs-board-row__toggle) { opacity: 1; }
-  [data-cursor-sidebar-root] [data-reorder-kind="project"] { gap: 4px; }
-  [data-cursor-sidebar-root] .cs-project-glyph { width: 16px; height: 16px; }
+  [data-cursor-sidebar-root] [data-reorder-kind="project"] { gap: var(--bbs-gap-xs, 4px); }
+  [data-cursor-sidebar-root] .cs-project-glyph { width: var(--bbs-icon-toolbar, 16px); height: 16px; }
   [data-cursor-sidebar-root] .cs-project-name {
     white-space: normal; overflow-wrap: anywhere; font-size: 13px;
   }
@@ -32,7 +32,7 @@
     white-space: normal; overflow-wrap: anywhere; display: -webkit-box;
     -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   }
-  [data-cursor-sidebar-root] .cs-thread-info { font-size: 11px; line-height: 1.4; white-space: normal; opacity: 1; }
+  [data-cursor-sidebar-root] .cs-thread-info { font-size: var(--bbs-text-meta, 11px); line-height: 1.4; white-space: normal; opacity: 1; }
   [data-cursor-sidebar-root] .cs-secondary-desktop { display: none; }
   [data-cursor-sidebar-root] .cs-secondary-mobile {
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1;
@@ -49,7 +49,7 @@
      swipe offset and the lift cannot fight over one transform. */
   [data-cursor-sidebar-root] .cs-drag-armed [data-thread-row],
   [data-cursor-sidebar-root] .cs-drag-armed [data-reorder-kind="project"] {
-    border-radius: 6px;
+    border-radius: var(--bbs-radius-sm, 6px);
     background-color: var(--sidebar-accent);
     box-shadow: 0 6px 16px rgb(0 0 0 / 0.35);
     transform: scale(1.02);
@@ -82,8 +82,8 @@
   display: inline-flex;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: var(--bbs-icon-toolbar, 16px);
+  height: var(--bbs-icon-toolbar, 16px);
   align-items: center;
   justify-content: center;
   overflow: visible;
@@ -100,8 +100,8 @@
   display: inline-flex;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: var(--bbs-icon-toolbar, 16px);
+  height: var(--bbs-icon-toolbar, 16px);
   align-items: center;
   justify-content: center;
   pointer-events: none;
@@ -143,29 +143,29 @@
 }
 
 [data-cursor-sidebar-root] {
-  --cs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
-  --cs-text-secondary: color-mix(in srgb, var(--cs-text-primary) 74%, transparent);
-  --cs-text-tertiary: color-mix(in srgb, var(--cs-text-primary) 60%, transparent);
+  --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
+  --bbs-text-secondary: color-mix(in srgb, var(--bbs-text-primary) 74%, transparent);
+  --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
 }
 [data-cursor-sidebar-root] .cs-heading-label {
-  color: var(--cs-text-tertiary);
+  color: var(--bbs-text-tertiary);
 }
 [data-cursor-sidebar-root] .cs-project-name,
 [data-cursor-sidebar-root] .cs-board-row,
 [data-cursor-sidebar-root] [data-thread-row] .cs-thread-title {
-  color: var(--cs-text-secondary);
+  color: var(--bbs-text-secondary);
 }
 [data-cursor-sidebar-root] [data-thread-shelf="settled"] .cs-thread-title,
 [data-cursor-sidebar-root] .cs-thread-info,
 [data-cursor-sidebar-root] .cs-thread-time,
 [data-cursor-sidebar-root] .cs-board-row__meta {
-  color: var(--cs-text-tertiary);
+  color: var(--bbs-text-tertiary);
 }
 [data-cursor-sidebar-root] .cs-heading:is(:hover, :focus-within) .cs-heading-label,
 [data-cursor-sidebar-root] .cs-board-row:is(:hover, :focus-within, [data-active]),
 [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-title,
 [data-cursor-sidebar-root] [data-thread-row]:has(a[aria-current="true"]) .cs-thread-title {
-  color: var(--cs-text-primary);
+  color: var(--bbs-text-primary);
 }
 
 /* The row's pin/archive buttons stay hidden until the row is hovered or
@@ -308,7 +308,7 @@
   content: "";
   position: absolute;
   inset: -5px;
-  border-radius: 6px;
+  border-radius: var(--bbs-radius-sm, 6px);
   pointer-events: none;
 }
 .cs-icon-btn > :is(svg, [data-icon-root]) {
@@ -354,7 +354,7 @@
   background-color: var(--state-hover);
   padding: 4px 6px;
   font-family: var(--font-sans, inherit);
-  font-size: 12px;
+  font-size: var(--bbs-text-body, 12px);
   font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -372,7 +372,7 @@
   position: absolute;
   inset: -1px;
   z-index: 0;
-  border-radius: 9999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   background-color: var(--sidebar);
 }
 /* The disc has to follow the row's own surface: on a hovered or selected row a
@@ -477,7 +477,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--bbs-gap-icon, 6px);
   width: 100%;
   min-height: 1.75rem;
   padding: 0.25rem 0.5rem 0.25rem 0.75rem;
@@ -486,7 +486,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   background: transparent;
   color: color-mix(in srgb, var(--sidebar-foreground) 95%, transparent);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--bbs-text-row, 13px);
   font-weight: 400;
   line-height: 1.25rem;
   text-align: left;
@@ -516,7 +516,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--bbs-gap-icon, 6px);
   font-size: 0.75rem;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
@@ -524,17 +524,17 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
 .cs-board-row__working {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--bbs-gap-xs, 4px);
   height: 1rem;
   padding: 0 0.375rem;
-  border-radius: 9999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   background: color-mix(in srgb, var(--cs-accent) 15%, transparent);
   color: var(--cs-accent);
 }
 .cs-board-row__dot {
   width: 6px;
   height: 6px;
-  border-radius: 9999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   background: var(--cs-accent);
 }
 .cs-board-row__review {
@@ -571,7 +571,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--bbs-radius-xs, 4px);
   background: transparent;
   color: color-mix(in srgb, var(--sidebar-foreground) 73%, transparent);
   opacity: 0;
@@ -605,7 +605,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   bottom: -1px;
   width: 6px;
   height: 6px;
-  border-radius: 9999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   box-shadow: 0 0 0 1.5px var(--sidebar, var(--background));
 }
 .cs-board-row__badge[data-tone="working"] {
@@ -654,7 +654,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   height: 22px;
   padding: 0 6px;
   border: 1px solid color-mix(in srgb, var(--sidebar-foreground) 25%, transparent);
-  border-radius: 5px;
+  border-radius: var(--bbs-radius-xs, 4px);
   background: var(--sidebar, var(--background));
   color: var(--sidebar-foreground);
   font: inherit;
@@ -679,11 +679,11 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   align-items: center;
   justify-content: center;
   width: 20px;
-  height: 20px;
+  height: var(--bbs-height-compact, 20px);
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--bbs-radius-xs, 4px);
   background: transparent;
-  color: var(--cs-text-tertiary);
+  color: var(--bbs-text-tertiary);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -696,7 +696,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   pointer-events: auto;
 }
 .cs-board-row__archive:is(:hover, :focus-visible) {
-  color: var(--cs-text-primary);
+  color: var(--bbs-text-primary);
 }
 .cs-board-row__archive:focus-visible {
   outline: 1px solid var(--sidebar-ring);

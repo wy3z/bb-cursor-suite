@@ -69,7 +69,7 @@ export function ProjectStatusGlyph({
         icon={icon ?? null}
         fallback={fallback}
         className="size-4"
-        mutedClassName="text-sidebar-foreground/73"
+        mutedClassName="text-[color:var(--bbs-text-secondary)]"
       />
       {badge !== null ? <ProjectStatusBadge status={badge} /> : null}
     </span>
@@ -127,7 +127,7 @@ export function ProjectRowIcon({
           name="Loading"
           aria-hidden="true"
           strokeWidth={1.5}
-          className="size-3 animate-spin text-sidebar-foreground/73"
+          className="size-3 animate-spin text-[color:var(--bbs-text-secondary)]"
         />
       ) : (
         <span aria-hidden="true" className={cn("size-1.5 rounded-full", tone)} />

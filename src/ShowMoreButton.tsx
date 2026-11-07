@@ -18,7 +18,7 @@ export function ShowMoreButton({
       type="button"
       aria-label={ariaLabel ?? `${label} conversations`}
       onClick={onShowMore}
-      className="cs-more-conversations flex min-h-8 w-full items-center rounded py-1 pl-7 pr-2 text-left text-2xs text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground/73 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:min-h-9 pointer-coarse:min-h-9"
+      className="cs-more-conversations flex min-h-8 w-full items-center rounded py-1 pl-7 pr-2 text-left text-2xs text-sidebar-foreground/50 transition-colors hover:text-[color:var(--bbs-text-secondary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:min-h-9 pointer-coarse:min-h-9"
     >
       <span className="truncate">{label}</span>
     </button>

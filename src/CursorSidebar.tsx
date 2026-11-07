@@ -1250,7 +1250,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   if (status === "loading") {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-6">
-        <p role="status" className="text-center text-xs text-sidebar-foreground/73">
+        <p role="status" className="text-center text-xs text-[color:var(--bbs-text-secondary)]">
           Loading threads…
         </p>
       </div>
@@ -1259,7 +1259,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   if (status === "error") {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-6">
-        <p role="status" className="text-center text-xs text-sidebar-foreground/73">
+        <p role="status" className="text-center text-xs text-[color:var(--bbs-text-secondary)]">
           Could not load threads.
         </p>
       </div>
@@ -1708,7 +1708,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
             {/* No heading is ever drawn empty; when nothing renders at all the
                 list still says why, rather than going blank. */}
             {nothingToShow ? (
-              <p className="px-3 py-2 text-xs text-sidebar-foreground/73">
+              <p className="px-3 py-2 text-xs text-[color:var(--bbs-text-secondary)]">
                 {selectedProjectEmpty
                   ? "No threads"
                   : viewHasActiveFilters(view)
@@ -2132,7 +2132,7 @@ function ProjectSection({
     return (
       <section aria-label={section.name} className="mb-1 mt-1 min-h-8 first:mt-0">
         {isEmpty ? (
-          <p className="px-3 py-1 text-xs text-sidebar-foreground/73">No threads</p>
+          <p className="px-3 py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
         ) : (
           <>
             <ShelfList
@@ -2202,7 +2202,7 @@ function ProjectSection({
         <span className="cs-status-slot relative flex w-4 shrink-0 items-center justify-center">
           <span className="flex pointer-events-none group-hover/heading:opacity-0 group-has-[:focus-visible]/heading:opacity-0">
             {section.personal ? (
-              <Icon name="Home" aria-hidden="true" className="size-3.5 text-sidebar-foreground/73" />
+              <Icon name="Home" aria-hidden="true" className="size-3.5 text-[color:var(--bbs-text-secondary)]" />
             ) : (
               <ProjectStatusGlyph
                 open={sectionOpen}
@@ -2223,14 +2223,14 @@ function ProjectSection({
               onToggleProject();
             }}
             className={cn(
-              "cs-project-disclosure pointer-events-auto absolute inset-0 z-10 flex items-center justify-center rounded text-sidebar-foreground/73 hover:text-sidebar-foreground/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
+              "cs-project-disclosure pointer-events-auto absolute inset-0 z-10 flex items-center justify-center rounded text-[color:var(--bbs-text-secondary)] hover:text-sidebar-foreground/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
               "opacity-0 group-hover/heading:opacity-100 group-has-[:focus-visible]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100",
             )}
           >
             <Icon
               name="ChevronRight"
               className={cn(
-                "size-3.5 text-sidebar-foreground/73 transition-transform duration-150 ease-out motion-reduce:transition-none",
+                "size-3.5 text-[color:var(--bbs-text-secondary)] transition-transform duration-150 ease-out motion-reduce:transition-none",
                 sectionOpen && "rotate-90",
               )}
             />
@@ -2248,7 +2248,7 @@ function ProjectSection({
           <span className={cn(SECTION_HEADING_LABEL, "cs-project-name")}>
             {section.name}
             {section.known ? null : (
-              <span className="text-sidebar-foreground/73"> (unknown)</span>
+              <span className="text-[color:var(--bbs-text-secondary)]"> (unknown)</span>
             )}
           </span>
         </button>
@@ -2261,7 +2261,7 @@ function ProjectSection({
               event.stopPropagation();
               onNewThread();
             }}
-            className="cs-row-action flex size-4 shrink-0 items-center justify-center rounded text-sidebar-foreground/60 opacity-0 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-hover/heading:opacity-100 group-has-[:focus-visible]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100"
+            className="cs-row-action flex size-4 shrink-0 items-center justify-center rounded text-[color:var(--bbs-text-tertiary)] opacity-0 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-hover/heading:opacity-100 group-has-[:focus-visible]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100"
           >
             <Icon name="Plus" className="size-3.5" aria-hidden="true" />
           </button>
@@ -2290,7 +2290,7 @@ function ProjectSection({
            shrinks the interior instead of unmounting it in one frame. */
         <Drawer open={sectionOpen}>
           {isEmpty ? (
-            <p className="px-3 py-1 text-xs text-sidebar-foreground/73">No threads</p>
+            <p className="px-3 py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
           ) : (
             <>
               <ShelfList

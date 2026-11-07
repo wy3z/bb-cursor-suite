@@ -972,7 +972,7 @@ function ThreadRow({
             ctx.onNavigate();
           }}
           aria-label={`Parent thread: ${threadDisplayTitle(detachedParent)}`}
-          className="flex max-w-full items-center gap-1 truncate py-1 pl-7 pr-2 text-xs leading-none text-sidebar-foreground/73 hover:text-sidebar-foreground/90 max-md:min-h-9 pointer-coarse:min-h-9"
+          className="flex max-w-full items-center gap-1 truncate py-1 pl-7 pr-2 text-xs leading-none text-[color:var(--bbs-text-secondary)] hover:text-sidebar-foreground/90 max-md:min-h-9 pointer-coarse:min-h-9"
         >
           <Icon name="CornerDownRight" className="size-3 shrink-0" />
           <span className="truncate">{threadDisplayTitle(detachedParent)}</span>
@@ -1046,7 +1046,7 @@ function ThreadRow({
             isNestTarget && "bg-primary/15 ring-2 ring-inset ring-primary",
             shelf === "settled" &&
               !isActive &&
-              "text-sidebar-foreground/73 hover:bg-sidebar-accent/25 hover:text-sidebar-foreground/73",
+              "text-[color:var(--bbs-text-secondary)] hover:bg-sidebar-accent/25 hover:text-[color:var(--bbs-text-secondary)]",
           )}
         >
           {isNestTarget ? (
@@ -1071,7 +1071,7 @@ function ThreadRow({
               />
               <span
                 role="status"
-                className="pointer-events-none absolute right-1.5 top-1/2 z-30 inline-flex -translate-y-1/2 items-center gap-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-foreground shadow-sm"
+                className="pointer-events-none absolute right-1.5 top-1/2 z-30 inline-flex -translate-y-1/2 items-center gap-1 rounded bg-primary px-1.5 py-0.5 text-[length:var(--bbs-text-meta,11px)] font-medium leading-none text-primary-foreground shadow-sm"
               >
                 <svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M4 4v7a4 4 0 0 0 4 4h12" />
@@ -1218,7 +1218,7 @@ function ThreadRow({
                   event.stopPropagation();
                   ctx.onToggleChildren(thread.id);
                 }}
-                className="cs-child-toggle pointer-events-auto absolute inset-0 z-10 flex items-center justify-center text-sidebar-foreground/73 opacity-0 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:opacity-100 pointer-coarse:opacity-100"
+                className="cs-child-toggle pointer-events-auto absolute inset-0 z-10 flex items-center justify-center text-[color:var(--bbs-text-secondary)] opacity-0 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:opacity-100 pointer-coarse:opacity-100"
               >
                 <Icon
                   name="ChevronRight"
@@ -1257,7 +1257,7 @@ function ThreadRow({
               thread.isUnread && "font-medium",
             )}
           />
-          {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-sidebar-foreground/73" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{[ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null, ctx.view.show.branch ? branch : null].filter(Boolean).join(" · ")}</span></span> : null}
+          {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{[ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null, ctx.view.show.branch ? branch : null].filter(Boolean).join(" · ")}</span></span> : null}
           </div>
 
           <div className="relative -ml-2 flex min-w-6 shrink-0 items-center justify-end gap-1">
@@ -1285,7 +1285,7 @@ function ThreadRow({
                       event.stopPropagation();
                       ctx.onTogglePin(thread.id, !rowPinned);
                     }}
-                    className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-sidebar-foreground/73 group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                    className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-[color:var(--bbs-text-secondary)] group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
                   >
                     <Icon name={rowPinned ? "PinOff" : "Pin"} className="size-3.5" />
                   </button>
@@ -1299,7 +1299,7 @@ function ThreadRow({
                     event.stopPropagation();
                     archiveThread();
                   }}
-                  className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-sidebar-foreground/73 group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                  className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-[color:var(--bbs-text-secondary)] group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
                 >
                   <Icon name="Archive" className="size-3.5" />
                 </button>

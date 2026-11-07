@@ -34,7 +34,7 @@ export function ThreadLeadStatus({
       <Icon
         name="Loading"
         aria-label={label ?? "Working"}
-        className="size-4 shrink-0 animate-spin text-sidebar-foreground/73"
+        className="size-4 shrink-0 animate-spin text-[color:var(--bbs-text-secondary)]"
       />
     );
   }

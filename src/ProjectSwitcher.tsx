@@ -40,7 +40,7 @@ function ProjectGlyph({
       icon={icon ?? null}
       fallback="Folder"
       className={cn("size-4", className)}
-      mutedClassName="text-sidebar-foreground/73"
+      mutedClassName="text-[color:var(--bbs-text-secondary)]"
     />
   );
 }
