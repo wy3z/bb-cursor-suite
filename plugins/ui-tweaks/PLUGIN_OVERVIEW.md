@@ -55,5 +55,5 @@ discovery as unavailable. The plugin sends no data to an external service.
 
 ## Requirements
 
-BB `>=0.48 <0.49` and Plugin SDK `>=0.6 <0.7`. No external service, account, or
+BB `>=0.49 <0.50` and Plugin SDK `>=0.6.132 <0.7`. No external service, account, or
 separate install is needed.

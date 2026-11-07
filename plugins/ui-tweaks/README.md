@@ -54,8 +54,8 @@ Configure everything under **Settings → Plugins → UI Tweaks**.
 
 ## Requirements
 
-- BB `>=0.48 <0.49`.
-- Plugin SDK `>=0.6 <0.7`.
+- BB `>=0.49 <0.50`.
+- Plugin SDK `>=0.6.132 <0.7`.
 
 Workspace app discovery uses BB's local host daemon. In a client that cannot
 reach the daemon, the filter shows the last saved app list and says discovery
