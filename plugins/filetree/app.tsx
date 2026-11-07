@@ -11,7 +11,7 @@ type ThreadTabProps = { threadId: string; environment: { id: string } | null };
 /** `experimental_tab` arrived after this plugin's pinned SDK typings. */
 type TabSlot = (registration: {
   context: { kind: "thread" };
-  availability: "fixed";
+  availability: "action";
   id: string;
   title: string;
   icon: string;
@@ -81,12 +81,11 @@ export default definePluginApp((app) => {
   const icons = (app as unknown as { experimental_icons?: IconRegistry })
     .experimental_icons;
   icons?.register({ name: TAB_ICON, component: FilesGlyph });
-  // A fixed tab is always present in every thread's right panel.
   const tab = (app.slots as unknown as { experimental_tab: TabSlot })
     .experimental_tab;
   tab({
     context: { kind: "thread" },
-    availability: "fixed",
+    availability: "action",
     id: "files",
     title: "Files",
     icon: icons ? TAB_ICON : "Folder",
