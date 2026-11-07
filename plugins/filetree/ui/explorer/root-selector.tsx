@@ -21,7 +21,7 @@ export function RootSelector(props: {
           label={`Switch workspace: ${props.roots.find((root) => root.rootId === props.selectedRootId)?.label ?? "Workspace"}`}
         >
           <HugeiconsIcon
-            strokeWidth={2.25}
+            strokeWidth={1.5}
             icon={FolderGitTwoIcon}
             aria-hidden="true"
           />

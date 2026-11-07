@@ -26,8 +26,8 @@
 }
 
 .filetree-entry-icon {
-  width: 14px;
-  height: 14px;
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
   flex: 0 0 14px;
 }
 
@@ -52,8 +52,8 @@
 }
 
 .filetree-git-status-icon {
-  width: 14px;
-  height: 14px;
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
   flex: 0 0 14px;
 }
 

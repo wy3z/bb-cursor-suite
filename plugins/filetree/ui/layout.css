@@ -79,7 +79,7 @@
       var(--foreground, CanvasText) 16%,
       var(--background, Canvas)
     );
-  border-radius: 6px;
+  border-radius: var(--bbs-radius-sm, 6px);
   padding: 0 8px;
   color: inherit;
   background: var(--background, Canvas);

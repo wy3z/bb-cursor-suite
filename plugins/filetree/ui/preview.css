@@ -4,7 +4,7 @@
   min-height: 0;
   height: 100%;
   flex-direction: column;
-  color: var(--foreground);
+  color: var(--bbs-text-primary, var(--foreground));
   background: var(--background);
 }
 
@@ -103,7 +103,7 @@
 
 .filetree-preview-content::-webkit-scrollbar-thumb,
 .filetree-preview-table-scroll::-webkit-scrollbar-thumb {
-  border-radius: 9999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   background-color: transparent;
 }
 
@@ -139,7 +139,7 @@
   margin: auto;
   max-width: 32rem;
   padding: 2rem;
-  color: var(--muted-foreground);
+  color: var(--bbs-text-tertiary, var(--muted-foreground));
   text-align: center;
 }
 

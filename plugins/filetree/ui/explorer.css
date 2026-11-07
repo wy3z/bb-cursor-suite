@@ -15,19 +15,19 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--bbs-gap-icon, 6px);
   padding: 6px 8px;
 }
 
 .filetree-explorer-empty button {
-  min-height: 28px;
+  min-height: var(--bbs-height, 28px);
   border: 1px solid
     color-mix(
       in oklch,
       var(--foreground, CanvasText) 16%,
       var(--background, Canvas)
     );
-  border-radius: 6px;
+  border-radius: var(--bbs-radius-sm, 6px);
   padding: 0 8px;
   color: inherit;
   background: color-mix(
@@ -69,7 +69,7 @@
 }
 
 .filetree-tree-scroll::-webkit-scrollbar-thumb {
-  border-radius: 9999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   background-color: transparent;
 }
 
@@ -120,10 +120,10 @@
   display: flex;
   width: 100%;
   min-width: 100%;
-  height: 28px;
+  height: var(--bbs-height, 28px);
   cursor: default;
   align-items: center;
-  gap: 4px;
+  gap: var(--bbs-gap-xs, 4px);
   border: 0;
   padding-block: 0;
   padding-right: 8px;
@@ -177,12 +177,12 @@
 }
 
 .filetree-git-status svg {
-  width: 14px;
-  height: 14px;
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
 }
 
 .filetree-directory-change-count {
-  border-radius: 999px;
+  border-radius: var(--bbs-pill-radius, 9999px);
   background: color-mix(
     in oklch,
     var(--primary, CanvasText) 12%,
@@ -238,7 +238,7 @@ button.filetree-tree-message {
 
 .filetree-sticky-row {
   display: flex;
-  height: 28px;
+  height: var(--bbs-height, 28px);
   align-items: center;
   padding: 0 8px;
   overflow: hidden;
@@ -255,14 +255,14 @@ button.filetree-tree-message {
   display: flex;
   max-width: calc(100% - 16px);
   align-items: center;
-  gap: 8px;
+  gap: var(--bbs-gap, 8px);
   border: 1px solid
     color-mix(
       in oklch,
       var(--foreground, CanvasText) 16%,
       var(--background, Canvas)
     );
-  border-radius: 7px;
+  border-radius: var(--bbs-radius-sm, 6px);
   padding: 6px 8px;
   background: var(--background, Canvas);
   box-shadow: 0 8px 24px
@@ -279,14 +279,14 @@ button.filetree-tree-message {
 .filetree-context-menu-items {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: var(--bbs-gap-tight, 2px);
   padding: 4px;
 }
 
 .filetree-context-drawer button {
   width: 100%;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--bbs-radius-xs, 4px);
   padding: 6px 8px;
   color: inherit;
   background: transparent;
@@ -313,7 +313,7 @@ button.filetree-tree-message {
   width: 100%;
   height: 100%;
   place-content: center;
-  gap: 8px;
+  gap: var(--bbs-gap, 8px);
   padding: 24px;
   color: var(
     --muted-foreground,
