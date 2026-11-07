@@ -1163,14 +1163,13 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       if (!leadId) continue;
       const section = projectLeadSections.find((candidate) => candidate.members.some((thread) => thread.id === leadId));
       if (!section) continue;
-      if (topGroupCollapsed.ids.has(`manager:${leadId}`)) continue;
       const rows = flattenShelf(section, "active", (id) => id === leadId || ctx.expandedParents.has(id)).filter(
         (row) => row.thread.id !== leadId && familyRootOfId(row.thread.id) === leadId,
       );
       byBoard.set(board.id, rows.map((row) => ({ section, row })));
     }
     return byBoard;
-  }, [ctx, familyRootOfId, projectBoards, projectLeadSections, topGroupCollapsed.ids]);
+  }, [ctx, familyRootOfId, projectBoards, projectLeadSections]);
 
   const markAllRead = useCallback(async () => {
     if (unreadOrdinary.length === 0) return;
@@ -1584,9 +1583,11 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
                         />
                         </ManagerMenu>
                         {(projectBoardRows.get(board.id) ?? []).length > 0 ? (
-                          <div className="cs-board-family">
-                            <PinnedList items={projectBoardRows.get(board.id) ?? []} ctx={ctx} />
-                          </div>
+                          <Drawer open={board.leadThreadId !== null && !topGroupCollapsed.ids.has(`manager:${board.leadThreadId}`)}>
+                            <div className="cs-board-family">
+                              <PinnedList items={projectBoardRows.get(board.id) ?? []} ctx={ctx} />
+                            </div>
+                          </Drawer>
                         ) : null}
                       </div>
                     ))}
@@ -2270,41 +2271,23 @@ function ProjectSection({
 
       </SidebarActions>
 
-      {showCollapsedSelection || (!sectionOpen && keepException) ? (
-        /* The collapsed exception list stays mounted through the exit window
-           so its own list animation can play the selected row out. Its keepIds
-           go empty as soon as the selection clears; the row is a removed
-           child, not an unmounted subtree. */
-        <div>
-          <ShelfList
-            section={section}
-            shelf="active"
-            ctx={ctx}
-            grouped
-            keepIds={exceptionIds}
-            expandIds={exceptionIds}
-          />
-        </div>
-      ) : (
-        /* A Drawer rather than an early return, so collapsing the heading
-           shrinks the interior instead of unmounting it in one frame. */
-        <Drawer open={sectionOpen}>
-          {isEmpty ? (
-            <p className="px-3 py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
-          ) : (
-            <>
-              <ShelfList
-                section={section}
-                shelf="active"
-                ctx={ctx}
-                grouped
-                keepIds={revealedConversations}
-              />
-              {showMore}
-            </>
-          )}
-        </Drawer>
-      )}
+      <Drawer open={sectionOpen || showCollapsedSelection || keepException}>
+        {isEmpty ? (
+          <p className="px-3 py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
+        ) : (
+          <>
+            <ShelfList
+              section={section}
+              shelf="active"
+              ctx={ctx}
+              grouped
+              keepIds={sectionOpen ? revealedConversations : exceptionIds}
+              expandIds={!sectionOpen ? exceptionIds : undefined}
+            />
+            {sectionOpen ? showMore : null}
+          </>
+        )}
+      </Drawer>
 
     </section>
   );
