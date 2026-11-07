@@ -73,9 +73,14 @@ html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="inset"],
 html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="inset"]::before,
 html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar-shelf],
 html[data-bb-ui-disable-chrome-animations="true"] [data-panel-shelf],
-html[data-bb-ui-disable-chrome-animations="true"] [class*="220ms_cubic-bezier"] {
+html[data-bb-ui-disable-chrome-animations="true"] [class*="220ms_cubic-bezier"],
+html[data-bb-ui-disable-chrome-animations="true"] [class*="--panel-collapse-duration"] {
   transition: none !important;
   transition-delay: 0s !important;
+}
+
+html[data-bb-ui-disable-chrome-animations="true"] {
+  --panel-collapse-duration: 0ms;
 }
 
 /*
