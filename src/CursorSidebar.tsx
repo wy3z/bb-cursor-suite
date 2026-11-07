@@ -112,6 +112,7 @@ import {
 import type { ThreadShelf } from "./lifecycle";
 import { ageGroupKey, type AgeGroup } from "./age-groups";
 import { ProjectStatusGlyph, ProjectRowIcon, ACTIVITY_LABELS, glyphStateForStatus } from "./ProjectStatusGlyph";
+import { ProjectHoverCard } from "./ProjectHoverCard";
 import { AnimatedList } from "./AnimatedList";
 import { Drawer } from "./Drawer";
 import { useShortcutGuide } from "./useShortcutGuide";
@@ -1363,6 +1364,20 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   const standaloneHeading = view.groupBy === "workspace" || view.groupBy === "none" || nothingToShow;
   const listControls = (
     <>
+      {projectsGrouping ? null : (
+        <button
+          type="button"
+          aria-label="New thread"
+          title="New thread"
+          className={cn(
+            ICON_BTN,
+            "cs-list-new-thread opacity-0 group-hover/section:opacity-100 group-hover/controls:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100",
+          )}
+          onClick={onNewThread}
+        >
+          <Icon name="Plus" className="size-4" aria-hidden="true" />
+        </button>
+      )}
       {viewMenu}
       <button
         type="button"
@@ -1444,6 +1459,9 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
             : undefined
         }
         isDragging={drag.state?.kind === "project" && drag.state.movingId === section.id}
+        hoverDisabled={drag.state !== null}
+        hoverProjectId={nativeId}
+        hoverThreads={() => projectedThreads.filter((thread) => thread.projectId === section.id)}
         flat={flat}
         empty={!sectionHasVisibleThreads(section)}
         onHeadingDragStart={(event) => {
@@ -1574,6 +1592,14 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
                               );
                           }}
                           nestTarget={board.leadThreadId !== null && board.leadThreadId === nestTargetId}
+                          hoverDisabled={drag.state !== null}
+                          hoverThreads={() =>
+                            board.bbProjectId
+                              ? rawThreads.filter((thread) => thread.projectId === board.bbProjectId)
+                              : board.leadThreadId
+                                ? visible.filter((thread) => familyRootOfId(thread.id) === board.leadThreadId)
+                                : []
+                          }
                           shortcutKey={board.leadThreadId ? shortcutKeys?.get(board.leadThreadId) ?? null : null}
                           onOpen={(split) => {
                             if (!board.leadThreadId) return;
@@ -1673,7 +1699,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         </div>
       ) : null}
         {standaloneHeading ? null : (
-          <div className="cs-list-controls absolute right-1.5 top-0 z-10 flex h-6 items-center gap-3">{listControls}</div>
+          <div className="cs-list-controls group/controls absolute right-1.5 top-0 z-10 flex h-6 items-center gap-3">{listControls}</div>
         )}
             {projectsGrouping ? (
               singleProjectSection !== null ? (
@@ -1911,7 +1937,11 @@ function ProjectBoardRow({
   renaming,
   onRenameDone,
   familyStatus,
+  hoverDisabled,
+  hoverThreads,
 }: {
+  hoverDisabled: boolean;
+  hoverThreads: () => readonly PluginSidebarThread[];
   familyStatus: ThreadStatusKind;
   renaming: boolean;
   onRenameDone: (name: string | null) => void;
@@ -1929,15 +1959,25 @@ function ProjectBoardRow({
   onOpen: (split: boolean) => void;
 }) {
   return (
+    <ProjectHoverCard
+      disabled={hoverDisabled || renaming}
+      name={board.name}
+      projectId={board.bbProjectId}
+      boardId={board.id}
+      icon={icon ?? null}
+      personal={false}
+      threads={hoverThreads}
+      now={now}
+    >
     <div
       role="link"
       tabIndex={0}
       data-manager-row={board.id}
+      data-project-focus-id={board.id}
       data-nest-target={board.leadThreadId ?? undefined}
       className="cs-board-row group/board"
       data-active={active || undefined}
       data-nesting={nestTarget || undefined}
-      title={board.focus ? `Focus: ${board.focus}` : `Open the ${board.name} manager`}
       onClick={(event) => onOpen(event.metaKey || event.ctrlKey)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -1997,6 +2037,7 @@ function ProjectBoardRow({
         ) : null}
       </span>
     </div>
+    </ProjectHoverCard>
   );
 }
 
@@ -2039,8 +2080,14 @@ function ProjectSection({
   statusLabel,
   flat = false,
   empty,
+  hoverDisabled = false,
+  hoverProjectId = null,
+  hoverThreads,
 }: {
   section: ProjectSectionData;
+  hoverDisabled?: boolean;
+  hoverProjectId?: string | null;
+  hoverThreads?: () => readonly PluginSidebarThread[];
   status?: ThreadStatusKind | null;
   statusLabel?: string | undefined;
   ctx: TreeContext;
@@ -2188,6 +2235,15 @@ function ProjectSection({
           : []),
         ...(onDeleteProject ? [{ label: "Delete project", run: onDeleteProject, destructive: true, separatorBefore: true }] : []),
       ]}>
+      <ProjectHoverCard
+        disabled={hoverDisabled || isDragging || hoverThreads === undefined}
+        name={section.name}
+        projectId={hoverProjectId}
+        icon={icon ?? null}
+        personal={section.personal}
+        threads={hoverThreads ?? (() => [])}
+        now={ctx.now}
+      >
       <div
         ref={headingRef}
         tabIndex={-1}
@@ -2239,7 +2295,7 @@ function ProjectSection({
         </span>
         <button
           type="button"
-          title={section.name}
+          data-project-focus-id={section.id}
           onClick={() => {
             if (ctx.consumeSuppressedClick(section.id)) return;
             onToggleProject();
@@ -2264,10 +2320,11 @@ function ProjectSection({
             }}
             className="cs-row-action flex size-4 shrink-0 items-center justify-center rounded text-[color:var(--bbs-text-tertiary)] opacity-0 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-hover/heading:opacity-100 group-has-[:focus-visible]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100"
           >
-            <Icon name="Plus" className="size-3.5" aria-hidden="true" />
+            <Icon name="Plus" className="size-4" aria-hidden="true" />
           </button>
         ) : null}
       </div>
+      </ProjectHoverCard>
 
       </SidebarActions>
 

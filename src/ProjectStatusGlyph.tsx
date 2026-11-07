@@ -52,11 +52,11 @@ export function ProjectStatusGlyph({
   // Folder (closed) and FolderOpen are Hugeicons' matched single-weight pair
   // (Folder01 / Folder02). The heavier stroke keeps both crisp at 14px.
   const fallback: IconName = open ? "FolderOpen" : "Folder";
-  // A closed folder hides its rows, so an active status keeps a small badge on
-  // the glyph's bottom-right. An open folder shows the status on the rows.
-  const badge = !open && status !== "idle" ? status : null;
+  const badge =
+    !open && (status === "input" || status === "failed") ? status : null;
   const activity: ActivityState =
     status === "working" ? "working" : badge !== null ? "attention" : "inactive";
+  const working = !open && status === "working";
   return (
     <span
       role="img"
@@ -65,12 +65,21 @@ export function ProjectStatusGlyph({
       data-heading-kind="project"
       className={cn("cs-project-glyph relative", className)}
     >
-      <ProjectIconMark
-        icon={icon ?? null}
-        fallback={fallback}
-        className="size-4"
-        mutedClassName="text-[color:var(--bbs-text-secondary)]"
-      />
+      {working ? (
+        <Icon
+          name="Loading"
+          aria-hidden="true"
+          strokeWidth={1.5}
+          className="size-4 animate-spin text-[color:var(--bbs-text-secondary)]"
+        />
+      ) : (
+        <ProjectIconMark
+          icon={icon ?? null}
+          fallback={fallback}
+          className="size-4"
+          mutedClassName="text-[color:var(--bbs-text-secondary)]"
+        />
+      )}
       {badge !== null ? <ProjectStatusBadge status={badge} /> : null}
     </span>
   );
@@ -99,7 +108,7 @@ export function ProjectRowIcon({
       aria-label={label}
       title={label}
       className={cn(
-        "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
+        "cs-row-project-icon pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
         chats ? "text-sidebar-foreground/45" : "text-sidebar-foreground/55",
       )}
     >
@@ -113,25 +122,11 @@ export function ProjectRowIcon({
   );
 }
 
-/** The mini status on a closed project: a spinner for work, a dot otherwise. */function ProjectStatusBadge({ status }: { status: ThreadStatusKind }) {
-  const tone =
-    status === "failed"
-      ? "bg-destructive"
-      : status === "input"
-        ? "bg-warning-text"
-        : "bg-timeline-accent";
+function ProjectStatusBadge({ status }: { status: ThreadStatusKind }) {
+  const tone = status === "failed" ? "bg-destructive" : "bg-warning-text";
   return (
     <span className="cs-project-badge pointer-events-none absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-sidebar">
-      {status === "working" ? (
-        <Icon
-          name="Loading"
-          aria-hidden="true"
-          strokeWidth={1.5}
-          className="size-3 animate-spin text-[color:var(--bbs-text-secondary)]"
-        />
-      ) : (
-        <span aria-hidden="true" className={cn("size-1.5 rounded-full", tone)} />
-      )}
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", tone)} />
     </span>
   );
 }

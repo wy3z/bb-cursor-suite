@@ -928,7 +928,7 @@ function ThreadRow({
         : hoverKind === "working"
           ? "bg-timeline-accent"
           : statusThread.indicator === "unread-success"
-            ? "bg-timeline-accent"
+            ? "bg-[color:var(--bbs-done-color)]"
             : statusThread.isUnread
               ? "bg-muted-foreground/65"
               : "bg-muted-foreground/30";

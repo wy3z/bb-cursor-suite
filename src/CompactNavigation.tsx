@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 const CONTROL_GAP = 4;
 
 const CONTROL_CLASS =
-  "inline-flex shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+  "cs-nav-control inline-flex shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
 
 const MENU_ITEM =
   "flex min-h-7 w-full cursor-pointer select-none items-center gap-2 rounded px-2 py-1 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:pointer-events-none disabled:opacity-50";
@@ -22,7 +22,7 @@ export function CompactNavigation() {
 }
 
 /**
- * Search and New thread on the left of the header row. BB's own sidebar
+ * Search on the left of the header row. BB's own sidebar
  * toggle sits in its fixed overlay to the left of this slot and BB's own
  * back/forward buttons sit to the right of it, so neither is drawn here.
  */
@@ -32,9 +32,6 @@ export function CompactNavigationHeader({
 }: ExperimentalSidebarHeaderProps) {
   const state = useSidebarNavigation();
 
-  const newThreadItem = state.items.find(
-    (item) => item.action.kind === "new-thread",
-  );
   const searchItem = state.items.find(
     (item) => item.action.kind === "search-threads",
   );
@@ -42,7 +39,7 @@ export function CompactNavigationHeader({
   const fitsControls = (count: number) =>
     width >= count * controlSize + (count - 1) * CONTROL_GAP;
 
-  const showSearch = searchItem !== undefined && fitsControls(2);
+  const showSearch = searchItem !== undefined && fitsControls(1);
 
   const activate = (id: string | undefined) => {
     if (id !== undefined) state.actions.activate(id, { target: "current" });
@@ -61,21 +58,9 @@ export function CompactNavigationHeader({
           style={{ width: controlSize, height: controlSize }}
           onClick={() => activate(searchItem.id)}
         >
-          <Icon name="Search" className="size-4" aria-hidden="true" />
+          <Icon name="Search" className="size-3.5" aria-hidden="true" />
         </button>
       ) : null}
-      <button
-        type="button"
-        aria-label="New thread"
-        title="New thread"
-        aria-keyshortcuts={newThreadItem?.shortcut?.ariaKeyShortcuts}
-        disabled={newThreadItem === undefined || newThreadItem.isDisabled}
-        className={CONTROL_CLASS}
-        style={{ width: controlSize, height: controlSize }}
-        onClick={() => activate(newThreadItem?.id)}
-      >
-        <Icon name="Sent" className="size-4" aria-hidden="true" />
-      </button>
     </div>
   );
 }

@@ -44,7 +44,7 @@ export function ThreadLeadStatus({
       : exactStatus === "input" || thread.indicator === "waiting-for-input"
         ? "bg-warning-text"
         : thread.indicator === "unread-success"
-          ? "bg-timeline-accent"
+          ? "bg-[color:var(--bbs-done-color)]"
           : thread.isUnread
             ? "bg-muted-foreground/65"
             : "bg-muted-foreground/30";
@@ -92,7 +92,7 @@ export function ThreadLeadIcon({
       : exactStatus === "input" || thread.indicator === "waiting-for-input"
         ? "bg-warning-text"
         : thread.indicator === "unread-success"
-          ? "bg-timeline-accent"
+          ? "bg-[color:var(--bbs-done-color)]"
           : thread.isUnread
             ? "bg-muted-foreground/80"
             : null;

@@ -142,7 +142,10 @@
   -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
 }
 
-[data-cursor-sidebar-root] {
+[data-cursor-sidebar-root],
+[aria-label="Sidebar navigation"],
+[data-testid="app-sidebar-trigger-overlay"],
+[data-testid="app-sidebar-top-reserve-row"] {
   --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
   --bbs-text-secondary: color-mix(in srgb, var(--bbs-text-primary) 74%, transparent);
   --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
@@ -165,6 +168,17 @@
 [data-cursor-sidebar-root] .cs-board-row:is(:hover, :focus-within, [data-active]),
 [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-title,
 [data-cursor-sidebar-root] [data-thread-row]:has(a[aria-current="true"]) .cs-thread-title {
+  color: var(--bbs-text-primary);
+}
+
+[data-cursor-sidebar-root] .cs-icon-btn,
+[data-cursor-sidebar-root] .cs-nav-control,
+[data-cursor-sidebar-root] .cs-new-project {
+  color: var(--bbs-text-tertiary);
+}
+[data-cursor-sidebar-root] .cs-icon-btn:is(:hover, :focus-visible, [data-state="open"]),
+[data-cursor-sidebar-root] .cs-nav-control:is(:hover, :focus-visible),
+[data-cursor-sidebar-root] .cs-new-project:is(:hover, :focus-visible) {
   color: var(--bbs-text-primary);
 }
 
@@ -704,4 +718,43 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
 @media (pointer: coarse) {
   .cs-board-row__archive { display: none; }
   .cs-board-row:has(.cs-board-row__archive):is(:hover, :focus-within) .cs-board-row__name { padding-right: 0; }
+}
+
+[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child),
+[data-testid="app-sidebar-trigger-overlay"] button,
+[data-testid="app-sidebar-top-reserve-row"] button {
+  color: var(--bbs-text-tertiary);
+}
+[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child):is(:hover, :focus-visible),
+[data-testid="app-sidebar-trigger-overlay"] button:is(:hover, :focus-visible),
+[data-testid="app-sidebar-top-reserve-row"] button:is(:hover, :focus-visible) {
+  color: var(--bbs-text-primary);
+}
+
+[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child) > :is(svg, [data-icon-root]),
+[data-testid="app-sidebar-trigger-overlay"] button :is(svg, [data-icon-root]),
+[data-testid="app-sidebar-top-reserve-row"] button :is(svg, [data-icon-root]) {
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
+}
+
+[data-testid^="plugin-sidebar-footer-item-"] > :is(svg, [data-icon-root]),
+a[aria-label^="Settings"][data-sidebar="menu-button"] :is(svg, [data-icon-root]),
+button[aria-label="More footer actions"] > :is(svg, [data-icon-root]) {
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
+}
+[data-testid^="plugin-sidebar-footer-item-"],
+a[aria-label^="Settings"][data-sidebar="menu-button"],
+button[aria-label="More footer actions"] {
+  --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
+  --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
+  color: var(--bbs-text-tertiary);
+}
+:is([data-testid^="plugin-sidebar-footer-item-"], a[aria-label^="Settings"][data-sidebar="menu-button"], button[aria-label="More footer actions"]):is(:hover, :focus-visible) {
+  color: var(--bbs-text-primary);
+}
+
+[data-cursor-sidebar-root] :has(> .cs-list-controls):hover > .cs-list-controls .cs-list-new-thread {
+  opacity: 1;
 }

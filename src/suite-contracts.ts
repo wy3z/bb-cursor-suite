@@ -28,6 +28,11 @@ export const tasksContract = defineRpcContract({
       })
       .passthrough(),
   },
+  listAllTasks: {
+    tags: (input: { projectId: string }) => [`tasks:${input.projectId}`],
+    input: z.object({ projectId: z.string() }).strict(),
+    output: z.object({ tasks: z.array(z.object({ id: z.string(), status: z.string() }).passthrough()) }).passthrough(),
+  },
 });
 
 const metaSchema = z.object({
@@ -37,6 +42,11 @@ const metaSchema = z.object({
 });
 
 export const projectsContract = defineRpcContract({
+  getMeta: {
+    tags: (input: { projectId: string }) => [`meta:${input.projectId}`],
+    input: z.object({ projectId: z.string().trim().min(1).max(100) }),
+    output: metaSchema.passthrough(),
+  },
   listLeads: {
     tags: () => ["leads"],
     input: z.object({}),
