@@ -4,12 +4,11 @@ Small, configurable interface improvements for BB.
 
 ## Features
 
-- **Faster thread switching** (checked by default): reduces unnecessary plugin
-  style calculations when opening threads. Uncheck it to restore the original
-  plugin styles. The change applies immediately and persists across reloads.
-
 - Match the left sidebar's open and close animation to the right panel. This
   is always on and has no setting.
+
+- **Disable sidebar and panel animations** (off by default): the left sidebar
+  and the right panel open and close instantly instead of sliding.
 
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger
   chat prose, and semibold bold text. Other sizes and weights stay put.

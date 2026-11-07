@@ -22,7 +22,6 @@ import {
   PREFERENCES_STORAGE_KEY as STORAGE_KEY,
 } from "./lib/preferences-storage.js";
 import { setMonacoEnhancedTokenizers } from "./lib/monaco-tokenizers.js";
-import { startPluginUtilityScopeOptimization } from "./lib/plugin-utility-scopes.js";
 import {
   fetchRemotePreferences,
   pushRemotePreferences,
@@ -83,7 +82,7 @@ interface Preferences {
   spinnerStyle: SpinnerStyle;
   clearerHierarchy: boolean;
   hideSteerLabels: boolean;
-  optimizePluginStyles: boolean;
+  disableChromeAnimations: boolean;
   editorSyntaxHighlighting: boolean;
   workspaceAppCategories: WorkspaceAppCategory[];
   hiddenWorkspaceApps: string[];
@@ -104,7 +103,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   spinnerStyle: "follow",
   clearerHierarchy: true,
   hideSteerLabels: false,
-  optimizePluginStyles: true,
+  disableChromeAnimations: false,
   editorSyntaxHighlighting: false,
   workspaceAppCategories: [
     "default-app",
@@ -226,7 +225,7 @@ function readPersistedPreferences(): Preferences {
         spinnerStyle: parseSpinnerStyle(value.spinnerStyle),
         clearerHierarchy: value.clearerHierarchy !== false,
         hideSteerLabels: value.hideSteerLabels === true,
-        optimizePluginStyles: value.optimizePluginStyles !== false,
+        disableChromeAnimations: value.disableChromeAnimations === true,
         editorSyntaxHighlighting:
           (value.editorSyntaxHighlighting ??
             (value as { editorCssHighlighting?: unknown })
@@ -300,6 +299,14 @@ function applyRootPreferences(
     root,
     "data-bb-ui-hide-steer-labels",
     preferences.hideSteerLabels ? "true" : null,
+    reclaimExternal,
+    "private",
+  );
+  setOwnedAttribute(
+    overrides,
+    root,
+    "data-bb-ui-disable-chrome-animations",
+    preferences.disableChromeAnimations ? "true" : null,
     reclaimExternal,
     "private",
   );
@@ -1131,27 +1138,19 @@ function InterfaceSettings() {
       <div className="space-y-5 rounded-lg border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <label
-            className="text-sm font-medium text-foreground"
-            htmlFor="ui-tweaks-optimize-plugin-styles"
-          >
-            Faster thread switching
-          </label>
-          <p
-            className="mt-0.5 text-xs text-muted-foreground"
-            id="ui-tweaks-optimize-plugin-styles-description"
-          >
-            Reduce unnecessary styling work when opening threads. Applies immediately.
+          <h3 className="text-sm font-medium text-foreground">
+            Disable sidebar and panel animations
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Open and close the left sidebar and the right panel instantly
+            instead of sliding them.
           </p>
         </div>
-        <input
-          id="ui-tweaks-optimize-plugin-styles"
-          type="checkbox"
-          className="size-4 shrink-0 accent-primary"
-          aria-describedby="ui-tweaks-optimize-plugin-styles-description"
-          checked={preferences.optimizePluginStyles}
-          onChange={(event) =>
-            update({ optimizePluginStyles: event.currentTarget.checked })
+        <ToggleSwitch
+          ariaLabel="Disable sidebar and panel animations"
+          checked={preferences.disableChromeAnimations}
+          onCheckedChange={(checked) =>
+            update({ disableChromeAnimations: checked })
           }
         />
       </div>
@@ -1416,7 +1415,7 @@ function InterfaceSettings() {
               spinnerStyle: DEFAULT_PREFERENCES.spinnerStyle,
               clearerHierarchy: DEFAULT_PREFERENCES.clearerHierarchy,
               hideSteerLabels: DEFAULT_PREFERENCES.hideSteerLabels,
-              optimizePluginStyles: DEFAULT_PREFERENCES.optimizePluginStyles,
+              disableChromeAnimations: DEFAULT_PREFERENCES.disableChromeAnimations,
               editorSyntaxHighlighting:
                 DEFAULT_PREFERENCES.editorSyntaxHighlighting,
               workspaceAppCategories:
@@ -1459,15 +1458,6 @@ export default definePluginApp((app) => {
     mount: ({ signal, pluginId }) => {
       setPreferencesPluginId(pluginId);
       const overrides = createRootOverrides();
-      let stopPluginUtilityScopes: (() => void) | null = null;
-      const syncPluginUtilityScopes = (preferences: Preferences) => {
-        if (preferences.optimizePluginStyles) {
-          stopPluginUtilityScopes ??= startPluginUtilityScopeOptimization(signal);
-        } else {
-          stopPluginUtilityScopes?.();
-          stopPluginUtilityScopes = null;
-        }
-      };
       let workspaceAppMenus = findWorkspaceAppMenus();
       let refreshFrame = 0;
 
@@ -1514,7 +1504,6 @@ export default definePluginApp((app) => {
         "data-bb-ui-hide-panel-toggle",
       );
       applyPreferences(getPreferences(), overrides);
-      syncPluginUtilityScopes(getPreferences());
       observeDynamicSurfaces();
       void populateWorkspaceAppCatalog(signal);
 
@@ -1523,7 +1512,6 @@ export default definePluginApp((app) => {
         currentPreferences = next;
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
-        syncPluginUtilityScopes(next);
         observeDynamicSurfaces();
       };
       const onStorage = (event: StorageEvent) => {
@@ -1531,7 +1519,6 @@ export default definePluginApp((app) => {
         const next = reloadPersistedPreferences();
         workspaceObserver.disconnect();
         applyPreferences(next, overrides, true);
-        syncPluginUtilityScopes(next);
         observeDynamicSurfaces();
       };
 
@@ -1583,7 +1570,6 @@ export default definePluginApp((app) => {
       document.addEventListener("visibilitychange", syncRemote, { signal });
 
       return () => {
-        stopPluginUtilityScopes?.();
         rootObserver.disconnect();
         workspaceObserver.disconnect();
         if (refreshFrame !== 0) window.cancelAnimationFrame(refreshFrame);

@@ -4,9 +4,6 @@ Tweaks**, and most changes apply as you toggle them.
 
 ## What you get
 
-**Faster thread switching.** A checkbox reduces unnecessary plugin styling work
-when opening threads. Checked by default; changes apply immediately and persist.
-
 **Clearer hierarchy.** Bolder thread titles, slightly larger chat prose, and
 semibold bold text. Headings, code, and other sizes and weights stay put. This
 is on by default.
@@ -36,7 +33,8 @@ Editors & IDEs, Terminals, Other applications), or expand one and hide single
 apps. Hidden apps stay in the list so you can bring them back.
 
 **Sidebar animation.** The left sidebar opens and closes with the same motion as
-the right panel. This is always on.
+the right panel. This is always on. A separate switch, **Disable sidebar and
+panel animations**, makes both open and close instantly.
 
 **Reset to defaults.** One button restores every setting.
 
