@@ -1,7 +1,10 @@
+import type { MouseEvent } from "react";
 import { experimental_useRpcKeyedQuery } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
+import { changeRequestLabel, type ChangeRequest } from "@wy3z/bb-suite/change-requests";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import { requestOpenChangeRequest, useGitLabChangeRequest } from "./change-requests";
 
 /**
  * The bundled GitHub PR Status plugin's `pullRequests` read, copied from
@@ -68,13 +71,23 @@ export const PRESENTATION: Record<PullRequestState, Presentation> = {
  * environment. The host owns the polling and staleness rules; a query error,
  * `absent` and `unavailable` all mean "nothing to show", never an error.
  */
-export function PullRequestMark({ environmentId }: { environmentId: string | null }) {
+export function PullRequestMark({
+  environmentId,
+  threadId = null,
+}: {
+  environmentId: string | null;
+  threadId?: string | null;
+}) {
   const { data } = experimental_useRpcKeyedQuery({
     pluginId: "bb--github-pr-status",
     contract: githubPrStatus,
     method: "pullRequests",
     keys: environmentId === null ? [] : [environmentId],
   });
+  const gitlab = useGitLabChangeRequest(environmentId);
+  if (gitlab.kind === "gitlab") {
+    return gitlab.changeRequest ? <MergeRequestMark changeRequest={gitlab.changeRequest} threadId={threadId} /> : null;
+  }
   const row = environmentId === null ? undefined : data?.[environmentId];
   if (row?.outcome !== "available") return null;
   const pullRequest = row.pullRequest;
@@ -98,5 +111,60 @@ export function PullRequestMark({ environmentId }: { environmentId: string | nul
         className={cn("size-3.5", failing ? "text-destructive" : presentation.tone)}
       />
     </span>
+  );
+}
+
+const MERGE_REQUEST_LABEL: Record<PullRequestState, string> = {
+  open: "Open merge request",
+  draft: "Draft merge request",
+  merged: "Merged merge request",
+  closed: "Closed merge request",
+};
+
+function openInBrowser(url: string) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function MergeRequestMark({ changeRequest, threadId }: { changeRequest: ChangeRequest; threadId: string | null }) {
+  const state = changeRequest.state;
+  const presentation = PRESENTATION[state];
+  const failing = changeRequest.ci.state === "failed" && state !== "merged" && state !== "closed";
+  const label = failing ? `${MERGE_REQUEST_LABEL[state]}, pipeline failing` : MERGE_REQUEST_LABEL[state];
+  const number = changeRequestLabel(changeRequest.identity);
+  const url = changeRequest.identity.url;
+
+  const open = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      openInBrowser(url);
+      return;
+    }
+    if (!requestOpenChangeRequest(event.currentTarget, changeRequest, threadId)) openInBrowser(url);
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={`${label} ${number}, open`}
+      title={`${number} · ${label.toLowerCase()}`}
+      className="pointer-events-auto relative z-10 mr-1 flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={open}
+      onAuxClick={(event) => {
+        if (event.button !== 1) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openInBrowser(url);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+      }}
+    >
+      <Icon
+        name={presentation.icon}
+        className={cn("size-3.5", failing ? "text-destructive" : presentation.tone)}
+      />
+    </button>
   );
 }

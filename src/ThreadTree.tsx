@@ -1232,7 +1232,7 @@ function ThreadRow({
           </span>
 
 
-          {ctx.view.show.pr ? <PullRequestMark environmentId={thread.environment?.id ?? null} /> : null}
+          {ctx.view.show.pr ? <PullRequestMark environmentId={thread.environment?.id ?? null} threadId={thread.id} /> : null}
 
           {ctx.view.show.providerIcons && native.providerId ? (
             <ProviderMark providerId={native.providerId} className="mr-1.5" />
