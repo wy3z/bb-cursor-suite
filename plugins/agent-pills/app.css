@@ -1756,10 +1756,11 @@ button.bb-agent-pills__tray-row:disabled:hover {
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
   transition: border-color 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 10%) !important;
 }
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox]:focus-within {
   border-color: color-mix(in oklab, var(--foreground) 10%, var(--bb-agent-pills-outline));
-  box-shadow: none !important;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 30%) !important;
 }
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
