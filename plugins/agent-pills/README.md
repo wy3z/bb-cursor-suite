@@ -130,7 +130,7 @@ whole editor and would stop picking up BB's composer fixes.
 
 ## Requirements
 
-BB 0.48.1 or newer, with plugin SDK 0.6.104 or newer. It uses the experimental
+BB 0.49 or newer, with plugin SDK 0.6.132 or newer. It uses the experimental
 thread context segment slot.
 
 ## Install

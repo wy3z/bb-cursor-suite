@@ -8,6 +8,7 @@
  * timeline does not carry, and performs the few actions those pills offer.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { z } from "zod";
 import { AGENT_PILLS_CHANNEL } from "./src/channels";
 import {
   agentPillsRpcContract,
@@ -176,7 +177,7 @@ async function readTimeline(
         timeline.activePromptMode?.mode === "plan"
           ? { prompt: timeline.activePromptMode.prompt }
           : null,
-      goal: readGoal(timeline.goal),
+      goal: readGoal(timeline.extensionStates),
       todos: timeline.pendingTodos
         ? {
             items: timeline.pendingTodos.items.map((item) => ({
@@ -202,18 +203,28 @@ async function readTimeline(
   }
 }
 
-interface TimelineGoal {
-  objective: string;
-  status: string;
-  timeUsedSeconds: number;
-  tokensUsed: number;
-  tokenBudget: number | null;
-}
+const goalStateSchema = z.object({
+  objective: z.string(),
+  status: z.string(),
+  timeUsedSeconds: z.number(),
+  tokensUsed: z.number(),
+  tokenBudget: z.number().nullable(),
+});
 
-/** BB draws no goal card once the run is complete or out of budget. */
-function readGoal(goal: TimelineGoal | null): ActiveGoal | null {
-  if (!goal) return null;
+const ACTIVE_GOAL_STATUSES: ReadonlySet<string> = new Set<ActiveGoal["status"]>([
+  "active",
+  "paused",
+  "blocked",
+  "usageLimited",
+  "budgetLimited",
+]);
+
+function readGoal(states: Record<string, unknown> | undefined): ActiveGoal | null {
+  const parsed = goalStateSchema.safeParse(states?.goal);
+  if (!parsed.success) return null;
+  const goal = parsed.data;
   if (goal.status === "complete" || goal.status === "budgetLimited") return null;
+  if (!ACTIVE_GOAL_STATUSES.has(goal.status)) return null;
   return {
     objective: goal.objective,
     status: goal.status as ActiveGoal["status"],
