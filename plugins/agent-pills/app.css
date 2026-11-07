@@ -1072,7 +1072,6 @@ html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] > div {
   background: transparent !important;
 }
 
-html[data-bb-agent-pills-composer="cursor"] form[data-promptbox],
 .bb-agent-pills__pill,
 section[aria-label="Thread context before sending"] > div:first-child > :is(div, button)[data-bb-agent-pills-context-segment] {
   -webkit-backdrop-filter: var(--bb-agent-pills-blur);
@@ -1085,9 +1084,22 @@ section[aria-label="Thread context before sending"] > div:first-child > :is(div,
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox],
 html[data-bb-agent-pills-composer="cursor"].dark form[data-promptbox].bg-background,
 html[data-bb-agent-pills-composer="cursor"]:not(.dark) form[data-promptbox].bg-background {
-  background-color: var(--bb-agent-pills-surface) !important;
-  -webkit-backdrop-filter: var(--bb-agent-pills-blur) !important;
-  backdrop-filter: var(--bb-agent-pills-blur) !important;
+  isolation: isolate;
+  background-color: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"] form[data-promptbox]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--bb-agent-pills-surface);
+  -webkit-backdrop-filter: var(--bb-agent-pills-blur);
+  backdrop-filter: var(--bb-agent-pills-blur);
+  pointer-events: none;
 }
 
 
