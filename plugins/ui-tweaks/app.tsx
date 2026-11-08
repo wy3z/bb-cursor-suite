@@ -23,6 +23,10 @@ import {
 } from "./lib/preferences-storage.js";
 import { setMonacoEnhancedTokenizers } from "./lib/monaco-tokenizers.js";
 import {
+  dispatchWindowTouchCancel,
+  forwardOrphanedTouchEnds,
+} from "./lib/orphan-touch.js";
+import {
   fetchRemotePreferences,
   pushRemotePreferences,
   setPreferencesPluginId,
@@ -1451,6 +1455,13 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "preferences",
     component: InterfaceSettings,
+  });
+
+  app.contentScripts.register({
+    id: "orphaned-touch-ends",
+    mount: ({ signal }) => {
+      forwardOrphanedTouchEnds(document, signal, dispatchWindowTouchCancel);
+    },
   });
 
   app.contentScripts.register({
