@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(import.meta.dirname, "..");
@@ -19,14 +20,29 @@ export const platforms = [
   "win32-x64",
 ];
 export const currentPlatform = `${process.platform}-${process.arch}`;
+const reproduciblePlatforms = ["linux-arm64", "linux-x64"];
+const repository = process.env.GITHUB_REPOSITORY ?? "wy3z/bb-cursor-suite";
 
 export async function nativeSourceDigest() {
-  const hash = createHash("sha256");
-  const entries = await readdir(nativeDir, { withFileTypes: true });
-  const names = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
+  let listed;
+  try {
+    listed = execFileSync("git", ["ls-files", "-z", "--", "host/native"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    throw new Error(
+      `Hashing the native source needs git and a checkout of the repository: ${error instanceof Error ? error.message : error}`,
+    );
+  }
+  const names = listed
+    .split("\0")
+    .filter(Boolean)
+    .map((path) => path.slice("host/native/".length))
     .sort();
+  if (names.length === 0) throw new Error("git tracks no files under host/native");
+  const hash = createHash("sha256");
   for (const name of names) {
     const text = (await readFile(join(nativeDir, name), "utf8")).replace(
       /\r\n/g,
@@ -65,7 +81,7 @@ async function readPrebuilds() {
   return assets;
 }
 
-async function writeAssets(assets) {
+async function writeAssets(assets, target = assetsPath) {
   const sorted = Object.fromEntries(
     Object.keys(assets)
       .sort()
@@ -73,9 +89,8 @@ async function writeAssets(assets) {
   );
   if (Object.keys(sorted).length === 0)
     throw new Error("No supported native addon prebuild is available");
-  await mkdir(join(root, "generated"), { recursive: true });
   await writeFile(
-    assetsPath,
+    target,
     `export const nativeAssets: Readonly<Record<string, { sha256: string; source: string; base64: string }>> = ${JSON.stringify(sorted)};\n`,
   );
 }
@@ -115,8 +130,73 @@ function stale(assets, source) {
   return { missing, outdated };
 }
 
-export async function generateNativeAssets(mode = "default") {
+async function verifyCommitted(source) {
+  const committed = await readCommitted();
+  const prebuilt = await readPrebuilds();
+  const scratch = await mkdtemp(join(tmpdir(), "files-native-verify-"));
+  const failures = [];
+  try {
+    for (const platform of platforms) {
+      const asset = committed[platform];
+      if (!asset) {
+        failures.push(`${platform}: no committed build`);
+        continue;
+      }
+      const bytes = Buffer.from(asset.base64, "base64");
+      if (createHash("sha256").update(bytes).digest("hex") !== asset.sha256) {
+        failures.push(`${platform}: sha256 does not match the embedded bytes`);
+        continue;
+      }
+      const file = join(scratch, `${platform}.node`);
+      await writeFile(file, bytes);
+      const verified = spawnSync(
+        "gh",
+        [
+          "attestation",
+          "verify",
+          file,
+          "--repo",
+          repository,
+          "--signer-workflow",
+          `${repository}/.github/workflows/files-native.yml`,
+          "--deny-self-hosted-runners",
+        ],
+        { encoding: "utf8" },
+      );
+      if (verified.status !== 0) {
+        failures.push(
+          `${platform}: ${asset.sha256} has no provenance attestation from files-native.yml (${(verified.stderr || verified.stdout || "").trim().split("\n")[0]})`,
+        );
+        continue;
+      }
+      console.log(`${platform}: ${asset.sha256} attested by files-native.yml`);
+      if (
+        reproduciblePlatforms.includes(platform) &&
+        asset.source === source &&
+        prebuilt[platform]?.source === source
+      ) {
+        if (prebuilt[platform].sha256 !== asset.sha256)
+          failures.push(
+            `${platform}: committed build ${asset.sha256} differs from this run's reproducible build ${prebuilt[platform].sha256}`,
+          );
+        else console.log(`${platform}: byte-identical to this run's build`);
+      }
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+  if (failures.length)
+    throw new Error(
+      `The committed native addons failed verification:\n${failures.join("\n")}`,
+    );
+}
+
+export async function generateNativeAssets(mode = "default", out = assetsPath) {
   const source = await nativeSourceDigest();
+  if (mode === "verify") {
+    await verifyCommitted(source);
+    return;
+  }
   if (mode === "check") {
     const { missing, outdated } = stale(await readCommitted(), source);
     if (missing.length === 0 && outdated.length === 0) {
@@ -138,7 +218,7 @@ export async function generateNativeAssets(mode = "default") {
       throw new Error(
         `Prebuilds are incomplete: missing [${missing.join(", ")}], stale [${outdated.join(", ")}]`,
       );
-    await writeAssets(assets);
+    await writeAssets(assets, out);
     return;
   }
   const assets = await readCommitted();
@@ -156,14 +236,24 @@ export async function generateNativeAssets(mode = "default") {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const flag = process.argv[2];
-  const modes = { "--check": "check", "--prebuilt": "prebuilt", "--native": "native" };
+  const [flag, out] = process.argv.slice(2);
+  const modes = {
+    "--check": "check",
+    "--prebuilt": "prebuilt",
+    "--native": "native",
+    "--verify": "verify",
+  };
   if (flag !== undefined && !(flag in modes)) {
-    console.error("Usage: node scripts/native-assets.mjs [--native | --prebuilt | --check]");
+    console.error(
+      "Usage: node scripts/native-assets.mjs [--native | --prebuilt [out] | --check | --verify]",
+    );
     process.exit(1);
   }
   try {
-    await generateNativeAssets(flag ? modes[flag] : "default");
+    await generateNativeAssets(
+      flag ? modes[flag] : "default",
+      out ? resolve(out) : assetsPath,
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);

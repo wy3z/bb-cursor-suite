@@ -31,7 +31,11 @@ jobs:
   linux:
     name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
-    container: node:22-bullseye
+    container: node:22-bullseye@sha256:959fa6e5c12f4b08f58808f953c7a6a05f1f72629b57ef3a648b8809362fdad9
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -41,15 +45,18 @@ jobs:
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build the addon
         working-directory: plugins/filetree
         run: node scripts/native-assets.mjs --native
       - name: Test the embedded addon
         working-directory: plugins/filetree
-        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts
-      - uses: actions/upload-artifact@v4
+        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts host/native-addon.test.ts
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: plugins/filetree/prebuilds/${{ matrix.platform }}.node
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: files-prebuild-${{ matrix.platform }}
           path: |
@@ -60,6 +67,10 @@ jobs:
   native:
     name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -71,8 +82,8 @@ jobs:
           - platform: win32-x64
             runner: windows-2022
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
           cache: npm
@@ -82,8 +93,11 @@ jobs:
         run: node scripts/native-assets.mjs --native
       - name: Test the embedded addon
         working-directory: plugins/filetree
-        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts
-      - uses: actions/upload-artifact@v4
+        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts host/native-addon.test.ts
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: plugins/filetree/prebuilds/${{ matrix.platform }}.node
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: files-prebuild-${{ matrix.platform }}
           path: |
@@ -94,28 +108,29 @@ jobs:
   collect:
     needs: [linux, native]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      attestations: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: files-prebuild-*
           path: plugins/filetree/prebuilds
           merge-multiple: true
       - name: Embed every platform
         working-directory: plugins/filetree
-        run: node scripts/native-assets.mjs --prebuilt
-      - uses: actions/upload-artifact@v4
+        run: node scripts/native-assets.mjs --prebuilt "$RUNNER_TEMP/native-assets.ts"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: files-native-assets
-          path: plugins/filetree/generated/native-assets.ts
+          path: ${{ runner.temp }}/native-assets.ts
           if-no-files-found: error
-      - name: Compare with the committed file
-        run: |
-          if git diff --quiet -- plugins/filetree/generated/native-assets.ts; then
-            echo "The committed native-assets.ts matches this build."
-          else
-            echo "::notice::native-assets.ts differs from the committed file. Import the files-native-assets artifact if the C source changed."
-          fi
+      - name: Verify the committed builds
+        working-directory: plugins/filetree
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/native-assets.mjs --verify

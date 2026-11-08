@@ -25,17 +25,19 @@ The repository includes the generated worker and native-asset modules needed by 
 
 ## Native addon
 
-`host/native/host_native_files.c` is the POSIX addon (Linux and macOS). `host/native/host_native_files_win.c` is the Windows port: it opens each path component relative to its parent handle with `NtCreateFile`, refuses symbolic links and junctions, runs Git with the root as its working directory inside a job object, and uses Git for Windows from Program Files or `%LOCALAPPDATA%\Programs\Git`.
+`host/native/host_native_files.c` is the POSIX addon (Linux and macOS). `host/native/host_native_files_win.c` is the Windows port. It opens each path component relative to its parent handle with `NtCreateFile` and refuses symbolic links, junctions and alternate data streams. Every reopen is checked against the original file ID. Git runs only when the root can be pinned and its path still resolves to the pinned directory, inside a job object, using Git for Windows from Program Files or `%LOCALAPPDATA%\Programs\Git`. Windows roots must be local drive paths.
 
-`generated/native-assets.ts` embeds one build per platform, each tagged with a digest of the C sources. `npm run generate` only compiles the addon for your machine when its embedded build doesn't match the current source, which needs a C compiler, Python and Node headers. A test fails until every platform carries a build of the current source.
+`generated/native-assets.ts` embeds one build per platform, each tagged with a digest of the C sources git tracks under `host/native`. `npm run generate` only compiles the addon for your machine when its embedded build doesn't match the current source, which needs a C compiler, Python and Node headers. A local build is for testing only: it has no provenance, so CI rejects it. A test fails until every platform carries a build of the current source.
 
-The "Files native addon" workflow (`.github/workflows/files-native.yml`) builds and tests the addon on native runners for every platform. Linux builds run in a Debian bullseye container so the addon needs glibc 2.29 or newer rather than the runner's. After changing the C source, push, let the workflow finish, then import its result:
+The "Files native addon" workflow (`.github/workflows/files-native.yml`) builds and tests the addon on native runners for every platform, and attests each build with GitHub's build provenance. Linux builds run in a digest-pinned Debian bullseye container, so the addon needs glibc 2.29 or newer rather than the runner's, and they are reproducible. The collect job assembles a new `native-assets.ts` and uploads it as `files-native-assets`. It then fails unless every committed build has a provenance attestation from this workflow, and unless each committed Linux build is byte-identical to this run's build of the same source.
+
+After changing the C source, push, let the workflow build, then import its result and push again:
 
 ```sh
 gh run download <run-id> --repo wy3z/bb-cursor-suite --name files-native-assets --dir plugins/filetree/generated
 ```
 
-`node scripts/native-assets.mjs --check` reports any platform that is missing or stale.
+The first run after a C change fails its final verification step, because the committed builds are still the old ones. The run after the import passes. `node scripts/native-assets.mjs --check` reports any platform that is missing or stale, and `--verify` runs the provenance check locally (it needs `gh`). `.github/CODEOWNERS` covers the workflow, the native sources, this script and `native-assets.ts`.
 
 ## CLI
 
