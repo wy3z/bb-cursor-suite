@@ -1,4 +1,4 @@
-# Agent Pills
+# Cursor Composer
 
 Restyles BB's composer to look like Cursor's, and adds Cursor-style pills
 for child threads and background tasks above it.
@@ -47,8 +47,8 @@ whole editor and would stop picking up BB's composer fixes.
 On by default. The pills replace the full-width cards above the composer
 (child threads, background tasks, workflows, to-dos, the queue and the rest)
 with one row of small pills. Turn them off under **Settings → Plugins →
-Agent Pills → Agent pills** to get BB's own cards back; the composer keeps its
-restyle either way. The setting is kept in this browser only.
+Cursor Composer → Agent pills** to get BB's own cards back; the composer
+keeps its restyle either way. The setting is kept in this browser only.
 
 The Agents and Changes chips, and the Pull Requests and Subscriptions
 plugins' chips, share one Cursor tray style from `app.css` (`__tray-*`): a
@@ -101,12 +101,12 @@ status swaps for actions on hover, five rows then "More".
   Create PR commits first if needed, pushes the branch and runs
   `gh pr create --fill` against the environment's base branch, or returns the
   pull request already open for the branch. Progress and the result show
-  under the buttons. The Pull Requests plugin owns these actions: Agent Pills
-  draws the buttons and calls its git actions, which run git and `gh` from
-  that plugin's backend, so they only work for environments on the BB server's
-  own machine. Without Pull Requests installed and enabled, the buttons and
-  message box are disabled and the bar reads "Needs Pull Requests"; enabling
-  or disabling it updates the bar without a reload.
+  under the buttons. The Pull Requests plugin owns these actions: Cursor
+  Composer draws the buttons and calls its git actions, which run git and `gh`
+  from that plugin's backend, so they only work for environments on the BB
+  server's own machine. Without Pull Requests installed and enabled, the
+  buttons and message box are disabled and the bar reads "Needs Pull
+  Requests"; enabling or disabling it updates the bar without a reload.
 - **Apply locally.** A child thread in its own worktree gets a download
   button on hover in the Agents tray. It copies everything the worktree has
   against the parent's checkout (commits, uncommitted and untracked files,

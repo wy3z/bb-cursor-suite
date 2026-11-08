@@ -33,7 +33,7 @@
     "bbPluginSdk": ">=0.6.132"
   },
   "bb": {
-    "name": "Agent Pills",
+    "name": "Cursor Composer",
     "description": "A Cursor-style composer for BB, with optional pills for child threads and background tasks above it.",
     "branding": {
       "icon": "MessageCircle"

@@ -22,7 +22,7 @@ small pills:
 - Workflow, plan mode, goal, to-dos, model fallback, queued messages,
   archived thread and machine status, each with its own actions.
 
-Turn the pills off under Settings, Plugins, Agent Pills to get BB's own
+Turn the pills off under Settings, Plugins, Cursor Composer to get BB's own
 cards back. The composer keeps its restyle either way.
 
 ---

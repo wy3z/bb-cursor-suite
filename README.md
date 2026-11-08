@@ -7,7 +7,7 @@ Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a tra
 | Plugin | Folder | What it does |
 |---|---|---|
 | Cursor Sidebar | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
-| Agent Pills | `plugins/agent-pills` | A Cursor-style composer for BB, with optional pills for child threads and background tasks above it. |
+| Cursor Composer | `plugins/agent-pills` | A Cursor-style composer for BB, with optional pills for child threads and background tasks above it. |
 | Files | `plugins/filetree` | Browse thread workspaces and project sources with search, Git status and document previews. |
 | Projects | `plugins/projects` | Board and list views over BB Tasks, with live agents, pull requests and changes on every card. |
 | Pull Requests | `plugins/pull-requests` | GitHub pull requests and GitLab merge requests in BB, grouped by what each one needs. |
@@ -34,7 +34,7 @@ bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugi
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plugin ui-tweaks --tag-prefix ui-tweaks/
 ```
 
-Agent Pills, Files, Projects and Pull Requests are on 1.x. Cursor Sidebar stays on 0.3.x and UI Tweaks on 0.30.x, so the installs already out there keep getting updates: moving them to a new range means a reinstall, which deletes their settings.
+Cursor Composer, Files, Projects and Pull Requests are on 1.x. Cursor Sidebar stays on 0.3.x and UI Tweaks on 0.30.x, so the installs already out there keep getting updates: moving them to a new range means a reinstall, which deletes their settings.
 
 Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range keep updating from the root-level `vX.Y.Z` tags on the `legacy/cursor-sidebar` branch. UI Tweaks keeps publishing to `wy3z/bb-plugin-ui-tweaks`.
 
@@ -64,7 +64,7 @@ The script bumps the plugin's version on the current branch, writes a release co
 
 Before it changes anything, the script runs `npm run versions` with the new version and refuses to release when:
 
-- Agent Pills, Files, Projects or Pull Requests would drop below 1.0.0.
+- Cursor Composer, Files, Projects or Pull Requests would drop below 1.0.0.
 - Cursor Sidebar or UI Tweaks would leave its legacy stream (`^0.3.2`, `^0.30.0`). Ending a stream on purpose means removing it from `legacyStreams` in `scripts/versions.mjs`.
 - The range in `marketplace/marketplace.json` would never offer the new version, or an install or marketplace line in this README or any plugin README disagrees with it.
 - A plugin depends on `@wy3z/bb-suite` with anything but `file:../../packages/suite-shared`, or lists it as a peer, optional or bundled dependency. Any of those would send BB's install to the public npm registry.
