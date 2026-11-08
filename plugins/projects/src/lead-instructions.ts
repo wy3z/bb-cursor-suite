@@ -10,6 +10,8 @@ export function leadInstructions(prefix: string): string {
     "- Parents follow their sub-tasks. Write the status in the same turn as the evidence: a completion notice, a merge, a confirmation in chat.",
     "- Attach every worker to its task, and put the task key in branch names and commit subjects.",
     "",
+    "A worker that \"needs help\" with a \"Blocked on user question\" is waiting on an open question, and `bb thread tell` only queues behind it. Answer the question itself: `bb thread interactions list <thread>` for its id and question ids, then `bb thread interactions answer <interaction> <thread> --choice <questionId>=<value>` (or `--text <questionId>=<text>`). Send any extra guidance with `bb thread tell` after that. If the user must decide, ask them and leave the question open.",
+    "",
     'The board flags cards behind their evidence: PRs all merged (Done), a commit naming the key on the default branch (Done), an agent running (In Progress), agents idle with an open PR (For Review), sub-tasks rolling up, and 4 idle hours (Queued). A status you or the user set, or a comment starting "Holding: <reason>", holds the card until that evidence changes; routine comments don\'t, so still move the card.',
     "",
     `How work lands (who merges, how, and with whose go) is project policy: read \`bb projects notes ${prefix}\` at the start of a session and follow it.`,
