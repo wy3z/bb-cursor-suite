@@ -13,13 +13,13 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { useRpc } from "@get-bb/plugin-sdk/app";
+import { experimental_usePluginId, useRpc } from "@get-bb/plugin-sdk/app";
+import { PROJECT_ICON_GLYPHS_HASH } from "./project-icon-glyphs-hash";
 import type { projectIconGlyphContract } from "./contracts";
 import {
   PICKER_GLYPH_PREFIX,
   PROJECT_ICON_COLORS,
   PROJECT_ICON_IMAGE_EDGE,
-  PROJECT_ICON_NAMES,
   filterProjectIconNames,
   isProjectIconPickerColor,
   projectIconColorClass,
@@ -30,23 +30,45 @@ import {
 
 export type GlyphFetch = (names: string[] | null) => Promise<Record<string, CompactGlyph>>;
 
-const STORE_KEY = `bbs-pi-glyphs:${PROJECT_ICON_NAMES.length}`;
+const STORE_PREFIX = "bbs-pi-glyphs:";
 const STORE_LIMIT = 300;
+const RETRY_BASE_MS = 1_000;
+const RETRY_MAX_MS = 30_000;
 const cache = new Map<string, CompactGlyph | null>();
 const persisted = new Map<string, CompactGlyph>();
 const listeners = new Set<() => void>();
 const queued = new Set<string>();
 let flushScheduled = false;
 let allLoad: Promise<void> | null = null;
+let failures = 0;
 let version = 0;
+let storeKey: string | null = null;
 
-function readStore() {
+export function glyphStoreKey(pluginId: string, hash: string = PROJECT_ICON_GLYPHS_HASH): string {
+  return `${STORE_PREFIX}${pluginId}:${hash}`;
+}
+
+export function retryDelay(attempt: number): number {
+  return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempt - 1));
+}
+
+function openStore(pluginId: string) {
+  const key = glyphStoreKey(pluginId);
+  if (storeKey === key) return;
+  storeKey = key;
   try {
-    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(STORE_KEY);
+    if (typeof localStorage === "undefined") return;
+    const stale: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const candidate = localStorage.key(index);
+      if (candidate?.startsWith(`${STORE_PREFIX}${pluginId}:`) && candidate !== key) stale.push(candidate);
+    }
+    for (const candidate of stale) localStorage.removeItem(candidate);
+    const raw = localStorage.getItem(key);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     if (parsed && typeof parsed === "object") {
       for (const [name, glyph] of Object.entries(parsed as Record<string, CompactGlyph>)) {
-        if (Array.isArray(glyph)) {
+        if (Array.isArray(glyph) && !cache.has(name)) {
           cache.set(name, glyph);
           persisted.set(name, glyph);
         }
@@ -56,15 +78,20 @@ function readStore() {
     return;
   }
 }
-readStore();
 
 function writeStore() {
+  if (storeKey === null) return;
   try {
     const entries = [...persisted].slice(-STORE_LIMIT);
-    localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    localStorage.setItem(storeKey, JSON.stringify(Object.fromEntries(entries)));
   } catch {
     return;
   }
+}
+
+function retryLater(run: () => void) {
+  failures += 1;
+  setTimeout(run, retryDelay(failures));
 }
 
 function emit() {
@@ -88,6 +115,7 @@ function requestGlyph(fetch: GlyphFetch, name: string) {
     queued.clear();
     fetch(names).then(
       (glyphs) => {
+        failures = 0;
         for (const requested of names) {
           const glyph = glyphs[requested];
           cache.set(requested, glyph ?? null);
@@ -96,7 +124,9 @@ function requestGlyph(fetch: GlyphFetch, name: string) {
         writeStore();
         emit();
       },
-      () => undefined,
+      () => retryLater(() => {
+        for (const name of names) requestGlyph(fetch, name);
+      }),
     );
   });
 }
@@ -104,17 +134,20 @@ function requestGlyph(fetch: GlyphFetch, name: string) {
 function requestAllGlyphs(fetch: GlyphFetch) {
   allLoad ??= fetch(null).then(
     (glyphs) => {
+      failures = 0;
       for (const [name, glyph] of Object.entries(glyphs)) cache.set(name, glyph);
       emit();
     },
     () => {
       allLoad = null;
+      retryLater(() => requestAllGlyphs(fetch));
     },
   );
 }
 
 function useGlyphFetch(): GlyphFetch {
   const rpc = useRpc<typeof projectIconGlyphContract>();
+  openStore(experimental_usePluginId());
   return useCallback((names: string[] | null) => rpc.call("iconGlyphs", { names }).then((result) => result.glyphs as Record<string, CompactGlyph>), [rpc]);
 }
 
@@ -553,7 +586,7 @@ export function ProjectIconPicker({
 
   const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;
-    if (next instanceof Node && !popupRef.current?.contains(next)) onOpenChange(false);
+    if (next instanceof Node && !popupRef.current?.contains(next) && !anchorRef.current?.contains(next)) onOpenChange(false);
   };
 
   if (!open || typeof document === "undefined") return null;

@@ -17,7 +17,8 @@ import {
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PICKER_GLYPHS, PROJECT_ICON_GLYPHS } from "../src/project-icon-glyphs";
-import { compactGlyph, serveProjectIconGlyphs } from "../src/project-icon-glyph-server";
+import { compactGlyph, glyphTableHash, serveProjectIconGlyphs } from "../src/project-icon-glyph-server";
+import { PROJECT_ICON_GLYPHS_HASH } from "../src/project-icon-glyphs-hash";
 
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
@@ -140,7 +141,16 @@ describe("icon search", () => {
 });
 
 describe("picker layout", async () => {
-  const { gridHeight, nextGridIndex, pickerColorOf } = await import("../src/project-icon-picker");
+  const { glyphStoreKey, gridHeight, nextGridIndex, pickerColorOf, retryDelay } = await import("../src/project-icon-picker");
+
+  it("keys the glyph cache by plugin and table hash", () => {
+    expect(glyphStoreKey("projects")).toBe(`bbs-pi-glyphs:projects:${PROJECT_ICON_GLYPHS_HASH}`);
+    expect(glyphStoreKey("cursor-sidebar", "abc")).toBe("bbs-pi-glyphs:cursor-sidebar:abc");
+  });
+
+  it("backs off failed glyph requests up to 30s", () => {
+    expect([1, 2, 3, 4, 5, 6, 7].map(retryDelay)).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000]);
+  });
 
   it("walks the icon grid with arrow keys, ten to a row", () => {
     expect(nextGridIndex("ArrowRight", 0, 25)).toBe(1);
@@ -181,6 +191,10 @@ describe("glyphs served over RPC", () => {
     expect(compactGlyph([["path", { d: "M1 1", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1.5, key: "0" }]])).toEqual(["M1 1"]);
     expect(compactGlyph([["path", { d: "M2 2", stroke: "currentColor", strokeLinecap: "square", strokeWidth: 1.5, key: "0" }]])).toEqual([["path", { d: "M2 2", strokeLinecap: "square", strokeLinejoin: "miter" }]]);
     expect(compactGlyph([["circle", { cx: 12, cy: 12, r: 2, fill: "currentColor", key: "1" }]])).toEqual([["circle", { cx: 12, cy: 12, r: 2, fill: "currentColor", stroke: "none" }]]);
+  });
+
+  it("ships a cache hash that matches the served table", () => {
+    expect(PROJECT_ICON_GLYPHS_HASH).toBe(glyphTableHash());
   });
 
   it("is much smaller than the raw shapes", () => {
