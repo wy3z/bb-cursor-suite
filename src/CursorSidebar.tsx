@@ -866,6 +866,8 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
             parentOf: (id) => commitSection.forest.parent.get(id) ?? null,
             statusOf: ordinaryThreadStatus,
             familyFacts,
+            primaryHostId,
+            cloudHostIds,
           });
       const groupKeyOf = memberById === null || groupKeys === null ? null : (threadId: string): string => {
         return standaloneGroupKey({
@@ -884,7 +886,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         .map((row) => row.thread.id);
       return { commitSection, scope, ids };
     },
-    [expandedParents, familyFacts, knownFolderIds, now, projectsGrouping, sectionByThreadId, sectionsById, view],
+    [expandedParents, familyFacts, knownFolderIds, now, projectsGrouping, sectionByThreadId, sectionsById, view, primaryHostId, cloudHostIds],
   );
 
   const onThreadDragStart = useCallback(
@@ -953,6 +955,8 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         parentOf: (id) => keyScope.forest.parent.get(id) ?? null,
         statusOf: ordinaryThreadStatus,
         familyFacts,
+        primaryHostId,
+        cloudHostIds,
       });
       const key = keys.get(activeThreadId) ?? null;
       if (key !== null && view.groupBy === "updated") {
@@ -968,7 +972,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       shelf: section.shelfById.get(activeThreadId) ?? "active",
       ancestors,
     };
-  }, [activeThreadId, familyFacts, now, projectsGrouping, sectionByThreadId, sectionsById, view]);
+  }, [activeThreadId, familyFacts, now, projectsGrouping, sectionByThreadId, sectionsById, view, primaryHostId, cloudHostIds]);
 
   // Reveal once per navigation (and once when the store finishes loading).
   // Pending is tracked separately: if data has not arrived, the request stays
@@ -1206,9 +1210,11 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
           folderIds: knownFolderIds,
           statusOf: ordinaryThreadStatus,
           familyFacts,
+          primaryHostId,
+          cloudHostIds,
         },
       ),
-    [collapseSections, familyFacts, knownFolderIds, now, view],
+    [collapseSections, familyFacts, knownFolderIds, now, view, primaryHostId, cloudHostIds],
   );
   const expandAll = useCallback(() => {
     topGroupCollapsed.removeMany(bulkTopGroupKeys);

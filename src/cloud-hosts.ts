@@ -51,14 +51,3 @@ export function rowHostDisplay(
   if (label?.kind === "cloud") return { cloudName: label.name, hostText: null };
   return { cloudName: null, hostText: showHostText && label?.kind === "text" ? label.text : null };
 }
-
-const HOST_GROUP_PREFIX = "environment:host:";
-
-export function cloudGroupHost(
-  groupKey: string,
-  cloudHostIds: ReadonlySet<string> | null,
-): string | null {
-  if (cloudHostIds === null || !groupKey.startsWith(HOST_GROUP_PREFIX)) return null;
-  const hostId = groupKey.slice(HOST_GROUP_PREFIX.length);
-  return cloudHostIds.has(hostId) ? hostId : null;
-}

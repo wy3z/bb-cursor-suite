@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cloudGroupHost, cloudHostIdsOf, isCloudHost, rowHostDisplay, rowHostLabel, sameHostIds } from "./cloud-hosts";
+import { cloudHostIdsOf, isCloudHost, rowHostDisplay, rowHostLabel, sameHostIds } from "./cloud-hosts";
 
 test("a provider sandbox is cloud", () => {
   assert.equal(isCloudHost({ id: "host_83ufksdhp3", type: "ephemeral", machineProviderId: "modal-sandbox" }), true);
@@ -90,14 +90,6 @@ test("the local host is only named when nothing else locates the row", () => {
 
 test("a row without a host has no host label", () => {
   assert.equal(rowHostLabel({ host: null, primaryHostId: null, cloudHostIds: cloud, hasWorkspaceOrBranch: false }), null);
-});
-
-test("only a cloud host's environment heading is a cloud group", () => {
-  assert.equal(cloudGroupHost("environment:host:host_83ufksdhp3", cloud), "host_83ufksdhp3");
-  assert.equal(cloudGroupHost("environment:host:host_box", cloud), null);
-  assert.equal(cloudGroupHost("environment:name:host_83ufksdhp3", cloud), null);
-  assert.equal(cloudGroupHost("status:working", cloud), null);
-  assert.equal(cloudGroupHost("environment:host:host_83ufksdhp3", null), null);
 });
 
 test("the cloud glyph shows whether or not the Machine option is on", () => {

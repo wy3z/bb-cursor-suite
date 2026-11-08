@@ -29,6 +29,8 @@ import {
   ordinaryThreadStatus,
   projectKeyOf,
   threadsPerGroupPage,
+  machineGroupHostId,
+  machineGroupIcon,
   usableEnvironmentLabel,
   type OrdinaryFamilyFacts,
   type OrdinaryGroup,
@@ -64,7 +66,7 @@ import { resolveRowStatus, THREAD_STATUS_LABEL, type ThreadStatusKind } from "./
 import { ThreadHoverCard, type ThreadHoverFact } from "./ThreadHoverCard";
 import { ThreadGitFacts } from "./ThreadGitFacts";
 import { relativeTimeLabel } from "./relative-time";
-import { cloudGroupHost, rowHostDisplay, rowHostLabel } from "./cloud-hosts";
+import { rowHostDisplay, rowHostLabel } from "./cloud-hosts";
 
 /** Everything a row needs that is the same for every row in a section. */
 export interface TreeContext {
@@ -463,7 +465,7 @@ export function ShelfList({
     options: {
       rootPinned?: boolean | ((threadId: string) => boolean);
       inFolderId?: string | null;
-      environmentGroupLabel?: string | null;
+      groupedHostId?: string | null;
     } = {},
   ) => {
     const lastChild = new Map<string, string>();
@@ -495,7 +497,7 @@ export function ShelfList({
             ctx={ctx}
             rootPinned={rootPinned}
             inFolderId={options.inFolderId ?? null}
-            environmentGroupLabel={options.environmentGroupLabel ?? null}
+            groupedHostId={options.groupedHostId ?? null}
             // Under Projects grouping every row already sits beneath its own
             // project heading, so the row icon would only repeat it.
             showProjectIcon={ctx.showProjectIcons && ctx.view.groupBy !== "workspace"}
@@ -569,8 +571,10 @@ export function ShelfList({
       statusOf: ordinaryThreadStatus,
       members: section.members,
       familyFacts: ctx.familyFacts,
+      primaryHostId: ctx.primaryHostId,
+      cloudHostIds: ctx.cloudHostIds,
     });
-  }, [partition, rows, grouping, ctx.now, ctx.view, parentOf, shelf, section.members, section.personal, ctx.familyFacts]);
+  }, [partition, rows, grouping, ctx.now, ctx.view, parentOf, shelf, section.members, section.personal, ctx.familyFacts, ctx.primaryHostId, ctx.cloudHostIds]);
   const [groupPages, setGroupPages] = useState<ReadonlyMap<string, number>>(() => new Map());
   // A new page size drops every reveal in the same render, so the new limit is
   // what the list paints, not the old one's leftovers.
@@ -635,7 +639,7 @@ export function ShelfList({
           >
             <SectionDivider
               label={group.label}
-              icon={ctx.view.groupBy === "environment" && cloudGroupHost(group.key, ctx.cloudHostIds) !== null ? "Cloud" : undefined}
+              icon={ctx.view.groupBy === "environment" ? machineGroupIcon(group.key) ?? undefined : undefined}
               open={open}
               onToggle={
                 isDate
@@ -649,8 +653,8 @@ export function ShelfList({
         <Drawer open={open}>
           <AnimatedList className="flex flex-col">
             {renderThreadRows(paged.shown, {
-              environmentGroupLabel:
-                ctx.view.groupBy === "environment" ? group.label : null,
+              groupedHostId:
+                ctx.view.groupBy === "environment" ? machineGroupHostId(group.key, ctx.primaryHostId) : null,
             })}
             {paged.hiddenConversations > 0 ? (
               <ShowMoreButton
@@ -766,7 +770,7 @@ function ThreadRow({
   ctx,
   rootPinned,
   inFolderId,
-  environmentGroupLabel = null,
+  groupedHostId = null,
   showProjectIcon = false,
   activeRailLevels,
   activeElbow,
@@ -780,8 +784,7 @@ function ThreadRow({
   rootPinned: boolean;
   /** The native folder this row renders inside, if any. */
   inFolderId: string | null;
-  /** Environment heading this row sits under, when Grouping is Environment. */
-  environmentGroupLabel?: string | null;
+  groupedHostId?: string | null;
   /**
    * Draw the thread's project icon before its title. False under a project
    * heading, where the heading already names the project.
@@ -825,20 +828,19 @@ function ThreadRow({
   const { cloudName: cloudHostName, hostText: location } = rowHostDisplay(hostLabel, ctx.view.show.host);
   // Under an Environment heading the group already names the host/workspace,
   // so the row keeps branch (and any non-matching host) instead of repeating ARCH.
-  const hideGroupedWorkspace = labelsMatch(workspace, environmentGroupLabel);
-  const hideGroupedHost = labelsMatch(hostName, environmentGroupLabel);
+  const hideGroupedHost = groupedHostId !== null && native.host?.id === groupedHostId;
   const secondary = [
-    ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null,
+    ctx.view.show.environment ? workspace : null,
     ctx.view.show.branch ? branch : null,
     hideGroupedHost ? null : location,
   ].filter(Boolean).join(" · ");
   const secondaryTitle = [
-    ctx.view.show.environment && workspace !== null && !hideGroupedWorkspace ? workspacePath : null,
+    ctx.view.show.environment && workspace !== null ? workspacePath : null,
     ctx.view.show.branch ? branch : null,
     hideGroupedHost ? null : location,
   ].filter(Boolean).join(" · ");
   const secondaryMobile = [
-    ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null,
+    ctx.view.show.environment ? workspace : null,
     ctx.view.show.branch ? branch : null,
   ].filter(Boolean).join(" · ");
   const cloudHostTitle = cloudHostName !== null ? `Cloud machine: ${cloudHostName}` : null;

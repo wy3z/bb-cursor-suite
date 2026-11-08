@@ -451,8 +451,47 @@ export function homeDisplayParentOf(
 export interface FamilyAggregate {
   status: ThreadStatusKind;
   environmentGroup: EnvironmentIdentity;
+  host: FamilyHost | null;
   latestUpdatedAt: number;
   firstIndex: number;
+}
+
+export interface FamilyHost {
+  id: string;
+  name: string | null;
+}
+
+function familyHostOf(thread: PluginSidebarThread): FamilyHost | null {
+  const id = thread.host?.id?.trim() || null;
+  return id === null ? null : { id, name: thread.host?.name?.trim() || null };
+}
+
+export const LOCAL_MACHINE_GROUP_KEY = "machine:local";
+export const CLOUD_MACHINE_GROUP_KEY = "machine:cloud";
+const MACHINE_HOST_GROUP_PREFIX = "machine:host:";
+
+export function machineGroupOf(
+  host: FamilyHost | null,
+  primaryHostId: string | null,
+  cloudHostIds: ReadonlySet<string> | null,
+): { key: string; label: string } {
+  if (host === null || host.id === primaryHostId) {
+    return { key: LOCAL_MACHINE_GROUP_KEY, label: "Local" };
+  }
+  if (cloudHostIds?.has(host.id)) return { key: CLOUD_MACHINE_GROUP_KEY, label: "Cloud" };
+  return { key: `${MACHINE_HOST_GROUP_PREFIX}${host.id}`, label: host.name ?? host.id };
+}
+
+export function machineGroupIcon(key: string): "Laptop" | "Monitor" | "Cloud" | null {
+  if (key === LOCAL_MACHINE_GROUP_KEY) return "Laptop";
+  if (key === CLOUD_MACHINE_GROUP_KEY) return "Cloud";
+  if (key.startsWith(MACHINE_HOST_GROUP_PREFIX)) return "Monitor";
+  return null;
+}
+
+export function machineGroupHostId(key: string, primaryHostId: string | null): string | null {
+  if (key === LOCAL_MACHINE_GROUP_KEY) return primaryHostId;
+  return key.startsWith(MACHINE_HOST_GROUP_PREFIX) ? key.slice(MACHINE_HOST_GROUP_PREFIX.length) : null;
 }
 
 /** Family roots and their aggregates, computed over complete home data. */
@@ -482,6 +521,7 @@ function familyAggregates(
       aggregate = {
         status: facts.statusOf(thread),
         environmentGroup: environmentGroupOf(thread),
+        host: familyHostOf(thread),
         latestUpdatedAt: thread.updatedAt,
         firstIndex: firstIndex++,
       };
@@ -496,6 +536,7 @@ function familyAggregates(
       const grouped = environmentGroupOf(thread);
       if (grouped.id !== NO_ENVIRONMENT_KEY) aggregate.environmentGroup = grouped;
     }
+    if (aggregate.host === null) aggregate.host = familyHostOf(thread);
   }
   return { rootOf, aggregates };
 }
@@ -809,6 +850,8 @@ export function ordinaryCollapsibleTargets(
     statusOf: (thread: PluginSidebarThread) => ThreadStatusKind;
     /** Complete-set family aggregates, so a filtered view collapses what it shows. */
     familyFacts?: OrdinaryFamilyFacts | undefined;
+    primaryHostId?: string | null;
+    cloudHostIds?: ReadonlySet<string> | null;
   },
 ): CollapsibleTargets {
   const groupKeys = new Set<string>();
@@ -844,6 +887,8 @@ export function ordinaryCollapsibleTargets(
       parentOf: home.parentOf,
       statusOf: options.statusOf,
       familyFacts: options.familyFacts,
+      primaryHostId: options.primaryHostId,
+      cloudHostIds: options.cloudHostIds,
     });
     for (const thread of home.members) {
       const key = keys.get(thread.id);
@@ -882,6 +927,8 @@ export interface OrdinaryGroupFacts {
    * family's Updated bucket, Status group or ordering.
    */
   familyFacts?: OrdinaryFamilyFacts | undefined;
+  primaryHostId?: string | null;
+  cloudHostIds?: ReadonlySet<string> | null;
 }
 
 /**
@@ -903,8 +950,9 @@ function resolveFamilyFacts(
 function groupDefinition(
   view: SidebarView,
   aggregate: FamilyAggregate,
-  now: number,
+  facts: Pick<OrdinaryGroupFacts, "now" | "primaryHostId" | "cloudHostIds">,
 ): { key: string; label: string; canonical: number } {
+  const now = facts.now;
   if (view.groupBy === "updated") {
     const bucket = bucketForTimestamp(aggregate.latestUpdatedAt, now);
     return { key: `updated:${bucket}`, label: bucket, canonical: AGE_GROUPS.indexOf(bucket) };
@@ -916,11 +964,15 @@ function groupDefinition(
       canonical: VIEW_STATUS_FILTERS.indexOf(aggregate.status),
     };
   }
-  const grouped = aggregate.environmentGroup;
+  const machine = machineGroupOf(aggregate.host, facts.primaryHostId ?? null, facts.cloudHostIds ?? null);
   return {
-    key: `environment:${grouped.id}`,
-    label: grouped.label,
-    canonical: aggregate.firstIndex,
+    ...machine,
+    canonical:
+      machine.key === LOCAL_MACHINE_GROUP_KEY
+        ? -1
+        : machine.key === CLOUD_MACHINE_GROUP_KEY
+          ? Number.MAX_SAFE_INTEGER
+          : aggregate.firstIndex,
   };
 }
 
@@ -945,7 +997,7 @@ export function ordinaryFamilyGroupKeys(
   const { rootOf, aggregateOf: aggregates } = resolveFamilyFacts(threads, facts);
   const keyOfRoot = new Map<string, string>();
   for (const [root, aggregate] of aggregates) {
-    keyOfRoot.set(root, groupDefinition(view, aggregate, facts.now).key);
+    keyOfRoot.set(root, groupDefinition(view, aggregate, facts).key);
   }
   return new Map(
     threads.map((thread) => [thread.id, keyOfRoot.get(rootOf.get(thread.id)!)!]),
@@ -957,7 +1009,8 @@ export function ordinaryFamilyGroupKeys(
  * rows are partitioned by the caller and never reach here. A whole family
  * shares one group so grouping never splits an ancestry: the family's newest
  * member decides the Updated bucket, its strongest resolved status decides the
- * Status group, and its root's environment decides the Environment group.
+ * Status group, and its root's machine decides the Environment group: Local,
+ * one group per other machine, and one Cloud group for every cloud machine.
  *
  * Family facts come from `facts.members` (the home's complete threads), not the
  * rendered rows, so folding or limiting a family never changes its group.
@@ -998,12 +1051,13 @@ export function groupOrdinaryRows(
         ? {
             status: facts.statusOf(row.thread),
             environmentGroup: environmentGroupOf(row.thread),
+            host: familyHostOf(row.thread),
             latestUpdatedAt: row.thread.updatedAt,
             firstIndex: 0,
           }
         : aggregates.get(root);
     if (aggregate === undefined) continue;
-    const definition = groupDefinition(view, aggregate, facts.now);
+    const definition = groupDefinition(view, aggregate, facts);
     let group = groups.get(definition.key);
     if (group === undefined) {
       group = { ...definition, latestUpdatedAt: 0, rows: [] };
