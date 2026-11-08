@@ -130,7 +130,69 @@ function stale(assets, source) {
   return { missing, outdated };
 }
 
+function git(args) {
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+const commitPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+export function attestedCommits(results) {
+  if (!Array.isArray(results)) return [];
+  const commits = new Set();
+  for (const result of results) {
+    const digest =
+      result?.verificationResult?.signature?.certificate?.sourceRepositoryDigest;
+    if (typeof digest === "string" && commitPattern.test(digest)) commits.add(digest);
+  }
+  return [...commits];
+}
+
+function nativeTreeFromGitHub(commit) {
+  const [owner, name] = repository.split("/");
+  const looked = spawnSync(
+    "gh",
+    [
+      "api",
+      "graphql",
+      "-f",
+      `owner=${owner}`,
+      "-f",
+      `name=${name}`,
+      "-f",
+      `expression=${commit}:${git(["rev-parse", "--show-prefix"])}host/native`,
+      "-f",
+      "query=query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { oid } } }",
+      "--jq",
+      ".data.repository.object.oid // empty",
+    ],
+    { encoding: "utf8" },
+  );
+  const oid = looked.status === 0 ? looked.stdout.trim() : "";
+  return commitPattern.test(oid) ? oid : null;
+}
+
+export function nativeTreeAt(commit) {
+  try {
+    return git(["rev-parse", "--verify", "--quiet", `${commit}:./host/native`]);
+  } catch {
+    return nativeTreeFromGitHub(commit);
+  }
+}
+
+export function matchingAttestation(results, headTree, treeAt = nativeTreeAt) {
+  const commits = attestedCommits(results);
+  for (const commit of commits) {
+    if (treeAt(commit) === headTree) return { commit, commits };
+  }
+  return { commit: null, commits };
+}
+
 async function verifyCommitted(source) {
+  const headTree = git(["rev-parse", "--verify", "HEAD:./host/native"]);
   const committed = await readCommitted();
   const prebuilt = await readPrebuilds();
   const scratch = await mkdtemp(join(tmpdir(), "files-native-verify-"));
@@ -160,8 +222,12 @@ async function verifyCommitted(source) {
           "--signer-workflow",
           `${repository}/.github/workflows/files-native.yml`,
           "--deny-self-hosted-runners",
+          "--limit",
+          "200",
+          "--format",
+          "json",
         ],
-        { encoding: "utf8" },
+        { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
       );
       if (verified.status !== 0) {
         failures.push(
@@ -169,7 +235,25 @@ async function verifyCommitted(source) {
         );
         continue;
       }
-      console.log(`${platform}: ${asset.sha256} attested by files-native.yml`);
+      let results;
+      try {
+        results = JSON.parse(verified.stdout);
+      } catch {
+        failures.push(`${platform}: gh attestation verify returned unreadable JSON`);
+        continue;
+      }
+      const { commit, commits } = matchingAttestation(results, headTree);
+      if (commit === null) {
+        failures.push(
+          commits.length === 0
+            ? `${platform}: ${asset.sha256} has no attestation naming its source commit`
+            : `${platform}: ${asset.sha256} is only attested from ${commits.map((value) => value.slice(0, 12)).join(", ")}, and none has HEAD's host/native tree ${headTree.slice(0, 12)}`,
+        );
+        continue;
+      }
+      console.log(
+        `${platform}: ${asset.sha256} attested by files-native.yml at ${commit.slice(0, 12)}, whose host/native tree matches HEAD`,
+      );
       if (
         reproduciblePlatforms.includes(platform) &&
         asset.source === source &&
