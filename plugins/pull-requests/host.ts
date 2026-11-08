@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
-import { findExecutable } from "@wy3z/bb-suite/git";
+import { cachedExecutable } from "@wy3z/bb-suite/git";
 import { parseRemoteUrl, type ParsedRemote } from "./lib/change-request";
 import { hostContract, type GitLabHttp, type InspectResult } from "./lib/host-contract";
 import { parseGlabApiOutput } from "./lib/providers/gitlab";
@@ -37,7 +37,7 @@ export const runProcess: Runner = (command, args, options) =>
     let size = 0;
     let errSize = 0;
     let error: ProcessOutput["error"] = null;
-    const executable = isAbsolute(command) ? command : findExecutable(command, options.env ?? process.env);
+    const executable = isAbsolute(command) ? command : cachedExecutable(command, options.env ?? process.env);
     if (executable === null) {
       resolve({ code: null, stdout: "", stderr: "", error: "missing" });
       return;

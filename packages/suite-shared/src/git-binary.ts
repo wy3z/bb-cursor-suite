@@ -151,12 +151,24 @@ export function findGit(
 }
 
 const MISSING_RETRY_MS = 30_000;
-let cached: { path: string | null; at: number } | null = null;
+const lookups = new Map<string, { path: string | null; at: number }>();
+
+export function cachedExecutable(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+  now: number = Date.now(),
+  find: (name: string, env: NodeJS.ProcessEnv) => string | null = findExecutable,
+): string | null {
+  const key = `${name}\0${envValue(env, "PATH") ?? ""}`;
+  const hit = lookups.get(key);
+  if (hit !== undefined && (hit.path !== null || now - hit.at < MISSING_RETRY_MS)) return hit.path;
+  const path = find(name, env);
+  lookups.set(key, { path, at: now });
+  return path;
+}
 
 export function gitBinary(now: number = Date.now()): string | null {
-  if (cached !== null && (cached.path !== null || now - cached.at < MISSING_RETRY_MS)) return cached.path;
-  cached = { path: findGit(), at: now };
-  return cached.path;
+  return cachedExecutable("git", process.env, now);
 }
 
 export function missingToolMessage(name: string): string {

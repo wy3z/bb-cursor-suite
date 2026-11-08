@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { findGit, knownGitDirs, windowsGitCandidates, type GitLookupIdentity, type GitLookupProbe } from "../src/git-binary.ts";
+import { cachedExecutable, findGit, knownGitDirs, windowsGitCandidates, type GitLookupIdentity, type GitLookupProbe } from "../src/git-binary.ts";
 
 const me: GitLookupIdentity = { username: "u", home: "/home/u", uid: 1000 };
 
@@ -92,5 +92,28 @@ describe("git lookup", () => {
       "C:\\Users\\test\\AppData\\Local\\Programs\\Git\\cmd\\git.exe",
     ]);
     expect(windowsGitCandidates({ ProgramFiles: "relative\\dir" })).toEqual([]);
+  });
+
+  it("caches a found tool, retries a missing one after 30 seconds, and keys on PATH", () => {
+    let calls = 0;
+    const found = (name: string) => {
+      calls += 1;
+      return `/usr/bin/${name}`;
+    };
+    expect(cachedExecutable("cache-hit", { PATH: "/a" }, 0, found)).toBe("/usr/bin/cache-hit");
+    expect(cachedExecutable("cache-hit", { PATH: "/a" }, 999_999, found)).toBe("/usr/bin/cache-hit");
+    expect(calls).toBe(1);
+    cachedExecutable("cache-hit", { PATH: "/b" }, 0, found);
+    expect(calls).toBe(2);
+    let missing = 0;
+    const none = () => {
+      missing += 1;
+      return null;
+    };
+    expect(cachedExecutable("cache-miss", { PATH: "/a" }, 0, none)).toBeNull();
+    cachedExecutable("cache-miss", { PATH: "/a" }, 29_999, none);
+    expect(missing).toBe(1);
+    cachedExecutable("cache-miss", { PATH: "/a" }, 30_000, none);
+    expect(missing).toBe(2);
   });
 });

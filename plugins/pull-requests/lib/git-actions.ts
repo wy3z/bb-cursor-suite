@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { GitActionResult } from "@wy3z/bb-suite/contracts";
-import { findExecutable, missingToolMessage } from "@wy3z/bb-suite/git";
+import { cachedExecutable, missingToolMessage } from "@wy3z/bb-suite/git";
 
 class ActionError extends Error {}
 
@@ -24,7 +24,7 @@ function run(
   options: { input?: string; env?: Record<string, string>; timeoutMs?: number } = {},
 ): Promise<Run> {
   const env = { ...process.env, ...GIT_ENV, ...options.env };
-  const executable = findExecutable(command, env);
+  const executable = cachedExecutable(command, env);
   if (executable === null) return Promise.resolve({ code: 127, stdout: "", stderr: missingToolMessage(command) });
   return new Promise((done) => {
     const child = execFile(
