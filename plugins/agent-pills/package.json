@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "zod": "^4.3.6",
-    "@wy3z/bb-suite": "file:../bb-suite-shared",
+    "@wy3z/bb-suite": "file:../../packages/suite-shared",
     "@get-bb/plugin-sdk": "0.6.132"
   },
   "devDependencies": {

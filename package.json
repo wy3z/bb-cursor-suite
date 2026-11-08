@@ -1,0 +1,32 @@
+{
+  "name": "bb-cursor-suite",
+  "version": "0.0.0",
+  "private": true,
+  "description": "BB plugins that make BB look and work like Cursor. Each plugin installs and works on its own.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "plugins/*"
+  ],
+  "scripts": {
+    "suite": "node scripts/suite.mjs",
+    "check": "node scripts/suite.mjs check --changed",
+    "check:all": "node scripts/suite.mjs check --all",
+    "build": "node scripts/suite.mjs build --changed",
+    "test": "node scripts/suite.mjs test --changed",
+    "typecheck": "node scripts/suite.mjs typecheck --changed",
+    "release": "node scripts/release.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "better-sqlite3": true
+  },
+  "overrides": {
+    "dingbat-to-unicode": "1.0.1",
+    "jszip": "3.10.1"
+  }
+}

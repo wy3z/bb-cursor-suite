@@ -1,10 +1,12 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const panels = dirname(fileURLToPath(import.meta.resolve("react-resizable-panels")));
+
 export default {
   resolve: {
     alias: {
-      "react-resizable-panels": new URL(
-        "./node_modules/react-resizable-panels/dist/react-resizable-panels.browser.cjs.js",
-        import.meta.url,
-      ).pathname,
+      "react-resizable-panels": join(panels, "react-resizable-panels.browser.cjs.js"),
     },
   },
   test: {

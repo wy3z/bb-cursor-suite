@@ -2,7 +2,7 @@
 
 Shared pieces for the wy3z BB plugin suite (agent-pills, pull-requests,
 cursor-sidebar, projects): RPC contracts and plugin ids, time formatting, and
-design tokens. Plugins depend on it as `"@wy3z/bb-suite": "file:../bb-suite-shared"`
+design tokens. Plugins depend on it as `"@wy3z/bb-suite": "file:../../packages/suite-shared"`
 and `bb plugin build` bundles it.
 
 - `@wy3z/bb-suite/contracts`: the Tasks plugin subset the suite reads, BB's git

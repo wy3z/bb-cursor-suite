@@ -19,7 +19,8 @@
   ],
   "scripts": {
     "build": "bb plugin build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src"
   },
   "engines": {
     "bb": ">=0.49",
@@ -39,7 +40,7 @@
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.4.0",
-    "@wy3z/bb-suite": "file:../bb-suite-shared",
+    "@wy3z/bb-suite": "file:../../packages/suite-shared",
     "zod": "^4.3.6"
   },
   "devDependencies": {

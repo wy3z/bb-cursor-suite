@@ -1,0 +1,164 @@
+{
+  "$schema": "https://getbb.app/schemas/marketplace.schema.json",
+  "schemaVersion": 1,
+  "name": "bb-cursor-suite",
+  "displayName": "BB Cursor Suite",
+  "description": "Plugins that make BB look and work like Cursor. Each one works on its own.",
+  "plugins": [
+    {
+      "id": "cursor-sidebar",
+      "displayName": "Cursor Sidebar",
+      "description": "A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity.",
+      "icon": {
+        "url": "./icons/cursor-sidebar.svg"
+      },
+      "tags": [
+        "sidebar",
+        "cursor",
+        "navigation",
+        "interface"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/cursor-sidebar",
+          "range": "^0.3.4",
+          "tagPrefix": "cursor-sidebar/"
+        }
+      }
+    },
+    {
+      "id": "agent-pills",
+      "displayName": "Agent Pills",
+      "description": "Cursor-style pills for child threads and background tasks, plus a Cursor-looking composer.",
+      "icon": {
+        "url": "./icons/agent-pills.svg"
+      },
+      "tags": [
+        "composer",
+        "agents",
+        "cursor",
+        "interface"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/agent-pills",
+          "range": "^0.1.0",
+          "tagPrefix": "agent-pills/"
+        }
+      }
+    },
+    {
+      "id": "filetree",
+      "displayName": "Files",
+      "description": "Browse thread workspaces and project sources with search, Git status, and document previews.",
+      "icon": {
+        "url": "./icons/filetree.svg"
+      },
+      "tags": [
+        "files",
+        "file-browser",
+        "git",
+        "preview"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/filetree",
+          "range": "^0.3.0",
+          "tagPrefix": "filetree/"
+        }
+      }
+    },
+    {
+      "id": "projects",
+      "displayName": "Projects",
+      "description": "Cursor-style board and list views over BB Tasks, with live agents, pull requests and changes on every card.",
+      "icon": {
+        "url": "./icons/projects.svg"
+      },
+      "tags": [
+        "tasks",
+        "kanban",
+        "board",
+        "project-management"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/projects",
+          "range": "^0.1.0",
+          "tagPrefix": "projects/"
+        }
+      }
+    },
+    {
+      "id": "pull-requests",
+      "displayName": "Pull Requests",
+      "description": "GitHub pull requests in BB: a board grouped by what each PR needs, with checks, diffs, conversation and agent handoffs. Uses your signed-in gh CLI. GitLab merge requests for a branch are read through glab on the environment's machine.",
+      "icon": {
+        "url": "./icons/pull-requests.svg"
+      },
+      "tags": [
+        "github",
+        "gitlab",
+        "pull-requests",
+        "code-review"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/pull-requests",
+          "range": "^0.1.0",
+          "tagPrefix": "pull-requests/"
+        }
+      }
+    },
+    {
+      "id": "ui-tweaks",
+      "displayName": "UI Tweaks",
+      "description": "Small, configurable improvements to BB's interface.",
+      "icon": {
+        "url": "./icons/ui-tweaks.svg"
+      },
+      "tags": [
+        "interface",
+        "customization",
+        "tweaks"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/ui-tweaks",
+          "range": "^0.31.0",
+          "tagPrefix": "ui-tweaks/"
+        }
+      }
+    }
+  ]
+}
