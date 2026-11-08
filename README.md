@@ -66,7 +66,7 @@ Before it changes anything, the script runs `npm run versions` with the new vers
 
 - Agent Pills, Files, Projects or Pull Requests would drop below 1.0.0.
 - Cursor Sidebar or UI Tweaks would leave its legacy stream (`^0.3.2`, `^0.30.0`). Ending a stream on purpose means removing it from `legacyStreams` in `scripts/versions.mjs`.
-- The range in `marketplace/marketplace.json` would never offer the new version, or the install lines above disagree with it.
+- The range in `marketplace/marketplace.json` would never offer the new version, or an install or marketplace line in this README or any plugin README disagrees with it.
 - A plugin depends on `@wy3z/bb-suite` with anything but `file:../../packages/suite-shared`, or lists it as a peer, optional or bundled dependency. Any of those would send BB's install to the public npm registry.
 - `package-lock.json` has a stale version.
 
