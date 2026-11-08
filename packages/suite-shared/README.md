@@ -7,11 +7,20 @@ and `bb plugin build` bundles it.
 
 - `@wy3z/bb-suite/contracts`: the Tasks plugin subset the suite reads, BB's git
   status read, the git actions served by pull-requests (commit, push, create
-  PR, apply locally) and the Projects plugin's meta and leads.
+  PR, apply locally) and the Projects plugin's meta, leads and board icons.
 - `@wy3z/bb-suite/change-requests`: the provider-neutral change request read
   served by pull-requests (`changeRequests`, keyed by environment id) for GitHub
   pull requests and GitLab merge requests, its labels (`#12`, `!12`) and the
   `bb-pull-requests:open` event detail. Frontend-safe: zod only, no SDK import.
+- `@wy3z/bb-suite/project-icon`: the stored icon format (`glyph:<name>:<color>`,
+  `emoji:`, `monogram:`, PNG data URL), Cursor's ten picker colours plus the
+  older 18, the icon catalog (Cursor's picker icons in Cursor's order, matched
+  by name to Hugeicons), search, and PNG checks. Frontend-safe: no SDK import.
+- `@wy3z/bb-suite/project-icon/picker`: `ProjectIconPicker`, an anchored port
+  of Cursor's project icon picker (search, colour swatches, icon grid, **No
+  icon**) with an image upload and paste addition, plus `ProjectIconArt` and
+  `ProjectIconGlyph` to draw a stored icon. Import
+  `@wy3z/bb-suite/project-icon.css` with it.
 - `@wy3z/bb-suite/machine-backend`: the sandbox policy (`idleMinutes` 15,
   `ttlMinutes` 120, `maxConcurrent` 2, `monthlyCapUsd` 30, `hourlyRateUsd`,
   orphan handling), the machine resource schema, cap and concurrency refusal

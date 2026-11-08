@@ -1,6 +1,10 @@
+import { readFile } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
-import { META_CHANGED, projectsContract, type ProjectMeta } from "./src/meta";
+import { BOARD_ICONS_CHANGED, META_CHANGED, projectsContract, type ProjectMeta } from "./src/meta";
+import { describeProjectIcon, parseProjectIcon, PROJECT_ICON_NAMES } from "@wy3z/bb-suite/project-icon";
+import { BoardIconError, createBoardIcons, iconArgument, pngToIcon } from "./src/board-icons";
 import { createLoop } from "./src/outer-loop";
 import { createMessaging } from "./src/messaging";
 import { TASKS_PLUGIN, tasksContract, type Project, type Task } from "./src/contracts";
@@ -27,6 +31,21 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   const leadPrefixes = new Map<string, string>();
+
+  const icons = createBoardIcons(bb.storage.kv, (projectId) => {
+    bb.realtime.publish(BOARD_ICONS_CHANGED, { projectId });
+    bb.rpc.experimental_invalidate(["icons"]);
+  });
+
+  async function writeIcon(projectId: string, icon: string | null) {
+    try {
+      await icons.set(projectId, icon);
+    } catch (cause) {
+      if (cause instanceof BoardIconError) throw new PluginCliError(cause.message);
+      throw cause;
+    }
+    return { icons: await icons.list() };
+  }
 
   bb.agents.contributeInstructions(({ threadId }) => {
     const prefix = leadPrefixes.get(threadId);
@@ -196,6 +215,8 @@ export default function plugin(bb: BbPluginApi) {
       if (!project) return { checkedAt: new Date().toISOString(), drifts: [], held: [], flags: [], evidence: [] };
       return board.reconcile(project);
     },
+    listIcons: async () => ({ icons: await icons.list() }),
+    setIcon: ({ projectId, icon }) => writeIcon(projectId, icon),
   });
 
   const json = { type: "boolean", description: "Emit JSON" } as const;
@@ -292,6 +313,68 @@ export default function plugin(bb: BbPluginApi) {
               exitCode: 0,
               stdout: input.options.json ? JSON.stringify(meta) + "\n" : `${meta.focus ?? "No focus set."}\n`,
             };
+          },
+        }),
+        icon: cliCommand({
+          summary: "Show, set or clear a board's own icon: a glyph name, a stored value (glyph:/emoji:/monogram:/PNG data URL) or a PNG file",
+          positionals: [
+            { name: "project", description: "Tracker project prefix, such as ABC" },
+            { name: "value", description: "Glyph name such as rocket, a stored value, or a PNG path; omit to show the current icon" },
+          ],
+          options: {
+            color: { type: "string", description: "Colour for a glyph name: default, green, cyan, blue, purple, magenta, orange, yellow, red or brand" },
+            clear: { type: "boolean", description: "Go back to the default board glyph" },
+            list: { type: "boolean", description: "List the glyph names" },
+            json,
+          },
+          async run(input, ctx) {
+            if (input.options.list) return { exitCode: 0, stdout: `${PROJECT_ICON_NAMES.join("\n")}\n` };
+            const ref = input.positionals.project;
+            if (!ref) throw new PluginCliError("Name a tracker project, such as ABC, or run with --list.");
+            const project = await resolveProject(ref);
+            const value = input.positionals.value;
+            if (input.options.clear && value !== undefined) throw new PluginCliError("Pass a value or --clear, not both.");
+            let stored: string | null;
+            if (input.options.clear) {
+              await writeIcon(project.id, null);
+              stored = null;
+            } else if (value !== undefined) {
+              let argument;
+              try {
+                argument = iconArgument(value, input.options.color);
+              } catch (cause) {
+                if (cause instanceof BoardIconError) throw new PluginCliError(cause.message);
+                throw cause;
+              }
+              let icon: string;
+              if (argument.kind === "value") icon = argument.icon;
+              else {
+                const path = isAbsolute(argument.path) ? argument.path : resolve(ctx.cwd ?? process.cwd(), argument.path);
+                let bytes: Uint8Array;
+                try {
+                  bytes = await readFile(path);
+                } catch {
+                  throw new PluginCliError(`Could not read ${path} on the BB server.`);
+                }
+                try {
+                  icon = pngToIcon(bytes);
+                } catch (cause) {
+                  if (cause instanceof BoardIconError) throw new PluginCliError(cause.message);
+                  throw cause;
+                }
+              }
+              await writeIcon(project.id, icon);
+              stored = icon;
+            } else {
+              if (input.options.color !== undefined) throw new PluginCliError("--color needs a glyph name.");
+              stored = await icons.get(project.id);
+            }
+            const parsed = stored === null ? null : parseProjectIcon(stored);
+            const shown = parsed === null ? "board glyph (default)" : describeProjectIcon(parsed);
+            if (input.options.json) {
+              return { exitCode: 0, stdout: JSON.stringify({ project: project.prefix, icon: stored, kind: parsed?.kind ?? null }) + "\n" };
+            }
+            return { exitCode: 0, stdout: `${project.prefix}: ${shown}\n` };
           },
         }),
         ...messaging.commands,

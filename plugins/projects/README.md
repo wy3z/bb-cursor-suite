@@ -36,6 +36,13 @@ live cards, and a project lead workflow.
   worktree into the project checkout), Create PR, Open in Tasks. Apply and
   Create PR call the Agent Pills plugin's git actions, so that plugin must be
   installed.
+- **Board icon**: each board has its own icon, stored by this plugin and set
+  from the icon in the board header or **Set icon…** in the board menu (the
+  **⋯** button), or with `bb projects icon`. The picker is the suite's port of
+  Cursor's project icon picker (glyph and colour, or an uploaded image). A board
+  with no icon shows the board glyph; it never borrows the linked BB project's
+  or repository's icon. The lead's tab and Cursor Sidebar's board rows wear the
+  same icon.
 - **Focus**: one or two sentences on what matters now, kept for the lead with
   `bb projects focus`. It isn't shown on the board.
 - **Project lead**: a thread recorded as the lead (`bb projects lead`). The
@@ -62,6 +69,7 @@ live cards, and a project lead workflow.
 ```sh
 bb projects status ABC         # counts per column, work in flight, focus
 bb projects focus ABC "text"   # set; --clear to remove; no text to show
+bb projects icon ABC rocket    # board icon: glyph name (--color blue), stored value or PNG path; --clear, --list
 bb projects lead ABC           # make the current thread the lead; --thread, --show
 bb projects send ABC "text"    # hand the lead a request; --as <agent>, --ref, --key
 bb projects reply ABC "text"   # lead only: answer an agent; --to req_..., --for <agent>, --kind

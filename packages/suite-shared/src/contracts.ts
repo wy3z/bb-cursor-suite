@@ -232,6 +232,8 @@ export const gitActionsContract = defineRpcContract({
 });
 
 export const META_CHANGED = "project-meta";
+export const BOARD_ICONS_CHANGED = "board-icons";
+export const BOARD_ICON_MAX_LENGTH = 256 * 1024;
 
 const metaSchema = z.object({
   focus: z.string().nullable(),
@@ -261,6 +263,8 @@ const inboxItemSchema = z.object({
 export type InboxItem = z.infer<typeof inboxItemSchema>;
 
 const projectIdSchema = z.string().trim().min(1).max(100);
+const boardIconRowSchema = z.object({ projectId: z.string(), icon: z.string() });
+export type BoardIconRow = z.infer<typeof boardIconRowSchema>;
 
 const COLUMN_VALUES = ["in_review", "in_progress", "todo", "done", "canceled"] as const;
 
@@ -340,5 +344,14 @@ export const projectsContract = defineRpcContract({
     tags: (input: { projectId: string }) => [`reconcile:${input.projectId}`],
     input: z.object({ projectId: projectIdSchema }),
     output: reconcileSchema,
+  },
+  listIcons: {
+    tags: () => ["icons"],
+    input: z.object({}),
+    output: z.object({ icons: z.array(boardIconRowSchema) }),
+  },
+  setIcon: {
+    input: z.object({ projectId: projectIdSchema, icon: z.string().min(1).max(BOARD_ICON_MAX_LENGTH).nullable() }),
+    output: z.object({ icons: z.array(boardIconRowSchema) }),
   },
 });

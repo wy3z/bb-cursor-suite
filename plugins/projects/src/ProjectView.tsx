@@ -6,7 +6,9 @@ import { byColumn, childrenByParent, useBoardMoves, useNow, usePresets, useProje
 import { FilterIcon, StatusGlyph } from "./glyphs";
 import { COLUMNS, COLUMN_LABEL, columnOf, type Column } from "./status";
 import { anchorsFor } from "./moves";
-import { ProjectIconMark, useProjectIcon } from "./ProjectIcon";
+import { ProjectIconPicker } from "@wy3z/bb-suite/project-icon/picker";
+import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
+import { BoardIconArt, boardIconColorClass, boardIconKind, useBoardIcons } from "./BoardIcon";
 import { useProjectMeta } from "./Focus";
 import { LoopCard } from "./Loop";
 import { TaskDetail } from "./TaskDetail";
@@ -109,7 +111,8 @@ export function ProjectView({
   const [view, setView] = useState<View>(() => (compact ? "list" : readView("board")));
   const [query, setQuery] = useState("");
   const statusFilter = useStatusFilter(projectId);
-  const projectIcon = useProjectIcon(project?.linkedBbProjectId ?? null);
+  const boardIcons = useBoardIcons();
+  const boardIcon = boardIcons.iconFor(projectId);
 
   const visible = useMemo(() => tasks.filter((task) => matches(task, query.trim())), [tasks, query]);
   const groups = useMemo(() => byColumn(visible), [visible]);
@@ -118,6 +121,7 @@ export function ProjectView({
   const reconcile = useReconcile(projectId);
   const evidence = useMemo(() => new Map((reconcile?.evidence ?? []).map((item) => [item.taskId, item])), [reconcile]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [iconRequest, setIconRequest] = useState(0);
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
   const ctx: CardContext = {
     labels: data.labels,
@@ -150,7 +154,7 @@ export function ProjectView({
     <div className="bbp-project" data-compact={compact || undefined}>
       <div className="bbp-toolbar">
         <div className="bbp-toolbar__title">
-          <ProjectIconMark icon={projectIcon} />
+          <BoardIconButton icon={boardIcon} onChange={(icon) => boardIcons.setIcon(projectId, icon)} openRequest={iconRequest} />
           {projects.length > 1 && onProjectChange ? (
             <label className="bbp-select">
               <select value={projectId} onChange={(event) => onProjectChange(event.currentTarget.value)} aria-label="Project">
@@ -177,6 +181,7 @@ export function ProjectView({
               <LoopCard projectId={projectId} meta={meta} onChange={setLoop} defaultOpen />
             </LoopMenu>
           ) : null}
+          <BoardMenu onSetIcon={() => setIconRequest((count) => count + 1)} />
           <div className="bbp-segmented" role="radiogroup" aria-label="View">
             <button type="button" role="radio" aria-checked={view === "list"} onClick={() => changeView("list")}>
               List
@@ -305,6 +310,61 @@ function FilterMenu({
               <span>{COLUMN_LABEL[status]}</span>
             </label>
           ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BoardIconButton({ icon, onChange, openRequest }: { icon: ProjectIcon | null; onChange: (icon: ProjectIcon | null) => void; openRequest: number }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (openRequest > 0) setOpen(true);
+  }, [openRequest]);
+  const color = boardIconColorClass(icon);
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={`bbp-toolbar__icon${color ? ` ${color}` : ""}`}
+        data-kind={boardIconKind(icon)}
+        data-plain={icon?.kind === "glyph" && icon.color === undefined ? "" : undefined}
+        aria-label="Set board icon"
+        title="Set board icon"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <BoardIconArt icon={icon} />
+      </button>
+      <ProjectIconPicker anchor={ref.current} open={open} onOpenChange={setOpen} value={icon} onChange={onChange} label="Board icon picker" />
+    </>
+  );
+}
+
+function BoardMenu({ onSetIcon }: { onSetIcon: () => void }) {
+  const { open, setOpen, ref } = usePopover();
+  return (
+    <div className="bbp-anchor" ref={ref}>
+      <button type="button" className="bbp-toggle" title="Board" aria-label="Board menu" aria-haspopup="menu" aria-expanded={open} aria-pressed={open} onClick={() => setOpen(!open)}>
+        <Icon name="MoreHorizontal" />
+      </button>
+      {open ? (
+        <div className="bbp-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className="bbp-menu__item"
+            onClick={() => {
+              setOpen(false);
+              onSetIcon();
+            }}
+          >
+            <Icon name="Palette" />
+            Set icon…
+          </button>
         </div>
       ) : null}
     </div>

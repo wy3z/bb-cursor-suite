@@ -1,6 +1,6 @@
 import { Icon, type IconName } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { ProjectIconMark } from "./ProjectIconMark";
+import { BOARD_FALLBACK, ProjectIconMark } from "./ProjectIconMark";
 import type { ProjectIcon } from "./project-icons";
 import type { ThreadStatusKind } from "./status";
 
@@ -39,7 +39,9 @@ export function ProjectStatusGlyph({
   label,
   status = "idle",
   className,
+  fallback: fallbackKind = "folder",
 }: {
+  fallback?: "folder" | typeof BOARD_FALLBACK;
   /** True when the project section is expanded; picks the open folder. */
   open?: boolean;
   /** A chosen project icon; its presence replaces the Folder/FolderOpen pair. */
@@ -51,7 +53,7 @@ export function ProjectStatusGlyph({
 }) {
   // Folder (closed) and FolderOpen are Hugeicons' matched single-weight pair
   // (Folder01 / Folder02). The heavier stroke keeps both crisp at 14px.
-  const fallback: IconName = open ? "FolderOpen" : "Folder";
+  const fallback: IconName | typeof BOARD_FALLBACK = fallbackKind === BOARD_FALLBACK ? BOARD_FALLBACK : open ? "FolderOpen" : "Folder";
   const badge =
     !open && (status === "input" || status === "failed") ? status : null;
   const activity: ActivityState =

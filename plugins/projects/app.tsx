@@ -1,4 +1,5 @@
 import "@wy3z/bb-suite/tokens.css";
+import "@wy3z/bb-suite/project-icon.css";
 import "./app.css";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -15,6 +16,7 @@ import { useProjects } from "./src/data";
 import type { Project } from "./src/contracts";
 import { projectsContract } from "./src/meta";
 import { ProjectGlyph } from "./src/glyphs";
+import { preloadProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/picker";
 
 const PROJECT_ICON = "bb-projects:project";
 
@@ -97,6 +99,7 @@ function useProjectTabVisible({ threadId }: ExperimentalThreadTabProps): boolean
 }
 
 export default definePluginApp((app) => {
+  void preloadProjectIconGlyphs().catch(() => undefined);
   app.experimental_icons.register({ name: PROJECT_ICON, component: ProjectGlyph });
   app.slots.navPanel({
     id: "projects",

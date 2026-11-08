@@ -104,21 +104,27 @@ group back. While one real project is picked, the switcher menu also offers
 
 ## Project icons
 
-A project can wear a glyph, an emoji, a one or two letter monogram or an
-uploaded image. Open the picker from a project heading's **Actions** menu
-(**Set icon…**), the project switcher while one project is picked, or a chat
-row's right-click menu (**Set project icon…**, which uses that chat's project).
+A project can wear a glyph in one of ten colours or an uploaded image. Open the
+picker from a project heading's right-click or **Actions** menu (**Set
+icon…**), the project switcher while one project is picked, or a chat row's
+right-click menu (**Set project icon…**, which uses that chat's project). It
+opens anchored to the row that asked for it.
 
-The dialog has three tabs: **Icons** with a searchable glyph grid, **Emoji**
-with a grid and a paste-any-emoji field, and **Monogram** with the letters typed
-by hand. Every mode shares an 18-colour palette and a live preview. **Upload
-image** uses your own picture, keeps PNG transparency and shrinks it to 64px
-before saving. **Reset to default** returns the folder. Save and Cancel close
-the dialog.
+The picker is a port of Cursor's project icon picker, shared with the Projects
+plugin (`@wy3z/bb-suite/project-icon/picker`): a search box, Cursor's ten
+colour swatches, then a ten-column grid of Cursor's icon set in Cursor's order,
+with **No icon** first to go back to the folder. Picking a colour recolours the
+current glyph at once; picking a glyph saves it and closes the picker. Escape
+or a click outside closes it. The artwork comes from Hugeicons, matched to
+Cursor's icon names; Cursor names with no Hugeicons match are left out. One
+addition Cursor lacks: the image button at the end of the search row uploads a
+picture (or paste one into the picker), kept as PNG and shrunk to 64px.
+Emoji and monogram icons saved by the earlier picker still show.
 
-The icon model, colour palette, popular-icon list and picker layout are ported
-from [T3 Code](https://github.com/pingdotgg/t3code); see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Board rows (projects with a lead in Projects) wear the board's own icon, read
+from the Projects plugin over RPC, and **Set icon…** in a board row's
+right-click menu sets the board's icon, not the repository's. Without Projects
+installed there are no board rows and nothing is read.
 
 Chats can set icons too, from a shell:
 

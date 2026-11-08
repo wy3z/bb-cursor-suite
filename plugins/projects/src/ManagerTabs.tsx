@@ -9,7 +9,10 @@ import {
   useBbNavigate,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import { ProjectIconArt } from "@wy3z/bb-suite/project-icon/picker";
+import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
 import { projectsContract } from "./meta";
+import { useBoardIcons } from "./BoardIcon";
 
 const STORE_KEY = "bb-projects:tabs";
 const HOST_ATTR = "data-bb-projects-tabs";
@@ -147,11 +150,13 @@ function TabStatus({ thread }: { thread: PluginSidebarThread | undefined }) {
   return <span className="bbp-tabs__dot" data-tone="idle" aria-label="Idle" />;
 }
 
-function TabLabel({ thread, isLead }: { thread: PluginSidebarThread | undefined; isLead: boolean }) {
+function TabLabel({ thread, isLead, leadIcon }: { thread: PluginSidebarThread | undefined; isLead: boolean; leadIcon: ProjectIcon | null }) {
   return (
     <>
       <TabStatus thread={thread} />
-      {isLead ? <Icon name={"bb-projects:project" as "Layers"} className="bbp-tabs__icon size-3.5" /> : null}
+      {isLead ? (
+        <ProjectIconArt icon={leadIcon} className="bbp-tabs__icon size-3.5" fallback={<Icon name={"bb-projects:project" as "Layers"} className="bbp-tabs__icon size-3.5" />} />
+      ) : null}
       <span className="bbp-tabs__text">{thread?.displayTitle ?? "Thread"}</span>
     </>
   );
@@ -160,6 +165,7 @@ function TabLabel({ thread, isLead }: { thread: PluginSidebarThread | undefined;
 function TabDropdown({
   tabs,
   leadId,
+  leadIcon,
   selectedId,
   byId,
   onSelect,
@@ -167,6 +173,7 @@ function TabDropdown({
 }: {
   tabs: readonly string[];
   leadId: string;
+  leadIcon: ProjectIcon | null;
   selectedId: string | null;
   byId: ReadonlyMap<string, PluginSidebarThread>;
   onSelect: (id: string) => void;
@@ -232,7 +239,7 @@ function TabDropdown({
         aria-label={`Project threads, ${tabs.length} open`}
         onClick={() => setOpen(!open)}
       >
-        <TabLabel thread={byId.get(currentId)} isLead={currentId === leadId} />
+        <TabLabel thread={byId.get(currentId)} isLead={currentId === leadId} leadIcon={leadIcon} />
         <Icon name="ChevronDown" className="bbp-tabs__chevron" />
       </button>
       {open
@@ -259,7 +266,7 @@ function TabDropdown({
                             if (!current) onSelect(id);
                           }}
                         >
-                          <TabLabel thread={thread} isLead={isLead} />
+                          <TabLabel thread={thread} isLead={isLead} leadIcon={leadIcon} />
                           {current ? <Icon name="Check" className="bbp-sheet__check" /> : null}
                         </button>
                         {isLead ? null : (
@@ -310,6 +317,9 @@ export function ManagerTabs() {
     }
     return null;
   }, [byId, leadIds, threadId]);
+  const boardIcons = useBoardIcons();
+  const leadProjectId = leadId ? (leads.data?.leads.find((lead) => lead.threadId === leadId)?.projectId ?? null) : null;
+  const leadIcon = boardIcons.iconFor(leadProjectId);
 
   const tabs = useMemo(() => {
     if (!leadId) return [];
@@ -355,7 +365,7 @@ export function ManagerTabs() {
     <>
       {createPortal(
         compact ? (
-          <TabDropdown tabs={tabs} leadId={leadId} selectedId={selectedId} byId={byId} onSelect={select} onClose={close} />
+          <TabDropdown tabs={tabs} leadId={leadId} leadIcon={leadIcon} selectedId={selectedId} byId={byId} onSelect={select} onClose={close} />
         ) : (
         <div className="bbp-tabs" role="tablist" aria-label="Project threads">
           {tabs.map((id) => {
@@ -380,7 +390,7 @@ export function ManagerTabs() {
                     }
                   }}
                 >
-                  <TabLabel thread={thread} isLead={isLead} />
+                  <TabLabel thread={thread} isLead={isLead} leadIcon={leadIcon} />
                 </button>
                 {isLead ? null : (
                   <button type="button" className="bbp-tabs__close" aria-label={`Close ${thread?.displayTitle ?? "tab"}`} onClick={() => close(id)}>
