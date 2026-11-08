@@ -323,6 +323,17 @@ html.dark .bbp-pi-rose { --bbp-pi-fg: oklch(71.2% 0.194 13.428); }
   height: 14px;
   color: var(--bbp-muted);
 }
+span.bbp-status {
+  display: inline-flex;
+}
+.bbp-status[data-status] svg,
+.bbp-status[data-status] [data-icon-root] {
+  width: 100%;
+  height: 100%;
+}
+.bbp-status[data-status] [data-icon-root] {
+  display: inline-flex;
+}
 .bbp-priority {
   flex: 0 0 auto;
   width: 13px;
@@ -716,6 +727,7 @@ html.dark .bbp-pi-rose { --bbp-pi-fg: oklch(71.2% 0.194 13.428); }
   background: var(--state-hover);
   color: var(--bbs-text-primary);
 }
+.bbp-chip .bbp-status,
 .bbp-chip svg,
 .bbp-chip [data-icon-root] {
   width: var(--bbs-icon-inline);

@@ -1,3 +1,4 @@
+import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { shortAge } from "@wy3z/bb-suite/time";
 import type { Priority, Status } from "./contracts";
 import { columnOf, type Column } from "./status";
@@ -13,17 +14,9 @@ export const STATUS_LABEL: Record<Status, string> = {
 
 const RING = { cx: 8, cy: 8, r: 6.25, fill: "none", stroke: "currentColor", strokeWidth: 1.4 } as const;
 
-function StatusMark({ column }: { column: Column }) {
+function StatusMark({ column }: { column: Exclude<Column, "in_progress"> }) {
   if (column === "todo") return <circle {...RING} strokeDasharray="2.4 2.5" />;
   if (column === "in_review") return <circle {...RING} />;
-  if (column === "in_progress") {
-    return (
-      <>
-        <circle {...RING} />
-        <path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" />
-      </>
-    );
-  }
   if (column === "done") {
     return (
       <>
@@ -42,6 +35,13 @@ function StatusMark({ column }: { column: Column }) {
 
 export function StatusGlyph({ status }: { status: Status }) {
   const column = columnOf(status);
+  if (column === "in_progress") {
+    return (
+      <span className="bbp-status" data-status={column} aria-hidden="true">
+        <Icon name="Loading" />
+      </span>
+    );
+  }
   return (
     <svg className="bbp-status" data-status={column} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <StatusMark column={column} />
