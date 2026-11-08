@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
-import type { Project, Status, Task } from "./contracts";
+import type { Project, Task } from "./contracts";
 import { TaskCard, type CardContext } from "./Card";
-import { byStatus, useBoardMoves, useNow, usePresets, useProjectData, useThreadIndex, type MoveTask } from "./data";
-import { FilterIcon, STATUS_LABEL, StatusGlyph } from "./glyphs";
+import { byColumn, childrenByParent, useBoardMoves, useNow, usePresets, useProjectData, useReconcile, useThreadIndex, type MoveTask } from "./data";
+import { FilterIcon, StatusGlyph } from "./glyphs";
+import { COLUMNS, COLUMN_LABEL, columnOf, type Column } from "./status";
+import { anchorsFor } from "./moves";
 import { ProjectIconMark, useProjectIcon } from "./ProjectIcon";
 import { useProjectMeta } from "./Focus";
 import { LoopCard } from "./Loop";
@@ -12,24 +14,21 @@ import { usePopover } from "./usePopover";
 
 type View = "board" | "list";
 
-const BOARD_COLUMNS: Status[] = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
-const LIST_ORDER: Status[] = ["in_progress", "in_review", "todo", "backlog", "done", "canceled"];
-const FILTER_ORDER: Status[] = ["in_review", "in_progress", "todo", "backlog", "done", "canceled"];
-const DEFAULT_SHOWN: Status[] = ["in_review", "in_progress", "todo", "backlog", "done"];
+const DEFAULT_SHOWN: Column[] = ["in_review", "in_progress", "todo", "done"];
 
 const VIEW_KEY = "bb-projects:view";
 const CANCELED_KEY = "bb-projects:show-canceled";
 const STATUSES_KEY = "bb-projects:statuses:";
 
-function readShown(projectId: string): ReadonlySet<Status> {
+function readShown(projectId: string): ReadonlySet<Column> {
   try {
     const saved = localStorage.getItem(STATUSES_KEY + projectId);
     if (saved) {
       const parsed: unknown = JSON.parse(saved);
-      if (Array.isArray(parsed)) return new Set(FILTER_ORDER.filter((status) => parsed.includes(status)));
+      if (Array.isArray(parsed)) return new Set(COLUMNS.filter((status) => parsed.includes(status)));
     }
     const legacyCanceled = localStorage.getItem(CANCELED_KEY) === "1";
-    return new Set<Status>(legacyCanceled ? [...DEFAULT_SHOWN, "canceled"] : DEFAULT_SHOWN);
+    return new Set<Column>(legacyCanceled ? [...DEFAULT_SHOWN, "canceled"] : DEFAULT_SHOWN);
   } catch {
     return new Set(DEFAULT_SHOWN);
   }
@@ -38,13 +37,13 @@ function readShown(projectId: string): ReadonlySet<Status> {
 function useStatusFilter(projectId: string) {
   const [state, setState] = useState(() => ({ projectId, shown: readShown(projectId) }));
   const shown = state.projectId === projectId ? state.shown : readShown(projectId);
-  const toggle = (status: Status) => {
+  const toggle = (status: Column) => {
     const next = new Set(shown);
     if (next.has(status)) next.delete(status);
     else next.add(status);
     setState({ projectId, shown: next });
     try {
-      localStorage.setItem(STATUSES_KEY + projectId, JSON.stringify(FILTER_ORDER.filter((item) => next.has(item))));
+      localStorage.setItem(STATUSES_KEY + projectId, JSON.stringify(COLUMNS.filter((item) => next.has(item))));
     } catch {
       return;
     }
@@ -113,7 +112,11 @@ export function ProjectView({
   const projectIcon = useProjectIcon(project?.linkedBbProjectId ?? null);
 
   const visible = useMemo(() => tasks.filter((task) => matches(task, query.trim())), [tasks, query]);
-  const groups = useMemo(() => byStatus(visible), [visible]);
+  const groups = useMemo(() => byColumn(visible), [visible]);
+  const children = useMemo(() => childrenByParent(tasks), [tasks]);
+  const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+  const reconcile = useReconcile(projectId);
+  const evidence = useMemo(() => new Map((reconcile?.evidence ?? []).map((item) => [item.taskId, item])), [reconcile]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
   const ctx: CardContext = {
@@ -123,7 +126,13 @@ export function ProjectView({
     targetEnvironmentId,
     now,
     selectedId,
+    children,
+    tasksById: byId,
+    evidence,
+    attachmentCounts: data.attachmentCounts,
     onSelect: (task) => setSelectedId((current) => (current === task.id ? null : task.id)),
+    onOpen: (task) => setSelectedId(task.id),
+    onApply: (task, status) => move(task, status, null, null),
   };
 
   const changeView = (next: View) => {
@@ -158,6 +167,9 @@ export function ProjectView({
           )}
         </div>
         <div className="bbp-toolbar__actions">
+          {reconcile && reconcile.drifts.length + reconcile.flags.length > 0 ? (
+            <BehindMenu reconcile={reconcile} onPick={(taskId) => setSelectedId(taskId)} prefix={project?.prefix ?? ""} />
+          ) : null}
           <SearchControl query={query} onChange={setQuery} />
           <FilterMenu query={query} onQuery={setQuery} shown={statusFilter.shown} onToggle={statusFilter.toggle} active={!statusFilter.isDefault || query.trim() !== ""} />
           {meta?.leadThreadId ? (
@@ -193,9 +205,9 @@ export function ProjectView({
       ) : (
         <div className="bbp-split" data-detail={selected ? "" : undefined}>
           {compact && selected ? null : view === "board" ? (
-            <Board groups={groups} columns={BOARD_COLUMNS.filter((status) => statusFilter.shown.has(status))} activeThreads={data.activeThreads} ctx={ctx} move={move} />
+            <Board groups={groups} columns={COLUMNS.filter((status) => statusFilter.shown.has(status))} activeThreads={data.activeThreads} ctx={ctx} move={move} />
           ) : (
-            <List groups={groups} order={LIST_ORDER.filter((status) => statusFilter.shown.has(status))} activeThreads={data.activeThreads} ctx={ctx} />
+            <List groups={groups} order={COLUMNS.filter((status) => statusFilter.shown.has(status))} activeThreads={data.activeThreads} ctx={ctx} />
           )}
           {selected ? (
             <TaskDetail
@@ -258,8 +270,8 @@ function FilterMenu({
 }: {
   query: string;
   onQuery: (query: string) => void;
-  shown: ReadonlySet<Status>;
-  onToggle: (status: Status) => void;
+  shown: ReadonlySet<Column>;
+  onToggle: (status: Column) => void;
   active: boolean;
 }) {
   const { open, setOpen, ref } = usePopover();
@@ -286,11 +298,11 @@ function FilterMenu({
             />
           </label>
           <div className="bbp-menu__sep" />
-          {FILTER_ORDER.map((status) => (
+          {COLUMNS.map((status) => (
             <label key={status} className="bbp-menu__item bbp-filter__status">
               <input type="checkbox" checked={shown.has(status)} onChange={() => onToggle(status)} />
               <StatusGlyph status={status} />
-              <span>{STATUS_LABEL[status]}</span>
+              <span>{COLUMN_LABEL[status]}</span>
             </label>
           ))}
         </div>
@@ -326,21 +338,21 @@ function Board({
   ctx,
   move,
 }: {
-  groups: Record<Status, Task[]>;
-  columns: Status[];
+  groups: Record<Column, Task[]>;
+  columns: Column[];
   activeThreads: ReturnType<typeof useProjectData>["activeThreads"];
   ctx: CardContext;
   move: MoveTask;
 }) {
   const [drag, setDrag] = useState<Task | null>(null);
-  const [drop, setDrop] = useState<{ status: Status; index: number } | null>(null);
-  const columnRefs = useRef(new Map<Status, HTMLDivElement>());
+  const [drop, setDrop] = useState<{ status: Column; index: number } | null>(null);
+  const columnRefs = useRef(new Map<Column, HTMLDivElement>());
 
   useEffect(() => {
     if (drag === null) setDrop(null);
   }, [drag]);
 
-  const dropIndex = (status: Status, clientY: number, draggedId: string | undefined = drag?.id): number => {
+  const dropIndex = (status: Column, clientY: number, draggedId: string | undefined = drag?.id): number => {
     const list = columnRefs.current.get(status);
     if (!list) return 0;
     const cards = [...list.querySelectorAll<HTMLElement>("[data-card-id]")].filter((el) => el.dataset.cardId !== draggedId);
@@ -351,17 +363,15 @@ function Board({
     return index === -1 ? cards.length : index;
   };
 
-  const onDrop = (event: DragEvent, status: Status) => {
+  const onDrop = (event: DragEvent, status: Column) => {
     const key = event.dataTransfer.getData("text/plain");
     const dragged = drag ?? Object.values(groups).flat().find((task) => task.key === key) ?? null;
     setDrag(null);
     setDrop(null);
     if (!dragged) return;
     const index = dropIndex(status, event.clientY, dragged.id);
-    const ids = groups[status].map((task) => task.id).filter((id) => id !== dragged.id);
-    const beforeTaskId = ids[index - 1] ?? null;
-    const afterTaskId = ids[index] ?? null;
-    const unchanged = dragged.status === status && groups[status].findIndex((task) => task.id === dragged.id) === index;
+    const { beforeTaskId, afterTaskId } = anchorsFor(groups[status], dragged.id, index, status);
+    const unchanged = columnOf(dragged.status) === status && groups[status].findIndex((task) => task.id === dragged.id) === index;
     if (!unchanged) move(dragged, status, beforeTaskId, afterTaskId);
   };
 
@@ -395,7 +405,7 @@ function Board({
           >
             <header className="bbp-column__head">
               <StatusGlyph status={status} />
-              <span className="bbp-column__title">{STATUS_LABEL[status]}</span>
+              <span className="bbp-column__title">{COLUMN_LABEL[status]}</span>
               <span className="bbp-column__count">{tasks.length}</span>
             </header>
             <div
@@ -440,18 +450,33 @@ function Board({
   );
 }
 
+function nest(tasks: readonly Task[], ctx: CardContext): { task: Task; depth: number }[] {
+  const here = new Set(tasks.map((task) => task.id));
+  const out: { task: Task; depth: number }[] = [];
+  const placed = new Set<string>();
+  const place = (task: Task, depth: number) => {
+    if (placed.has(task.id)) return;
+    placed.add(task.id);
+    out.push({ task, depth });
+    for (const child of ctx.children.get(task.id) ?? []) if (here.has(child.id)) place(child, depth + 1);
+  };
+  for (const task of tasks) if (!task.parentTaskId || !here.has(task.parentTaskId)) place(task, 0);
+  for (const task of tasks) place(task, 0);
+  return out;
+}
+
 function List({
   groups,
   order,
   activeThreads,
   ctx,
 }: {
-  groups: Record<Status, Task[]>;
-  order: Status[];
+  groups: Record<Column, Task[]>;
+  order: Column[];
   activeThreads: ReturnType<typeof useProjectData>["activeThreads"];
   ctx: CardContext;
 }) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<Status>>(() => new Set<Status>(["backlog", "canceled"]));
+  const [collapsed, setCollapsed] = useState<ReadonlySet<Column>>(() => new Set<Column>(["canceled"]));
   return (
     <div className="bbp-list">
       {order.map((status) => {
@@ -475,19 +500,88 @@ function List({
             >
               <Icon name="ChevronDown" />
               <StatusGlyph status={status} />
-              <span className="bbp-column__title">{STATUS_LABEL[status]}</span>
+              <span className="bbp-column__title">{COLUMN_LABEL[status]}</span>
               <span className="bbp-column__count">{tasks.length}</span>
             </button>
             {closed ? null : (
               <div className="bbp-group__rows">
-                {tasks.map((task) => (
-                  <TaskCard key={task.id} task={task} activeThreads={activeThreads.get(task.id) ?? []} ctx={ctx} layout="row" dragging={false} />
+                {nest(tasks, ctx).map(({ task, depth }) => (
+                  <TaskCard key={task.id} task={task} activeThreads={activeThreads.get(task.id) ?? []} ctx={ctx} layout="row" dragging={false} depth={depth} />
                 ))}
               </div>
             )}
           </section>
         );
       })}
+    </div>
+  );
+}
+
+function BehindMenu({ reconcile, onPick, prefix }: { reconcile: NonNullable<ReturnType<typeof useReconcile>>; onPick: (taskId: string) => void; prefix: string }) {
+  const { open, setOpen, ref } = usePopover();
+  const count = reconcile.drifts.length;
+  const label = count > 0 ? `${count} behind` : `${reconcile.flags.length} to check`;
+  return (
+    <div className="bbp-anchor" ref={ref}>
+      <button
+        type="button"
+        className="bbp-behind-toggle"
+        data-tone={count > 0 ? "behind" : "check"}
+        title="Cards whose stored status disagrees with their PRs, agents, commits or sub-tasks"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name={count > 0 ? "AlertTriangle" : "Clock"} />
+        <span>{label}</span>
+      </button>
+      {open ? (
+        <div className="bbp-menu bbp-behind" role="menu">
+          {count > 0 ? <div className="bbp-menu__label">Behind the evidence</div> : null}
+          {reconcile.drifts.map((drift) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={drift.taskId}
+              className="bbp-menu__item bbp-behind__item"
+              onClick={() => {
+                setOpen(false);
+                onPick(drift.taskId);
+              }}
+            >
+              <span className="bbp-card__key">{drift.key}</span>
+              <StatusGlyph status={drift.stored} />
+              <Icon name="ArrowRight" />
+              <StatusGlyph status={drift.suggested} />
+              <span className="bbp-behind__reason">{drift.reason}</span>
+            </button>
+          ))}
+          {reconcile.flags.length > 0 ? (
+            <>
+              {count > 0 ? <div className="bbp-menu__sep" /> : null}
+              <div className="bbp-menu__label">Also check</div>
+              {reconcile.flags.map((flag) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  key={`${flag.taskId}:${flag.kind}`}
+                  className="bbp-menu__item bbp-behind__item"
+                  onClick={() => {
+                    setOpen(false);
+                    onPick(flag.taskId);
+                  }}
+                >
+                  <span className="bbp-card__key">{flag.key}</span>
+                  <span className="bbp-behind__reason">{flag.text}</span>
+                </button>
+              ))}
+            </>
+          ) : null}
+          <div className="bbp-menu__sep" />
+          <div className="bbp-menu__empty">
+            <code>bb projects reconcile {prefix}</code> lists these for the lead. Done is never written for you.
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -7,14 +7,14 @@ export function useProjectMeta(projectId: string) {
   const [meta, setMeta] = useState<ProjectMeta | null>(null);
   const load = useCallback(() => {
     rpc.call("getMeta", { projectId }).then(setMeta, () =>
-      setMeta({ focus: null, focusUpdatedAt: null, leadThreadId: null, sweepMinutes: null, sweepWorkingHours: true, sweepLastAt: null, followPrs: false }),
+      setMeta({ focus: null, focusUpdatedAt: null, leadThreadId: null, sweepMinutes: null, sweepWorkingHours: true, sweepLastAt: null, followPrs: false, driftPings: false }),
     );
   }, [rpc, projectId]);
   useEffect(load, [load]);
   useRealtime(META_CHANGED, (payload) => {
     if ((payload as { projectId?: string } | null)?.projectId === projectId) load();
   });
-  const setLoop = (change: { sweepMinutes?: number | null; sweepWorkingHours?: boolean; followPrs?: boolean }) =>
+  const setLoop = (change: { sweepMinutes?: number | null; sweepWorkingHours?: boolean; followPrs?: boolean; driftPings?: boolean }) =>
     rpc.call("setLoop", { projectId, ...change }).then(setMeta);
   return { meta, setLoop };
 }

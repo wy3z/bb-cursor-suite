@@ -1,8 +1,9 @@
 import { shortAge } from "@wy3z/bb-suite/time";
 import type { Priority, Status } from "./contracts";
+import { columnOf, type Column } from "./status";
 
 export const STATUS_LABEL: Record<Status, string> = {
-  backlog: "Backlog",
+  backlog: "Queued",
   todo: "Queued",
   in_progress: "In Progress",
   in_review: "For Review",
@@ -10,19 +11,40 @@ export const STATUS_LABEL: Record<Status, string> = {
   canceled: "Canceled",
 };
 
-const STATUS_PATH: Record<Status, string> = {
-  backlog: "M8 .375c4.211 0 7.625 3.414 7.625 7.625S12.211 15.625 8 15.625.375 12.211.375 8 3.789.375 8 .375m0 1.25C4.48 1.625 1.625 4.479 1.625 8S4.479 14.375 8 14.375 14.375 11.521 14.375 8 11.521 1.625 8 1.625m-1.75 3.5c.345 0 .625.28.625.625v4.5c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-4.5c0-.345.28-.625.625-.625m3.5 0c.345 0 .625.28.625.625v4.5c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-4.5c0-.345.28-.625.625-.625",
-  todo: "M9.2 14.262c.339-.065.666.157.731.496s-.157.666-.496.731c-.943.18-1.913.182-2.857.003-.34-.064-.562-.392-.498-.73.064-.34.392-.563.731-.499.79.15 1.6.15 2.389-.002m-7.338-2.838c.285-.195.674-.12.868.165.452.664 1.026 1.236 1.69 1.687.286.194.361.583.168.868-.194.286-.583.36-.869.166-.795-.54-1.481-1.224-2.022-2.018-.194-.286-.12-.674.165-.868m11.413.156c.194-.286.583-.36.868-.167.285.194.36.582.166.868-.54.795-1.225 1.482-2.02 2.022-.284.194-.673.12-.867-.165-.195-.285-.12-.673.165-.868.664-.452 1.237-1.025 1.688-1.69M1.24 6.08c.34.065.562.392.498.731-.15.79-.15 1.6.001 2.389.065.339-.156.667-.495.732-.34.065-.667-.158-.732-.497C.331 8.492.33 7.522.51 6.578c.064-.339.391-.561.73-.497m13.517-.012c.338-.065.666.158.731.497.18.944.181 1.914.002 2.858-.065.339-.391.561-.73.497-.34-.065-.562-.392-.498-.73.15-.79.15-1.6-.002-2.39-.065-.338.158-.667.497-.732M3.71 1.698c.285-.194.674-.12.868.165s.12.674-.165.868c-.664.452-1.237 1.026-1.688 1.69-.193.286-.582.361-.868.168-.285-.194-.36-.584-.166-.87.54-.795 1.225-1.48 2.019-2.021m7.7.158c.194-.285.583-.36.87-.166.794.54 1.48 1.225 2.02 2.019.195.285.12.674-.165.868s-.673.12-.868-.165c-.452-.664-1.025-1.237-1.69-1.688-.286-.193-.36-.582-.167-.868M6.567.511C7.511.331 8.48.331 9.424.51c.339.064.562.391.498.73s-.392.562-.73.498c-.79-.15-1.601-.15-2.39.001-.34.065-.667-.156-.732-.495-.065-.34.158-.668.497-.733",
-  in_progress: "M8 11.375c.345 0 .625.28.625.625v3c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-3c0-.345.28-.625.625-.625m-3.269-.982c.245-.244.64-.244.884 0s.244.64 0 .883l-2.12 2.122c-.245.244-.64.244-.885 0-.244-.244-.244-.64 0-.883zm5.667-.003c.245-.244.64-.244.884 0l2.121 2.122c.244.244.244.64 0 .883-.244.244-.64.244-.883 0l-2.122-2.122c-.244-.244-.244-.64 0-.883M4.005 7.37c.345 0 .625.28.625.625s-.28.625-.625.625h-3C.66 8.62.38 8.34.38 7.995s.28-.625.625-.625zm11 0c.345 0 .625.28.625.625s-.28.625-.625.625h-3c-.345 0-.625-.28-.625-.625s.28-.625.625-.625zM12.51 2.615c.244-.244.64-.244.884 0 .243.244.243.64 0 .884L11.27 5.62c-.244.244-.64.244-.883 0-.244-.244-.244-.64 0-.884zm-9.89-.004c.244-.243.64-.244.884 0l2.121 2.122c.244.244.244.64 0 .884s-.64.244-.884 0l-2.12-2.12c-.245-.245-.245-.642 0-.886M8 .375c.345 0 .625.28.625.625v3c0 .345-.28.625-.625.625s-.625-.28-.625-.625V1c0-.345.28-.625.625-.625",
-  in_review: "M8 .375c4.211 0 7.625 3.414 7.625 7.625S12.211 15.625 8 15.625.375 12.211.375 8 3.789.375 8 .375m0 1.25C4.48 1.625 1.625 4.479 1.625 8S4.479 14.375 8 14.375 14.375 11.521 14.375 8 11.521 1.625 8 1.625",
-  done: "M8 .375c4.211 0 7.625 3.414 7.625 7.625S12.211 15.625 8 15.625.375 12.211.375 8 3.789.375 8 .375m0 1.25C4.48 1.625 1.625 4.479 1.625 8S4.479 14.375 8 14.375 14.375 11.521 14.375 8 11.521 1.625 8 1.625m3.058 4.183c.244-.244.64-.244.884 0 .245.244.245.64 0 .884L8.046 10.59c-.44.44-1.153.44-1.592 0L4.558 8.692c-.244-.244-.244-.64 0-.884s.64-.244.884 0L7.25 9.615z",
-  canceled: "M8 .375c4.211 0 7.625 3.414 7.625 7.625 0 4.21-3.414 7.625-7.625 7.625S.375 12.21.375 8 3.789.375 8 .375m0 1.25C4.48 1.625 1.625 4.479 1.625 8S4.479 14.375 8 14.375 14.375 11.52 14.375 8 11.521 1.625 8 1.625m2.058 3.432c.244-.244.64-.244.884 0s.244.64 0 .885L8.885 8l2.057 2.057c.244.244.244.64 0 .885-.244.244-.64.244-.884 0L8 8.884l-2.058 2.058c-.244.244-.64.244-.884 0s-.244-.64 0-.885L7.115 8 5.058 5.942c-.244-.244-.244-.64 0-.885.244-.244.64-.244.884 0L8 7.115z",
-};
+const RING = { cx: 8, cy: 8, r: 6.25, fill: "none", stroke: "currentColor", strokeWidth: 1.4 } as const;
+
+function StatusMark({ column }: { column: Column }) {
+  if (column === "todo") return <circle {...RING} strokeDasharray="2.4 2.5" />;
+  if (column === "in_review") return <circle {...RING} />;
+  if (column === "in_progress") {
+    return (
+      <>
+        <circle {...RING} />
+        <path d="M8 4.25a3.75 3.75 0 0 1 0 7.5z" fill="currentColor" />
+      </>
+    );
+  }
+  if (column === "done") {
+    return (
+      <>
+        <circle {...RING} />
+        <path d="M5.3 8.2l1.8 1.8 3.6-3.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    );
+  }
+  return (
+    <>
+      <circle {...RING} />
+      <path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </>
+  );
+}
 
 export function StatusGlyph({ status }: { status: Status }) {
+  const column = columnOf(status);
   return (
-    <svg className="bbp-status" data-status={status} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path d={STATUS_PATH[status]} fill="currentColor" />
+    <svg className="bbp-status" data-status={column} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <StatusMark column={column} />
     </svg>
   );
 }
@@ -68,8 +90,9 @@ export function formatElapsed(fromIso: string | number, now: number): string {
 
 export function ProjectGlyph({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path d="M13 .875c1.174 0 2.125.951 2.125 2.125v10c0 1.174-.951 2.125-2.125 2.125H3C1.826 15.125.875 14.174.875 13V3C.875 1.826 1.826.875 3 .875zM3 2.125c-.483 0-.875.392-.875.875v10c0 .483.392.875.875.875h10c.483 0 .875-.392.875-.875V3c0-.483-.392-.875-.875-.875zm2 1.75c.345 0 .625.28.625.625v7c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-7c0-.345.28-.625.625-.625m6 0c.345 0 .625.28.625.625v5c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-5c0-.345.28-.625.625-.625m-3 0c.345 0 .625.28.625.625V7c0 .345-.28.625-.625.625s-.625-.28-.625-.625V4.5c0-.345.28-.625.625-.625" fill="currentColor" />
+    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true" focusable="false">
+      <rect x="1.75" y="1.75" width="12.5" height="12.5" rx="2.5" />
+      <path d="M5 4.75v6.5M8 4.75v3M11 4.75v5" />
     </svg>
   );
 }
@@ -80,6 +103,37 @@ export function FilterIcon() {
       <path d="M2.5 4.5h11" />
       <path d="M4.5 8h7" />
       <path d="M6.5 11.5h3" />
+    </svg>
+  );
+}
+
+export function CommitGlyph() {
+  return (
+    <svg className="bbp-commit-glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="2.6" />
+      <path d="M1 8h4.4M10.6 8H15" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ProgressRing({ value }: { value: number }) {
+  const radius = 5.5;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(1, value));
+  return (
+    <svg className="bbp-progress-ring" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r={radius} fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
+      <circle
+        cx="8"
+        cy="8"
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeDasharray={`${circumference * clamped} ${circumference}`}
+        strokeLinecap="round"
+        transform="rotate(-90 8 8)"
+      />
     </svg>
   );
 }

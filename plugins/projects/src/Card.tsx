@@ -7,22 +7,16 @@ import {
   tasksContract,
   type Label,
   type Preset,
-  type PullRequest,
+  type Status,
   type Task,
   type TaskThread,
 } from "./contracts";
-import { useChangeStats, useTaskPullRequests, useTaskThreads, type ThreadInfo } from "./data";
-import { Dot, PriorityGlyph, StatusGlyph, formatElapsed } from "./glyphs";
+import { useChangeStats, usePullRequestSummaries, useTaskPullRequests, useTaskThreads, type ThreadInfo } from "./data";
+import { Dot, PriorityGlyph, StatusGlyph } from "./glyphs";
 import { openInTasks } from "./TaskDetail";
 import { usePopover } from "./usePopover";
-import { openPullRequestInPanel } from "./pullRequestLink";
-
-const PR_ICON: Record<PullRequest["state"], string> = {
-  open: "GitPullRequest",
-  draft: "GitPullRequestDraft",
-  merged: "GitMerge",
-  closed: "GitPullRequestClosed",
-};
+import { deriveStatus, type Derived, type Landing } from "./derive";
+import { AgentChips, AttachmentsChip, BehindHint, CommitChip, PullRequestChips, SubtaskPill, agentViews } from "./Chips";
 
 export function renderTitle(title: string) {
   return title.split(/(`[^`]+`)/g).map((part, index) =>
@@ -32,14 +26,26 @@ export function renderTitle(title: string) {
 
 type Flash = { tone: "good" | "bad" | "busy"; text: string } | null;
 
+export interface TaskEvidence {
+  lastActivityAt: string | null;
+  landing: Landing | null;
+  hold: { status: string; rule: string; since: string } | null;
+}
+
 export interface CardContext {
   labels: ReadonlyMap<string, Label>;
   threads: ReadonlyMap<string, ThreadInfo>;
   presets: readonly Preset[];
   targetEnvironmentId: string | null;
   now: number;
+  children: ReadonlyMap<string, Task[]>;
+  tasksById: ReadonlyMap<string, Task>;
+  evidence: ReadonlyMap<string, TaskEvidence>;
+  attachmentCounts: ReadonlyMap<string, number>;
   selectedId?: string | null;
   onSelect?: (task: Task) => void;
+  onOpen?: (task: Task) => void;
+  onApply?: (task: Task, status: Status) => void;
 }
 
 function pickWorker(taskThreads: readonly TaskThread[], index: ReadonlyMap<string, ThreadInfo>) {
@@ -51,12 +57,35 @@ function pickWorker(taskThreads: readonly TaskThread[], index: ReadonlyMap<strin
   return { latest: live[0] ?? null, working: working ?? null, input: input ?? null, count: live.length };
 }
 
+export function useDerived(
+  task: Task,
+  links: readonly TaskThread[],
+  pullRequests: readonly { number: number; state: "open" | "draft" | "merged" | "closed" }[],
+  ctx: CardContext,
+): Derived | null {
+  const evidence = ctx.evidence.get(task.id);
+  const derived = deriveStatus({
+    status: task.status,
+    updatedAt: task.updatedAt,
+    threads: links.map((link) => ({ liveStatus: link.liveStatus, updatedAt: link.updatedAt, working: ctx.threads.get(link.threadId)?.working })),
+    pullRequests,
+    children: (ctx.children.get(task.id) ?? []).map((child) => child.status),
+    landing: evidence?.landing ?? null,
+    lastActivityAt: evidence?.lastActivityAt ?? null,
+    now: ctx.now,
+  });
+  if (derived?.rule === "idle-demotion" && !evidence) return null;
+  if (derived && evidence?.hold && evidence.hold.status === derived.status) return null;
+  return derived;
+}
+
 export function TaskCard({
   task,
   activeThreads,
   ctx,
   layout,
   dragging,
+  depth = 0,
   onDragStart,
   onDragEnd,
 }: {
@@ -65,19 +94,27 @@ export function TaskCard({
   ctx: CardContext;
   layout: "board" | "row";
   dragging: boolean;
+  depth?: number;
   onDragStart?: (event: DragEvent, task: Task) => void;
   onDragEnd?: () => void;
 }) {
   const navigate = useBbNavigate();
   const sdk = useSdk();
-  const wantsThreads = task.status !== "backlog" || activeThreads.length > 0;
-  const taskThreads = useTaskThreads(task.id, wantsThreads);
+  const taskThreads = useTaskThreads(task.id, task.status !== "backlog" || activeThreads.length > 0);
   const links = taskThreads.length > 0 ? taskThreads : activeThreads;
   const worker = pickWorker(links, ctx.threads);
   const pullRequests = useTaskPullRequests(task.id, links.length > 0);
+  const openPrUrls = pullRequests.filter((pr) => pr.state === "open").map((pr) => pr.url);
+  const summaries = usePullRequestSummaries(openPrUrls);
   const workerEnv = worker.latest?.info?.isWorktree ? worker.latest.info.environmentId : null;
   const changes = useChangeStats(workerEnv && layout === "board" ? [workerEnv] : []).get(workerEnv ?? "") ?? null;
   const openPr = pullRequests.find((pr) => pr.state === "open" || pr.state === "draft") ?? null;
+  const derived = useDerived(task, links, pullRequests, ctx);
+  const subtasks = ctx.children.get(task.id) ?? [];
+  const parent = task.parentTaskId ? ctx.tasksById.get(task.parentTaskId) ?? null : null;
+  const landing = ctx.evidence.get(task.id)?.landing ?? null;
+  const attachmentCount = ctx.attachmentCounts.get(task.id) ?? 0;
+  const agents = agentViews(links, ctx.threads, ctx.now);
   const { open: menu, setOpen: setMenu, ref: menuRef } = usePopover();
   const [flash, setFlash] = useState<Flash>(null);
 
@@ -148,33 +185,14 @@ export function TaskCard({
       : undefined;
 
   const labels = task.labelIds.map((id) => ctx.labels.get(id)).filter((label): label is Label => label !== undefined);
-  const agentLine = worker.input
-    ? { tone: "input" as const, text: "Needs input" }
-    : worker.working
-      ? {
-          tone: "working" as const,
-          text: `Working · ${worker.working.link.presetName} · ${formatElapsed(worker.working.link.attachedAt, ctx.now)}`,
-        }
-      : worker.latest
-        ? {
-            tone: worker.latest.link.liveStatus === "failed" ? ("failed" as const) : ("idle" as const),
-            text: `${worker.latest.link.liveStatus === "failed" ? "Failed" : "Worked"} · ${worker.count} ${worker.count === 1 ? "agent" : "agents"}`,
-          }
-        : null;
-  const agentName = primary ? ctx.threads.get(primary.link.threadId)?.title || primary.link.title || primary.link.presetName : null;
-  const agentTone = agentLine?.tone ?? "idle";
-  const agentState = worker.input
-    ? "needs input"
-    : worker.working
-      ? `working for ${formatElapsed(worker.working.link.attachedAt, ctx.now)}`
-      : agentTone === "failed"
-        ? "failed"
-        : "idle";
+  const agentTone = agents[0]?.tone ?? "idle";
 
   const shell = {
     className: "bbp-card",
     "data-layout": layout,
     "data-status": task.status,
+    "data-behind": derived ? derived.status : undefined,
+    style: depth > 0 ? { ["--bbp-depth" as string]: depth } : undefined,
     "data-dragging": dragging || undefined,
     "data-selected": ctx.selectedId === task.id || undefined,
     "data-working": agentTone === "working" || undefined,
@@ -269,22 +287,21 @@ export function TaskCard({
     </span>
   ) : null;
 
-  const prChips = pullRequests.slice(0, 2).map((pr) => (
-    <a
-      className="bbp-chip"
-      data-pr={pr.state}
-      key={pr.url}
-      href={pr.url}
-      target="_blank"
-      rel="noreferrer"
-      title={`${pr.title} (${pr.state})`}
-      onClick={(event) => openPullRequestInPanel(event, pr.url)}
-    >
-      <Icon name={PR_ICON[pr.state]} />#{pr.number}
-    </a>
-  ));
-
-  const rowPr = openPr ?? pullRequests[0] ?? null;
+  const parentMark =
+    parent && depth === 0 ? (
+      <button
+        type="button"
+        className="bbp-parent-mark"
+        title={`Sub-task of ${parent.key} ${parent.title}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          ctx.onOpen?.(parent);
+        }}
+      >
+        <Icon name="CornerDownRight" />
+        {parent.key}
+      </button>
+    ) : null;
 
   if (layout === "row") {
     return (
@@ -292,42 +309,18 @@ export function TaskCard({
         <StatusGlyph status={task.status} />
         <span className="bbp-card__key">{task.key}</span>
         <span className="bbp-card__title">{renderTitle(task.title)}</span>
+        {parentMark}
+        {derived ? <BehindHint derived={derived} stored={task.status} compact /> : null}
         <span className="bbp-row-slots">
           {flashChip ?? (
             <>
               <span className="bbp-row-pr">
-                {rowPr ? (
-                  <a
-                    className="bbp-chip"
-                    data-pr={rowPr.state}
-                    href={rowPr.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={pullRequests.map((pr) => `#${pr.number} ${pr.title} (${pr.state})`).join("\n")}
-                    onClick={(event) => openPullRequestInPanel(event, rowPr.url)}
-                  >
-                    <Icon name={PR_ICON[rowPr.state]} />
-                    <span>#{rowPr.number}</span>
-                    {pullRequests.length > 1 ? <span className="bbp-row-pr__more">+{pullRequests.length - 1}</span> : null}
-                  </a>
-                ) : null}
+                <SubtaskPill subtasks={subtasks} onOpen={ctx.onOpen} />
+                {landing ? <CommitChip landing={landing} /> : null}
+                <PullRequestChips pullRequests={pullRequests} summaries={summaries} showLabel={false} />
               </span>
               <span className="bbp-row-agent">
-                {primary && agentName ? (
-                  <button
-                    type="button"
-                    className="bbp-chip bbp-agent-chip"
-                    data-tone={agentTone}
-                    title={`${agentName}, ${agentState}${worker.count > 1 ? `, ${worker.count} agents` : ""}. Ctrl-click opens a split.`}
-                    onClick={(event) => openThread(event.ctrlKey || event.metaKey)}
-                  >
-                    <Dot tone={agentTone} />
-                    <span className="bbp-agent-chip__name" data-shimmer={agentTone === "working" || undefined}>
-                      {agentName}
-                    </span>
-                    {worker.count > 1 ? <span className="bbp-agent-chip__more">+{worker.count - 1}</span> : null}
-                  </button>
-                ) : null}
+                <AgentChips agents={agents} max={1} compact />
               </span>
             </>
           )}
@@ -341,6 +334,7 @@ export function TaskCard({
     <article {...shell}>
       <header className="bbp-card__head">
         <span className="bbp-card__key">{task.key}</span>
+        {parentMark}
         {labels.map((label) => (
           <span className="bbp-label" key={label.id} style={{ ["--bbp-label" as string]: label.color }}>
             {label.name}
@@ -350,17 +344,11 @@ export function TaskCard({
         {tools}
       </header>
       <div className="bbp-card__title">{renderTitle(task.title)}</div>
-      {agentLine || pullRequests.length > 0 || changes || flash ? (
+      {derived ? <BehindHint derived={derived} stored={task.status} compact={false} onApply={ctx.onApply ? () => ctx.onApply!(task, derived.status) : undefined} /> : null}
+      {agents.length > 0 ? <AgentChips agents={agents} max={3} /> : null}
+      {pullRequests.length > 0 || changes || flash || subtasks.length > 0 || landing || attachmentCount > 0 ? (
         <footer className="bbp-card__foot">
-          {flashChip ??
-            (agentLine ? (
-              <span className="bbp-agent" data-tone={agentLine.tone}>
-                <Dot tone={agentLine.tone} />
-                <span className="bbp-agent__text" data-shimmer={agentLine.tone === "working" || undefined}>
-                  {agentLine.text}
-                </span>
-              </span>
-            ) : null)}
+          {flashChip ?? <SubtaskPill subtasks={subtasks} onOpen={ctx.onOpen} />}
           <span className="bbp-card__chips">
             {changes ? (
               <button
@@ -373,7 +361,9 @@ export function TaskCard({
                 <span className="bbp-diff" data-sign="minus">−{changes.deletions}</span>
               </button>
             ) : null}
-            {prChips}
+            <AttachmentsChip taskId={task.id} count={attachmentCount} />
+            {landing ? <CommitChip landing={landing} /> : null}
+            <PullRequestChips pullRequests={pullRequests} summaries={summaries} showLabel />
           </span>
         </footer>
       ) : null}

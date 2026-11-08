@@ -5,9 +5,10 @@ import {
   experimental_useSidebarThreads,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
+import { z } from "zod";
 import {
   GIT_PLUGIN,
-  STATUSES,
+  PULL_REQUESTS_PLUGIN,
   TASKS_PLUGIN,
   gitContract,
   gitStatusSchema,
@@ -19,6 +20,10 @@ import {
   type Task,
   type TaskThread,
 } from "./contracts";
+import { defineRpcContract } from "@get-bb/plugin-sdk";
+import { projectsContract, type ReconcileView } from "./meta";
+import { COLUMNS, columnOf, type Column } from "./status";
+import { loadState, type LoadState } from "./moves";
 
 const REFRESH_MS = 15_000;
 
@@ -45,6 +50,7 @@ export interface ProjectData {
   tasks: Task[];
   labels: ReadonlyMap<string, Label>;
   activeThreads: ReadonlyMap<string, TaskThread[]>;
+  attachmentCounts: ReadonlyMap<string, number>;
   loading: boolean;
   error: string | null;
 }
@@ -58,11 +64,13 @@ export function useProjectData(projectId: string | null): ProjectData {
   return useMemo(() => {
     const labelMap = new Map((labels.data?.labels ?? []).map((label) => [label.id, label]));
     const active = new Map((meta.data?.cards ?? []).map((card) => [card.taskId, card.activeThreads]));
+    const attachments = new Map((meta.data?.cards ?? []).map((card) => [card.taskId, card.attachmentCount]));
     const error = tasks.error ? String((tasks.error as { message?: string }).message ?? tasks.error) : null;
     return {
-      tasks: (tasks.data?.tasks ?? []).filter((task) => task.parentTaskId === null),
+      tasks: tasks.data?.tasks ?? [],
       labels: labelMap,
       activeThreads: active,
+      attachmentCounts: attachments,
       loading: enabled && tasks.data === undefined && !tasks.error,
       error,
     };
@@ -237,9 +245,89 @@ export function useBoardMoves(tasks: readonly Task[]) {
   return { tasks: merged, move, error, clearError: () => setError(null) };
 }
 
-export function byStatus(tasks: readonly Task[]): Record<Status, Task[]> {
-  const groups = Object.fromEntries(STATUSES.map((status) => [status, [] as Task[]])) as Record<Status, Task[]>;
-  for (const task of tasks) groups[task.status].push(task);
-  for (const status of STATUSES) groups[status].sort((left, right) => left.position - right.position);
+export function byColumn(tasks: readonly Task[]): Record<Column, Task[]> {
+  const groups = Object.fromEntries(COLUMNS.map((column) => [column, [] as Task[]])) as Record<Column, Task[]>;
+  for (const task of tasks) groups[columnOf(task.status)].push(task);
+  for (const column of COLUMNS) groups[column].sort((left, right) => left.position - right.position);
   return groups;
+}
+
+export function childrenByParent(tasks: readonly Task[]): ReadonlyMap<string, Task[]> {
+  const map = new Map<string, Task[]>();
+  for (const task of tasks) {
+    if (!task.parentTaskId) continue;
+    const list = map.get(task.parentTaskId) ?? [];
+    list.push(task);
+    map.set(task.parentTaskId, list);
+  }
+  for (const list of map.values()) list.sort((left, right) => left.position - right.position);
+  return map;
+}
+
+export function useReconcile(projectId: string): ReconcileView | null {
+  const query = experimental_useRpcQuery({ contract: projectsContract, method: "reconcile", input: { projectId } });
+  return query.data ?? null;
+}
+
+const ciSchema = z.object({ state: z.string(), totalCount: z.number() }).passthrough();
+const summarySchema = z
+  .object({
+    url: z.string(),
+    number: z.number(),
+    title: z.string(),
+    state: z.string(),
+    isDraft: z.boolean(),
+    ci: ciSchema,
+    reviewDecision: z.string(),
+    mergeability: z.string(),
+  })
+  .passthrough();
+export type PullRequestSummary = z.infer<typeof summarySchema>;
+
+const pullRequestsContract = defineRpcContract({
+  summaries: {
+    input: z.object({ urls: z.array(z.string()).max(20), refresh: z.boolean() }),
+    output: z.object({
+      items: z.array(z.object({ url: z.string(), summary: z.union([z.object({ ok: z.literal(true), value: summarySchema }), z.object({ ok: z.literal(false) }).passthrough()]) })),
+    }),
+  },
+});
+
+export function usePullRequestSummaries(urls: readonly string[]): ReadonlyMap<string, PullRequestSummary> {
+  const query = experimental_useRpcQuery({
+    pluginId: PULL_REQUESTS_PLUGIN,
+    contract: pullRequestsContract,
+    method: "summaries",
+    input: { urls: urls.slice(0, 20), refresh: false },
+    enabled: urls.length > 0,
+  });
+  return useMemo(() => {
+    const map = new Map<string, PullRequestSummary>();
+    for (const item of query.data?.items ?? []) if (item.summary.ok) map.set(item.url, item.summary.value);
+    return map;
+  }, [query.data]);
+}
+
+export { PR_STATUS, prStatus, type PrStatus } from "./pr-status";
+
+const attachmentSchema = z
+  .object({ id: z.string(), fileName: z.string(), mime: z.string(), sizeBytes: z.number(), isImage: z.boolean(), createdAt: z.string() })
+  .passthrough();
+export type Attachment = z.infer<typeof attachmentSchema>;
+
+const attachmentsContract = defineRpcContract({
+  listAttachments: {
+    tags: (input: { taskId: string }) => [`attachments:${input.taskId}`],
+    input: z.object({ taskId: z.string() }),
+    output: z.object({ attachments: z.array(attachmentSchema) }).passthrough(),
+  },
+});
+
+export function useAttachments(taskId: string, enabled: boolean): LoadState<Attachment> {
+  const query = experimental_useRpcQuery({ pluginId: TASKS_PLUGIN, contract: attachmentsContract, method: "listAttachments", input: { taskId }, enabled });
+  return loadState({ data: query.data ? { items: query.data.attachments } : undefined, error: query.error, isLoading: query.isLoading });
+}
+
+export function attachmentUrl(id: string): string {
+  return `/api/v1/plugins/tasks/http/attachments/download?attachmentId=${encodeURIComponent(id)}`;
 }
