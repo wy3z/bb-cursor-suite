@@ -93,9 +93,7 @@ import {
   ordinaryFamilyFacts,
   ordinaryFamilyGroupKeys,
   ordinaryThreadStatus,
-  environmentGroupOf,
   viewHasActiveFilters,
-  NO_ENVIRONMENT_KEY,
   projectFilterOptions,
   projectKeyOf,
   threadsPerGroupPage,
@@ -555,23 +553,18 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         now,
         prStateOf,
         familyFacts,
+        primaryHostId,
+        cloudHostIds,
         bypass: (thread) => {
           const root = familyRootOfId(thread.id);
           return pinnedFamilyRoots.has(root) || root === activeFamilyRoot;
         },
       }),
-    [activeFamilyRoot, familyFacts, familyRootOfId, now, pinnedFamilyRoots, prStateOf, visible, view],
+    [activeFamilyRoot, familyFacts, familyRootOfId, now, pinnedFamilyRoots, prStateOf, visible, view, primaryHostId, cloudHostIds],
   );
   const viewEnvironmentOptions = useMemo(
-    () => environmentFilterOptions(visible),
-    [visible],
-  );
-  const hasEnvironmentlessOrdinary = useMemo(
-    () =>
-      visible.some(
-        (thread) => environmentGroupOf(thread).id === NO_ENVIRONMENT_KEY,
-      ),
-    [visible],
+    () => environmentFilterOptions(visible, { familyFacts, primaryHostId, cloudHostIds }),
+    [visible, familyFacts, primaryHostId, cloudHostIds],
   );
   const viewProjectOptions = useMemo(
     () => projectFilterOptions(visible, nativeProjects, view.projectFilter),
@@ -1468,7 +1461,6 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       onRetry={sidebarView.retry}
       onUpdate={sidebarView.update}
       environmentOptions={viewEnvironmentOptions}
-      showNoEnvironment={hasEnvironmentlessOrdinary}
       projectOptions={viewProjectOptions}
       anyCollapsed={anyCollapsed}
       onExpandAll={expandAll}

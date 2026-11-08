@@ -7,7 +7,7 @@ import { usePortalScopeProps } from "@/lib/portal-scope";
 import type { SidebarView } from "./server";
 import {
   AGE_FILTER_LABELS,
-  NO_ENVIRONMENT_KEY,
+  machineGroupIcon,
   STATUS_FILTER_LABELS,
   THREADS_PER_GROUP_VALUES,
   VIEW_AGE_FILTERS,
@@ -57,7 +57,6 @@ export interface SidebarViewMenuRootProps {
   /** Environments present in the loaded ordinary conversations. */
   environmentOptions: readonly EnvironmentIdentity[];
   /** True when a loaded ordinary conversation has no environment. */
-  showNoEnvironment: boolean;
   /** Projects present in the loaded conversations, for the project filter. */
   projectOptions: readonly ProjectIdentity[];
   /** Every collapsible target in the controlled scope, for the bulk toggle. */
@@ -313,7 +312,6 @@ export function SidebarViewMenuRoot({
   onRetry,
   onUpdate,
   environmentOptions,
-  showNoEnvironment,
   projectOptions,
   anyCollapsed,
   onExpandAll,
@@ -325,10 +323,7 @@ export function SidebarViewMenuRoot({
 }: SidebarViewMenuRootProps) {
   const scope = usePortalScopeProps();
   const notice = sidebarViewSyncNotice(sync);
-  const environmentKeys = [
-    ...environmentOptions.map((environment) => environment.id),
-    ...(showNoEnvironment ? [NO_ENVIRONMENT_KEY] : []),
-  ];
+  const environmentKeys = environmentOptions.map((environment) => environment.id);
   const toggleStatus = (status: ViewStatusFilter, on: boolean) =>
     onUpdate(statusFilterPatch(view, status, on));
   const setAllStatuses = (on: boolean) => onUpdate(allStatusFilterPatch(on));
@@ -372,7 +367,6 @@ export function SidebarViewMenuRoot({
     if (view.environmentFilter === null) return "All";
     if (view.environmentFilter.length === 1) {
       const only = view.environmentFilter[0]!;
-      if (only === NO_ENVIRONMENT_KEY) return "No environment";
       return environmentOptions.find((environment) => environment.id === only)?.label ?? "1 selected";
     }
     return `${view.environmentFilter.length} selected`;
@@ -597,7 +591,7 @@ export function SidebarViewMenuRoot({
             </Section>
           ) : null}
 
-          {environmentOptions.length > 0 || showNoEnvironment ? (
+          {environmentOptions.length > 0 ? (
             <Section>
               <SubTrigger label="Environment" value={environmentFilterValue} />
               <DropdownMenu.Portal>
@@ -612,18 +606,10 @@ export function SidebarViewMenuRoot({
                       key={environment.id}
                       checked={environmentSelected(environment.id)}
                       label={environment.label}
-                      icon="Cloud"
+                      icon={machineGroupIcon(environment.id) ?? "Monitor"}
                       onToggle={(next) => toggleEnvironment(environment.id, next)}
                     />
                   ))}
-                  {showNoEnvironment ? (
-                    <ToggleItem
-                      checked={environmentSelected(NO_ENVIRONMENT_KEY)}
-                      label="No environment"
-                      icon="CloudOff"
-                      onToggle={(next) => toggleEnvironment(NO_ENVIRONMENT_KEY, next)}
-                    />
-                  ) : null}
                 </DropdownMenu.SubContent>
               </DropdownMenu.Portal>
             </Section>

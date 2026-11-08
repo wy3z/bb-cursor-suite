@@ -3,8 +3,12 @@ import { test } from "node:test";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { buildPooledOrdinarySection, buildSections, flattenShelf } from "./forest";
 import {
+  coerceEnvironmentFilter,
+  coerceSidebarView,
   DEFAULT_SIDEBAR_VIEW,
+  environmentFilterOptions,
   familyAwareComparator,
+  filterOrdinaryThreads,
   groupOrdinaryRows,
   machineGroupHostId,
   machineGroupIcon,
@@ -140,4 +144,61 @@ test("machine group icons and grouped hosts", () => {
   assert.equal(machineGroupHostId("machine:host:host_box", LOCAL.id), "host_box");
   assert.equal(machineGroupHostId("machine:cloud", LOCAL.id), null);
   assert.deepEqual(machineGroupOf({ id: "host_box", name: null }, LOCAL.id, CLOUD), { key: "machine:host:host_box", label: "host_box" });
+});
+
+const filterMembers = () => [
+  thread("local-1", "p", 50, { host: LOCAL }),
+  thread("no-host", "p", 45),
+  thread("box-1", "p", 40, { host: BOX }),
+  thread("cloud-a", "p", 30, { host: SANDBOX_A }),
+  thread("cloud-b", "p", 20, { host: SANDBOX_B }),
+  thread("cloud-child", "p", 60, { host: LOCAL, parentThreadId: "cloud-a" }),
+];
+
+function filtered(environmentFilter: string[] | null, cloudHostIds: ReadonlySet<string> | null = CLOUD) {
+  return filterOrdinaryThreads(filterMembers(), { ...DEFAULT_SIDEBAR_VIEW, environmentFilter }, {
+    now: 100, bypass: () => false, primaryHostId: LOCAL.id, cloudHostIds,
+  }).map((entry) => entry.id);
+}
+
+test("environment filter offers Local, each other machine by name, then Cloud", () => {
+  assert.deepEqual(
+    environmentFilterOptions(filterMembers(), { primaryHostId: LOCAL.id, cloudHostIds: CLOUD }),
+    [
+      { id: "machine:local", label: "Local" },
+      { id: "machine:host:host_box", label: "box" },
+      { id: "machine:cloud", label: "Cloud" },
+    ],
+  );
+});
+
+test("environment filter options fall back to machine entries when cloud status is unknown", () => {
+  assert.deepEqual(
+    environmentFilterOptions(filterMembers(), { primaryHostId: LOCAL.id, cloudHostIds: null }).map((option) => option.label),
+    ["Local", "box", "Modal sandbox a", "Modal sandbox b"],
+  );
+});
+
+test("environment filter keeps exactly the selected machine groups by family", () => {
+  assert.deepEqual(filtered(["machine:cloud"]), ["cloud-a", "cloud-b", "cloud-child"]);
+  assert.deepEqual(filtered(["machine:local"]), ["local-1", "no-host"]);
+  assert.deepEqual(filtered(["machine:host:host_box", "machine:local"]), ["local-1", "no-host", "box-1"]);
+  assert.deepEqual(filtered([]), []);
+  assert.equal(filtered(null).length, 6);
+});
+
+test("environment filter falls back to the machine entry when cloud status is unknown", () => {
+  assert.deepEqual(filtered(["machine:host:host_sa"], null), ["cloud-a", "cloud-child"]);
+  assert.deepEqual(filtered(["machine:cloud"], null), []);
+});
+
+test("saved per-environment filter values are ignored instead of hiding threads", () => {
+  assert.equal(coerceEnvironmentFilter(["name:bb-plugins", "host:host_local", "__none__", "env_abc"]), null);
+  assert.deepEqual(coerceEnvironmentFilter(["host:host_local", "machine:cloud"]), ["machine:cloud"]);
+  assert.deepEqual(coerceEnvironmentFilter([]), []);
+  assert.equal(coerceEnvironmentFilter(null), null);
+  assert.equal(coerceEnvironmentFilter("machine:cloud"), null);
+  const migrated = coerceSidebarView({ ...DEFAULT_SIDEBAR_VIEW, environmentFilter: ["name:arch"] });
+  assert.equal(migrated.environmentFilter, null);
+  assert.equal(filterOrdinaryThreads(filterMembers(), migrated, { now: 100, bypass: () => false }).length, 6);
 });

@@ -217,14 +217,16 @@ function coerceAgeFilter(raw: unknown): ViewAgeFilter[] {
 }
 
 /**
- * `null` is "all environments"; an array selects a subset and an empty array is
- * "none". An array that named values but kept none of them falls back to all.
+ * `null` is "all machines"; an array selects a subset and an empty array is
+ * "none". Only machine group keys count: values saved by the old
+ * per-environment filter are ignored, so a list that kept none of them falls
+ * back to all instead of hiding threads.
  */
-function coerceEnvironmentFilter(raw: unknown): string[] | null {
+export function coerceEnvironmentFilter(raw: unknown): string[] | null {
   if (raw === null || raw === undefined) return null;
   if (!Array.isArray(raw)) return null;
   const valid = raw.filter(
-    (entry): entry is string => typeof entry === "string" && entry.length > 0,
+    (entry): entry is string => typeof entry === "string" && entry.startsWith(MACHINE_GROUP_PREFIX),
   );
   if (raw.length > 0 && valid.length === 0) return null;
   return [...new Set(valid)];
@@ -346,22 +348,10 @@ function ordinaryStatusRank(thread: PluginSidebarThread): number {
   return THREAD_STATUS_RANK[resolveThreadStatus(threadStatusFacts(thread))];
 }
 
-/** A row's execution environment, or null when it has no environment yet. */
+/** One Environment filter choice: a machine group key and its label. */
 export interface EnvironmentIdentity {
   id: string;
   label: string;
-}
-
-export function environmentIdentityOf(
-  thread: PluginSidebarThread,
-): EnvironmentIdentity | null {
-  const id = thread.environment?.id ?? null;
-  if (id === null) return null;
-  const label =
-    thread.environment?.name?.trim() ||
-    thread.host?.name?.trim() ||
-    id;
-  return { id, label };
 }
 
 /**
@@ -374,33 +364,6 @@ export function usableEnvironmentLabel(value: string | null | undefined): string
   if (trimmed === "" || /^(thr|env)_[a-z0-9]+$/i.test(trimmed)) return null;
   return trimmed;
 }
-
-/**
- * The Environment grouping and filter key for one family. Threads that share
- * a host or workspace name sit under one heading and one filter row (one
- * `arch`), instead of repeating that label per unique env id.
- */
-export function environmentGroupOf(thread: PluginSidebarThread): EnvironmentIdentity {
-  const envName = usableEnvironmentLabel(thread.environment?.name);
-  if (envName !== null) {
-    return { id: `name:${envName.toLowerCase()}`, label: envName };
-  }
-  const hostId = thread.host?.id?.trim() || null;
-  const hostName = usableEnvironmentLabel(thread.host?.name);
-  if (hostId !== null) {
-    return { id: `host:${hostId}`, label: hostName ?? hostId };
-  }
-  if (hostName !== null) {
-    return { id: `host-name:${hostName.toLowerCase()}`, label: hostName };
-  }
-  const envId = thread.environment?.id ?? null;
-  if (envId !== null) {
-    return { id: `env:${envId}`, label: envId };
-  }
-  return { id: NO_ENVIRONMENT_KEY, label: "No environment" };
-}
-
-export const NO_ENVIRONMENT_KEY = "__none__";
 
 /** A project option in the filter menu: the native BB project id and its label. */
 export interface ProjectIdentity {
@@ -450,7 +413,6 @@ export function homeDisplayParentOf(
 /** One family's aggregated facts, keyed by its display family root. */
 export interface FamilyAggregate {
   status: ThreadStatusKind;
-  environmentGroup: EnvironmentIdentity;
   host: FamilyHost | null;
   latestUpdatedAt: number;
   firstIndex: number;
@@ -466,9 +428,10 @@ function familyHostOf(thread: PluginSidebarThread): FamilyHost | null {
   return id === null ? null : { id, name: thread.host?.name?.trim() || null };
 }
 
-export const LOCAL_MACHINE_GROUP_KEY = "machine:local";
-export const CLOUD_MACHINE_GROUP_KEY = "machine:cloud";
-const MACHINE_HOST_GROUP_PREFIX = "machine:host:";
+const MACHINE_GROUP_PREFIX = "machine:";
+export const LOCAL_MACHINE_GROUP_KEY = `${MACHINE_GROUP_PREFIX}local`;
+export const CLOUD_MACHINE_GROUP_KEY = `${MACHINE_GROUP_PREFIX}cloud`;
+const MACHINE_HOST_GROUP_PREFIX = `${MACHINE_GROUP_PREFIX}host:`;
 
 export function machineGroupOf(
   host: FamilyHost | null,
@@ -520,7 +483,6 @@ function familyAggregates(
     if (aggregate === undefined) {
       aggregate = {
         status: facts.statusOf(thread),
-        environmentGroup: environmentGroupOf(thread),
         host: familyHostOf(thread),
         latestUpdatedAt: thread.updatedAt,
         firstIndex: firstIndex++,
@@ -531,10 +493,6 @@ function familyAggregates(
     const status = facts.statusOf(thread);
     if (THREAD_STATUS_RANK[status] < THREAD_STATUS_RANK[aggregate.status]) {
       aggregate.status = status;
-    }
-    if (aggregate.environmentGroup.id === NO_ENVIRONMENT_KEY) {
-      const grouped = environmentGroupOf(thread);
-      if (grouped.id !== NO_ENVIRONMENT_KEY) aggregate.environmentGroup = grouped;
     }
     if (aggregate.host === null) aggregate.host = familyHostOf(thread);
   }
@@ -604,24 +562,46 @@ export interface OrdinaryFilterFacts {
    * the same family activity even when another filter hides a descendant.
    */
   familyFacts?: OrdinaryFamilyFacts | undefined;
+  primaryHostId?: string | null;
+  cloudHostIds?: ReadonlySet<string> | null;
+}
+
+export interface MachineFacts {
+  primaryHostId?: string | null;
+  cloudHostIds?: ReadonlySet<string> | null;
+  familyFacts?: OrdinaryFamilyFacts | undefined;
 }
 
 /**
- * Whether a filter lets one row through. `null` is every environment. An
- * explicit list keeps a row whose environment *group* is named (one arch for
- * every thread on that host), or an environment-less row when `__none__` is
- * selected. Unique env ids from an older client still match as a fallback.
+ * Each thread's machine group, judged by its family root's machine exactly as
+ * the Environment grouping does, so a filter keeps what a heading shows.
  */
-function environmentAllowed(
-  filter: readonly string[] | null,
-  thread: PluginSidebarThread,
-): boolean {
-  if (filter === null) return true;
-  const group = environmentGroupOf(thread);
-  if (filter.includes(group.id)) return true;
-  const identity = environmentIdentityOf(thread);
-  if (identity !== null && filter.includes(identity.id)) return true;
-  return false;
+function familyMachineGroups(
+  threads: readonly PluginSidebarThread[],
+  facts: MachineFacts,
+): (thread: PluginSidebarThread) => { key: string; label: string } {
+  const parentOf = homeDisplayParentOf(threads);
+  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  const rootOf = (thread: PluginSidebarThread) =>
+    facts.familyFacts?.rootOf.get(thread.id) ?? familyRootId(parentOf, thread.id);
+  const hostOfRoot = new Map<string, FamilyHost | null>();
+  for (const thread of threads) {
+    const root = rootOf(thread);
+    if (hostOfRoot.get(root)) continue;
+    const rootThread = byId.get(root);
+    hostOfRoot.set(
+      root,
+      facts.familyFacts?.aggregateOf.get(root)?.host ??
+        (rootThread ? familyHostOf(rootThread) : null) ??
+        familyHostOf(thread),
+    );
+  }
+  return (thread) =>
+    machineGroupOf(
+      hostOfRoot.get(rootOf(thread)) ?? familyHostOf(thread),
+      facts.primaryHostId ?? null,
+      facts.cloudHostIds ?? null,
+    );
 }
 
 /**
@@ -675,6 +655,8 @@ export function filterOrdinaryThreads(
       thread.updatedAt;
     return view.ageFilter.includes(bucketForTimestamp(latest, facts.now));
   };
+  const environmentFilter = view.environmentFilter;
+  const machineOf = environmentFilter === null ? null : familyMachineGroups(threads, facts);
   const keep = new Set<string>();
   const matches = new Set<string>();
   for (const thread of threads) {
@@ -684,7 +666,7 @@ export function filterOrdinaryThreads(
     }
     if (!view.statusFilter.includes(statusFilterKind(thread))) continue;
     if (!ageAllowed(thread)) continue;
-    if (!environmentAllowed(view.environmentFilter, thread)) continue;
+    if (machineOf !== null && !environmentFilter!.includes(machineOf(thread).key)) continue;
     if (!projectAllowed(view.projectFilter, thread)) continue;
     if (view.prFilter !== null) {
       const state = facts.prStateOf?.(thread);
@@ -1050,7 +1032,6 @@ export function groupOrdinaryRows(
       root === undefined
         ? {
             status: facts.statusOf(row.thread),
-            environmentGroup: environmentGroupOf(row.thread),
             host: familyHostOf(row.thread),
             latestUpdatedAt: row.thread.updatedAt,
             firstIndex: 0,
@@ -1111,18 +1092,25 @@ export function flattenOrdinaryFamilies(
   return chunks.flat();
 }
 
-/** Every distinct environment *group* in the loaded ordinary conversations. */
+/**
+ * The Environment filter's choices, matching the grouping: Local, one entry per
+ * other non-cloud machine by name, then Cloud. Only machines with a loaded
+ * ordinary conversation are listed.
+ */
 export function environmentFilterOptions(
   threads: readonly PluginSidebarThread[],
+  facts: MachineFacts = {},
 ): EnvironmentIdentity[] {
+  const machineOf = familyMachineGroups(threads, facts);
   const byId = new Map<string, EnvironmentIdentity>();
   for (const thread of threads) {
-    const group = environmentGroupOf(thread);
-    if (group.id === NO_ENVIRONMENT_KEY) continue;
-    if (!byId.has(group.id)) byId.set(group.id, group);
+    const group = machineOf(thread);
+    if (!byId.has(group.key)) byId.set(group.key, { id: group.key, label: group.label });
   }
+  const rank = (id: string) =>
+    id === LOCAL_MACHINE_GROUP_KEY ? 0 : id === CLOUD_MACHINE_GROUP_KEY ? 2 : 1;
   return [...byId.values()].sort((left, right) =>
-    left.label.localeCompare(right.label),
+    rank(left.id) - rank(right.id) || left.label.localeCompare(right.label),
   );
 }
 
