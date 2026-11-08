@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-projects",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Cursor-style project boards for BB, built on the Tasks plugin.",
   "author": {
     "name": "WYEZ",
@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.4.0",
-    "@wy3z/bb-suite": "file:../../packages/suite-shared",
+    "@wy3z/bb-suite": "^1.0.0",
     "zod": "^4.3.6",
     "@get-bb/plugin-sdk": "0.6.132"
   },
