@@ -628,7 +628,6 @@ html[data-bb-agent-pills-composer="cursor"]
   content: "Do anything…" !important;
 }
 
-/* Attach becomes a paperclip at the far left, but still opens BB's + menu. */
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
   button[aria-label="Prompt actions"] {
@@ -665,9 +664,9 @@ html[data-bb-agent-pills-composer="cursor"]
   width: 16px;
   height: 16px;
   background: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.4 11.05 12.25 20.2a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.67 3.67 0 0 1 5.19 5.19l-9.2 9.19a1.83 1.83 0 1 1-2.59-2.59l8.49-8.49'/%3E%3C/svg%3E")
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E")
     center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.4 11.05 12.25 20.2a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.67 3.67 0 0 1 5.19 5.19l-9.2 9.19a1.83 1.83 0 1 1-2.59-2.59l8.49-8.49'/%3E%3C/svg%3E")
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E")
     center / contain no-repeat;
 }
 
@@ -962,11 +961,6 @@ html[data-bb-agent-pills-composer="cursor"]
   padding-left: calc(var(--bb-agent-pills-perm-width, 0px) + 4px);
 }
 
-/* No dictation button. Hidden only while idle, so a recording started with
-   the keyboard shortcut still shows its stop control. */
-html[data-bb-agent-pills-composer="cursor"]
-  form[data-promptbox]
-  span:is(span[data-bb-agent-pills-has-voice]),
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
   button[aria-label="Voice preferences"] {
