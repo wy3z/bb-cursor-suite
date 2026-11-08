@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -251,6 +252,8 @@ export function PinnedList({ items, ctx }: { items: readonly LiftedPin[]; ctx: T
 
 
 /** One shelf's rows, flattened with connector data. */
+const NO_RENDERED_ROWS: ReadonlySet<string> = new Set();
+
 export function ShelfList({
   section,
   shelf,
@@ -540,9 +543,10 @@ export function ShelfList({
   const renderedKey = [...renderedIds].join("\n");
   const reportRendered = useRef(onRenderedIds);
   reportRendered.current = onRenderedIds;
-  useEffect(() => {
+  useLayoutEffect(() => {
     reportRendered.current?.(new Set(renderedKey === "" ? [] : renderedKey.split("\n")));
   }, [renderedKey]);
+  useLayoutEffect(() => () => reportRendered.current?.(NO_RENDERED_ROWS), []);
   const renderGroup = ({ group, isDate, collapseKey, open, paged }: (typeof groupBlocks)[number]) => {
     return (
       <div key={group.key} className={group.label ? "mt-2 first:mt-0" : undefined}>
