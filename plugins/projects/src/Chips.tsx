@@ -1,5 +1,5 @@
 import { useState, type MouseEvent } from "react";
-import { experimental_Icon as Icon, experimental_ImageLightbox as ImageLightbox, useBbNavigate } from "@get-bb/plugin-sdk/app";
+import { experimental_Icon as Icon, experimental_ImageLightbox as ImageLightbox } from "@get-bb/plugin-sdk/app";
 import type { PullRequest, Task, TaskThread } from "./contracts";
 import { PR_STATUS, attachmentUrl, prStatus, useAttachments, type Attachment, type PullRequestSummary, type ThreadInfo } from "./data";
 import { canApply, type Derived, type Landing } from "./derive";
@@ -7,6 +7,7 @@ import { CommitGlyph, Dot, ProgressRing, StatusGlyph, formatElapsed } from "./gl
 import { openPullRequestInPanel } from "./pullRequestLink";
 import { COLUMN_LABEL, columnOf, isComplete } from "./status";
 import { usePopover } from "./usePopover";
+import { useOpenThread } from "./useOpenThread";
 
 export type AgentTone = "working" | "input" | "failed" | "idle";
 
@@ -36,20 +37,20 @@ export function agentViews(links: readonly TaskThread[], index: ReadonlyMap<stri
     .sort((left, right) => rank[left.tone] - rank[right.tone] || Date.parse(right.link.updatedAt) - Date.parse(left.link.updatedAt));
 }
 
-function openThread(navigate: ReturnType<typeof useBbNavigate>, threadId: string, event: MouseEvent) {
+function openThread(open: ReturnType<typeof useOpenThread>, threadId: string, event: MouseEvent) {
   event.stopPropagation();
-  navigate.toThread(threadId, event.ctrlKey || event.metaKey ? { split: true } : undefined);
+  open(threadId, { split: event.ctrlKey || event.metaKey });
 }
 
 function AgentChip({ agent, compact }: { agent: AgentView; compact: boolean }) {
-  const navigate = useBbNavigate();
+  const openThreadIn = useOpenThread();
   return (
     <button
       type="button"
       className="bbp-chip bbp-agent-chip"
       data-tone={agent.tone}
       title={`${agent.name} · ${agent.link.presetName} · ${agent.age}. Ctrl-click opens a split.`}
-      onClick={(event) => openThread(navigate, agent.link.threadId, event)}
+      onClick={(event) => openThread(openThreadIn, agent.link.threadId, event)}
     >
       <Dot tone={agent.tone} />
       <span className="bbp-agent-chip__name" data-shimmer={agent.tone === "working" || undefined}>
@@ -61,7 +62,7 @@ function AgentChip({ agent, compact }: { agent: AgentView; compact: boolean }) {
 }
 
 export function AgentChips({ agents, max, compact = false }: { agents: readonly AgentView[]; max: number; compact?: boolean }) {
-  const navigate = useBbNavigate();
+  const openThreadIn = useOpenThread();
   const { open, setOpen, ref } = usePopover<HTMLSpanElement>();
   if (agents.length === 0) return null;
   const shown = agents.slice(0, max);
@@ -95,7 +96,7 @@ export function AgentChips({ agents, max, compact = false }: { agents: readonly 
                   className="bbp-menu__item"
                   onClick={(event) => {
                     setOpen(false);
-                    openThread(navigate, agent.link.threadId, event);
+                    openThread(openThreadIn, agent.link.threadId, event);
                   }}
                 >
                   <Dot tone={agent.tone} />
