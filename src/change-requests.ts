@@ -255,20 +255,25 @@ interface QueryLike<Row> {
   error: unknown;
 }
 
-const ABSENT_PLUGIN_MESSAGE = /unknown plugin "|has no rpc method "|is not running \(status: disabled\b/;
+function quoted(pluginId: string): string {
+  return `plugin "${pluginId}"`;
+}
 
-export function pluginAbsent(error: unknown): boolean {
+export function pluginAbsent(error: unknown, pluginId: string): boolean {
   if (typeof error !== "object" || error === null) return false;
   const code = Reflect.get(error, "code");
   const status = Reflect.get(error, "status");
   const message = Reflect.get(error, "message");
-  if (code === "unknown_method") return true;
-  if (typeof status === "number" && status !== 404 && status !== 503) return false;
-  return typeof message === "string" && ABSENT_PLUGIN_MESSAGE.test(message);
+  if (typeof status !== "number" || typeof message !== "string") return false;
+  if (status === 404 && code === "unknown_method") return message.startsWith(`${quoted(pluginId)} has no rpc method "`);
+  if (status === 404) return message === `unknown plugin "${pluginId}"`;
+  if (status !== 503) return false;
+  const disabled = `${quoted(pluginId)} is not running (status: disabled`;
+  return message === `${disabled})` || message.startsWith(`${disabled} \u2014 `);
 }
 
-export function errorSource<Row>(error: unknown, row: Row | undefined): Source<Row> {
-  if (pluginAbsent(error)) return { status: "missing" };
+export function errorSource<Row>(error: unknown, pluginId: string, row: Row | undefined): Source<Row> {
+  if (pluginAbsent(error, pluginId)) return { status: "missing" };
   const message = error instanceof Error && error.message ? error.message : "the read failed";
   return row === undefined ? { status: "failed", message } : { status: "failed", message, row };
 }
@@ -285,7 +290,7 @@ async function readOnce<Row>(callRpc: CallRpc, pluginId: string, method: string,
     const row = result[environmentId];
     return row === undefined ? { status: "failed", message: "no answer for this environment" } : { status: "row", row };
   } catch (error) {
-    return errorSource<Row>(error, undefined);
+    return errorSource<Row>(error, pluginId, undefined);
   }
 }
 
@@ -297,9 +302,9 @@ export async function readRequestOnce(callRpc: CallRpc, environmentId: string, b
   return resolveRequest(pullRequests, github, branch);
 }
 
-export function sourceOf<Row>(query: QueryLike<Row>, key: string): Source<Row> {
+export function sourceOf<Row>(query: QueryLike<Row>, pluginId: string, key: string): Source<Row> {
   const row = query.data?.[key];
-  if (query.error) return errorSource(query.error, row);
+  if (query.error) return errorSource(query.error, pluginId, row);
   return row === undefined ? { status: "loading" } : { status: "row", row };
 }
 
@@ -311,7 +316,9 @@ export function resolveRequests(
   const results = new Map<string, SidebarRequest>();
   for (const { environmentId, branch } of targets) {
     if (results.has(environmentId)) continue;
-    results.set(environmentId, resolveRequest(sourceOf(pullRequests, environmentId), sourceOf(github, environmentId), branch));
+    const pullRequestsSource = sourceOf(pullRequests, CHANGE_REQUESTS_PLUGIN, environmentId);
+    const githubSource = sourceOf(github, GITHUB_PR_STATUS_PLUGIN, environmentId);
+    results.set(environmentId, resolveRequest(pullRequestsSource, githubSource, branch));
   }
   return results;
 }

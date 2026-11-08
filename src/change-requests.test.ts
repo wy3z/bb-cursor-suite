@@ -343,7 +343,7 @@ test("a Pull Requests read that fails for operational reasons keeps the GitLab i
   ];
   const github = { error: null, data: { e: { outcome: "absent" } satisfies GitHubStatusRow } };
   for (const error of failures) {
-    assert.equal(pluginAbsent(error), false, error.message);
+    assert.equal(pluginAbsent(error, "pull-requests"), false, error.message);
     for (const cached of known) {
       const status = resolveRequests([{ environmentId: "e", branch: "feature" }], { error, data: { e: cached } }, github).get("e")!;
       assert.equal(status.kind, "unavailable", error.message);
@@ -359,14 +359,21 @@ test("a Pull Requests read that fails for operational reasons keeps the GitLab i
 });
 
 test("only a missing plugin, a missing method or a disabled plugin counts as Pull Requests being absent", () => {
-  assert.equal(pluginAbsent(rpcError("handler_error", 404, 'unknown plugin "pull-requests"')), true);
-  assert.equal(pluginAbsent(rpcError("handler_error", 503, 'plugin "pull-requests" is not running (status: disabled)')), true);
-  assert.equal(pluginAbsent(rpcError("unknown_method", 404, 'plugin "pull-requests" has no rpc method "changeRequests"')), true);
-  assert.equal(pluginAbsent(new Error('unknown plugin "pull-requests"')), true);
-  assert.equal(pluginAbsent(rpcError("not_found", 404, "environment not found")), false);
-  assert.equal(pluginAbsent(rpcError("handler_error", 500, 'unknown plugin "pull-requests"')), false);
-  assert.equal(pluginAbsent("timeout"), false);
-  assert.equal(pluginAbsent(null), false);
+  const absent = (error: unknown) => pluginAbsent(error, "pull-requests");
+  assert.equal(absent(rpcError("handler_error", 404, 'unknown plugin "pull-requests"')), true);
+  assert.equal(absent(rpcError("handler_error", 503, 'plugin "pull-requests" is not running (status: disabled)')), true);
+  assert.equal(absent(rpcError("handler_error", 503, 'plugin "pull-requests" is not running (status: disabled \u2014 turned off in settings)')), true);
+  assert.equal(absent(rpcError("unknown_method", 404, 'plugin "pull-requests" has no rpc method "changeRequests"')), true);
+  assert.equal(absent(new Error('unknown plugin "pull-requests"')), false);
+  assert.equal(absent(rpcError("handler_error", 404, 'unknown plugin "dependency"')), false);
+  assert.equal(absent(rpcError("unknown_method", 404, 'plugin "dependency" has no rpc method "changeRequests"')), false);
+  assert.equal(absent(rpcError("handler_error", 503, 'plugin "pull-requests" is not running (status: disabledish)')), false);
+  assert.equal(absent(rpcError("handler_error", 503, 'plugin "dependency" is not running (status: disabled)')), false);
+  assert.equal(absent(rpcError("not_found", 404, "environment not found")), false);
+  assert.equal(absent(rpcError("handler_error", 500, 'unknown plugin "pull-requests"')), false);
+  assert.equal(absent("timeout"), false);
+  assert.equal(absent(null), false);
+  assert.equal(pluginAbsent(rpcError("handler_error", 404, 'unknown plugin "bb--github-pr-status"'), "bb--github-pr-status"), true);
 });
 
 test("copy link keeps an operational failure distinct from a missing Pull Requests plugin", async () => {
@@ -415,4 +422,35 @@ test("delayed BB branch metadata shows nothing until the sidebar and Pull Reques
   const failedStale = resolveRequest({ status: "failed", message: "timeout", row: forOld }, row({ outcome: "absent" }), "new");
   assert.equal(failedStale.kind, "unavailable");
   assert.equal(requestFilterState(failedStale), undefined);
+});
+
+const NESTED_FAILURE = 'plugin "pull-requests" is not running (status: error \u2014 HTTP 404: unknown plugin "dependency")';
+
+test("a failed Pull Requests whose detail mentions another plugin's absence keeps the GitLab identity", () => {
+  const error = rpcError("handler_error", 503, NESTED_FAILURE);
+  assert.equal(pluginAbsent(error, "pull-requests"), false);
+  const cached: ChangeRequestRow = { outcome: "available", changeRequest: mergeRequest(), environmentBranch: "feature" };
+  const statuses = resolveRequests([{ environmentId: "e", branch: "feature" }], { error, data: { e: cached } }, { error: null, data: { e: { outcome: "absent" } } });
+  const status = statuses.get("e")!;
+  assert.equal(status.kind, "unavailable");
+  assert.equal((status as Extract<SidebarRequest, { kind: "unavailable" }>).provider, "gitlab");
+  const none = filterOrdinaryThreads([thread("t-e", "e")], { ...DEFAULT_SIDEBAR_VIEW, prFilter: ["open"] }, {
+    now: 0,
+    bypass: () => false,
+    prStateOf: (entry) => threadFilterState(entry, statuses),
+  });
+  assert.deepEqual(none.map((entry) => entry.id), ["t-e"]);
+});
+
+test("copy link treats the same nested failure as Pull Requests failing, not missing", async () => {
+  const status = await readRequestOnce(
+    async (args) => {
+      if (args.pluginId === "pull-requests") throw rpcError("handler_error", 503, NESTED_FAILURE);
+      return { e: { outcome: "absent" } };
+    },
+    "e",
+    "feature",
+  );
+  assert.equal(status.kind, "unavailable");
+  assert.equal(requestFilterState(status), undefined);
 });
