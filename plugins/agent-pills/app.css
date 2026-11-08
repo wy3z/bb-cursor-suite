@@ -545,7 +545,7 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-editor-scroll] {
   display: flex;
   align-items: center;
-  padding: 13px 8px 13px 46px;
+  padding: 13px 8px 13px 50px;
 }
 
 /* UI Tweaks owns the editor height when data-bb-ui-prompt-height is set, and
@@ -632,7 +632,7 @@ html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]
   button[aria-label="Prompt actions"] {
   position: absolute;
-  left: 10px;
+  left: 16px;
   top: 50%;
   bottom: auto;
   transform: translateY(-50%);
