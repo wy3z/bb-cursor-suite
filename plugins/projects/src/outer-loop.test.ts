@@ -43,7 +43,7 @@ describe("sweepDue", () => {
 
 describe("sweepPrompt", () => {
   it("labels the sweep for the lead", () => {
-    expect(sweepPrompt("PIXEL").split("\n")[0]).toBe("[Scheduled sweep] PIXEL");
+    expect(sweepPrompt("ABC").split("\n")[0]).toBe("[Scheduled sweep] ABC");
   });
 });
 

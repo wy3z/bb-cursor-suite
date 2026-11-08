@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { Clock, openDb, pixel, tempDbPath, world } from "../test/harness";
+import { Clock, openDb, abc, tempDbPath, world } from "../test/harness";
 import { backoffMs, CHECK_EVERY_MS, HOLD_RECHECK_MS, LEASE_MS, MAX_FAILURES, RETENTION_MS } from "./mailbox";
 import { requestPrompt } from "./courier";
 
-const ask = (text: string, key: string | null = null) => ({ ...pixel, source: "grok-bot", text, ref: null, key });
+const ask = (text: string, key: string | null = null) => ({ ...abc, source: "grok-bot", text, ref: null, key });
 
 async function failUntilTerminal(w: ReturnType<typeof world>, clock: Clock, id: string) {
   for (let i = 0; i < MAX_FAILURES + 2 && w.mailbox.getRequest(id)!.state !== "failed"; i++) {
@@ -42,9 +42,9 @@ describe("queued deliveries are confirmed, not assumed", () => {
     expect(w.queues.get("thr_lead1")).toEqual([]);
     expect(w.mailbox.listReplies({}).map((reply) => reply.kind)).toEqual(["notice"]);
 
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
-    w.mailbox.releaseHeld(pixel.projectId);
+    w.mailbox.releaseHeld(abc.projectId);
     await w.courier.tick();
     expect(w.sent.map((item) => item.threadId)).toEqual(["thr_lead1", "thr_lead2"]);
     expect(w.sent[1]!.text).toContain("Redelivery");
@@ -58,7 +58,7 @@ describe("queued deliveries are confirmed, not assumed", () => {
     const { request } = w.mailbox.enqueue(ask("stuck behind archive"));
     await w.courier.deliver(request.id);
     w.threads.set("thr_lead1", "archived");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
     w.faults.drop = 1;
     clock.advance(CHECK_EVERY_MS);
@@ -83,7 +83,7 @@ describe("queued deliveries are confirmed, not assumed", () => {
     const { request } = w.mailbox.enqueue(ask("racing the queue"));
     await w.courier.deliver(request.id);
     w.threads.set("thr_lead1", "archived");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
     w.faults.dropDispatches = 1;
     clock.advance(CHECK_EVERY_MS);
@@ -101,20 +101,20 @@ describe("queued deliveries are confirmed, not assumed", () => {
     w.mailbox.setTarget(request.id, "thr_lead1");
     w.landedIn("thr_lead1", requestPrompt(request, false));
     w.threads.set("thr_lead1", "hidden");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
 
     const restarted = world(openDb(path), clock);
     restarted.timeline.set("thr_lead1", w.timeline.get("thr_lead1")!);
     restarted.threads.set("thr_lead1", "hidden");
-    restarted.leads.set(pixel.projectId, "thr_lead2");
+    restarted.leads.set(abc.projectId, "thr_lead2");
     restarted.threads.set("thr_lead2", "ok");
     clock.advance(LEASE_MS + 1);
     await restarted.courier.tick();
     expect(restarted.sent).toHaveLength(0);
     expect(restarted.mailbox.getRequest(request.id)).toMatchObject({ state: "held", targetThreadId: "thr_lead1" });
     const notice = restarted.mailbox.listReplies({ consumer: "grok-bot" }).find((reply) => reply.kind === "notice")!;
-    expect(notice.text).toContain(`bb projects retry PIXEL ${request.id} --resend`);
+    expect(notice.text).toContain(`bb projects retry ABC ${request.id} --resend`);
     clock.advance(HOLD_RECHECK_MS);
     await restarted.courier.tick();
     expect(restarted.sent).toHaveLength(0);
@@ -134,13 +134,13 @@ describe("queued deliveries are confirmed, not assumed", () => {
     w.mailbox.setTarget(request.id, "thr_lead1");
     w.landedIn("thr_lead1", requestPrompt(request, false));
     w.threads.set("thr_lead1", "hidden");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
     clock.advance(LEASE_MS + 1);
     await w.courier.tick();
     expect(w.mailbox.getRequest(request.id)!.state).toBe("held");
-    expect((await w.courier.retry(pixel.projectId, request.id))!.request).toMatchObject({ state: "held" });
-    const resent = await w.courier.retry(pixel.projectId, request.id, true);
+    expect((await w.courier.retry(abc.projectId, request.id))!.request).toMatchObject({ state: "held" });
+    const resent = await w.courier.retry(abc.projectId, request.id, true);
     expect(resent.request).toMatchObject({ state: "delivered", targetThreadId: "thr_lead2" });
     expect(w.sent.map((item) => item.threadId)).toEqual(["thr_lead2"]);
     expect(w.sent[0]!.text).toContain(`Redelivery: if you already have request ${request.id}, do not act on it twice.`);
@@ -154,16 +154,16 @@ describe("queued deliveries are confirmed, not assumed", () => {
     w.mailbox.claim(request.id);
     w.mailbox.setTarget(request.id, "thr_lead1");
     w.threads.set("thr_lead1", "hidden");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
     clock.advance(LEASE_MS + 1);
     await w.courier.tick();
     w.faults.leadOf = 1;
-    expect((await w.courier.retry(pixel.projectId, request.id, true)).request).toMatchObject({ state: "pending", targetThreadId: null });
+    expect((await w.courier.retry(abc.projectId, request.id, true)).request).toMatchObject({ state: "pending", targetThreadId: null });
     expect(w.mailbox.getRequest(request.id)!.redelivery).toBe(true);
 
     const restarted = world(openDb(path), clock);
-    restarted.leads.set(pixel.projectId, "thr_lead3");
+    restarted.leads.set(abc.projectId, "thr_lead3");
     restarted.threads.set("thr_lead3", "ok");
     clock.advance(backoffMs(MAX_FAILURES));
     await restarted.courier.tick();
@@ -178,7 +178,7 @@ describe("queued deliveries are confirmed, not assumed", () => {
     w.mailbox.claim(request.id);
     w.mailbox.setTarget(request.id, "thr_lead1");
     w.threads.delete("thr_lead1");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
     w.faults.leadState = 1;
     clock.advance(LEASE_MS + 1);
@@ -201,7 +201,7 @@ describe("queued deliveries are confirmed, not assumed", () => {
     await w.courier.deliver(request.id);
     w.threads.delete("thr_lead1");
     w.queues.delete("thr_lead1");
-    w.leads.set(pixel.projectId, "thr_lead2");
+    w.leads.set(abc.projectId, "thr_lead2");
     w.threads.set("thr_lead2", "ok");
     clock.advance(CHECK_EVERY_MS);
     await w.courier.tick();
@@ -222,13 +222,13 @@ describe("queued deliveries are confirmed, not assumed", () => {
     expect(w.mailbox.getRequest(request.id)!.state).toBe("failed");
     const report = w.mailbox.listReplies({}).find((reply) => reply.kind === "failure")!;
     expect(report.inReplyTo).toBe(request.id);
-    expect(report.text).toContain(`bb projects retry PIXEL ${request.id}`);
+    expect(report.text).toContain(`bb projects retry ABC ${request.id}`);
     clock.advance(24 * 60 * 60_000);
     await w.courier.tick();
     expect(w.sent).toHaveLength(1);
 
     w.busy.delete("thr_lead1");
-    const retried = await w.courier.retry(pixel.projectId, request.id);
+    const retried = await w.courier.retry(abc.projectId, request.id);
     expect(retried.outcome).toBe("requeued");
     expect(retried.request).toMatchObject({ state: "delivered", delivery: "sent" });
     expect(w.queues.get("thr_lead1")).toEqual([]);
@@ -264,7 +264,7 @@ describe("queued deliveries are confirmed, not assumed", () => {
     crashedDb.close();
 
     const restarted = world(openDb(path), clock);
-    restarted.queues.set("thr_lead1", [{ id: "qm_9", text: `[Outer loop · grok-bot] PIXEL\nRequest ${request.id} from grok-bot.`, state: "queued" }]);
+    restarted.queues.set("thr_lead1", [{ id: "qm_9", text: `[Outer loop · grok-bot] ABC\nRequest ${request.id} from grok-bot.`, state: "queued" }]);
     clock.advance(5 * 60_000 + 1);
     await restarted.courier.tick();
     expect(restarted.sent).toHaveLength(0);
@@ -278,7 +278,7 @@ describe("queued deliveries are confirmed, not assumed", () => {
     const { request } = w.mailbox.enqueue(ask("captured shape"));
     w.mailbox.claim(request.id);
     w.mailbox.setTarget(request.id, "thr_lead1");
-    w.landedIn("thr_lead1", `[Outer loop · grok-bot] PIXEL\nRequest ${request.id} from grok-bot.`);
+    w.landedIn("thr_lead1", `[Outer loop · grok-bot] ABC\nRequest ${request.id} from grok-bot.`);
     clock.advance(5 * 60_000 + 1);
     await w.courier.tick();
     expect(w.mailbox.getRequest(request.id)).toMatchObject({ state: "delivered", delivery: "recovered" });
@@ -303,7 +303,7 @@ describe("bounded failure", () => {
     expect(w.mailbox.getRequest(request.id)!.attempts).toBe(attempts);
     const reports = w.mailbox.listReplies({}).filter((reply) => reply.kind === "failure");
     expect(reports).toHaveLength(1);
-    expect(reports[0]!.text).toContain("did not reach the PIXEL lead");
+    expect(reports[0]!.text).toContain("did not reach the ABC lead");
   });
 
   it("the failure report survives a failing webhook and a restart, and stays until acknowledged", async () => {
@@ -355,17 +355,17 @@ describe("bounded failure", () => {
     db.close();
 
     const after = world(openDb(path), clock);
-    expect((await after.courier.retry(pixel.projectId, request.id)).request).toMatchObject({ state: "delivered", generation: 1 });
+    expect((await after.courier.retry(abc.projectId, request.id)).request).toMatchObject({ state: "delivered", generation: 1 });
     expect(after.sent).toHaveLength(1);
     expect(after.sent[0]!.text).toContain("Redelivery");
-    expect((await after.courier.retry(pixel.projectId, request.id)).outcome).toBe("not-retryable");
+    expect((await after.courier.retry(abc.projectId, request.id)).outcome).toBe("not-retryable");
     expect((await after.courier.retry("proj_other", request.id)).outcome).toBe("unknown");
 
     const second = after.mailbox.enqueue(ask("fails twice")).request;
     after.faults.send = 1_000;
     await after.courier.deliver(second.id);
     await failUntilTerminal(after, clock, second.id);
-    await after.courier.retry(pixel.projectId, second.id);
+    await after.courier.retry(abc.projectId, second.id);
     await failUntilTerminal(after, clock, second.id);
     expect(after.mailbox.listReplies({}).filter((reply) => reply.kind === "failure" && reply.inReplyTo === second.id)).toHaveLength(2);
   });
@@ -415,12 +415,12 @@ describe("dedupe and retention", () => {
     const w = world(openDb(), clock);
     const done = w.mailbox.enqueue(ask("done")).request;
     await w.courier.deliver(done.id);
-    const ackedReply = w.mailbox.addReply({ ...pixel, leadThreadId: "thr_lead1", inReplyTo: done.id, kind: "result", author: "thr_lead1", text: "ok", key: null }).reply;
-    w.mailbox.ack(pixel.projectId, "grok-bot", [ackedReply.id]);
+    const ackedReply = w.mailbox.addReply({ ...abc, leadThreadId: "thr_lead1", inReplyTo: done.id, kind: "result", author: "thr_lead1", text: "ok", key: null }).reply;
+    w.mailbox.ack(abc.projectId, "grok-bot", [ackedReply.id]);
     const owed = w.mailbox.enqueue(ask("owed")).request;
     await w.courier.deliver(owed.id);
-    const unacked = w.mailbox.addReply({ ...pixel, leadThreadId: "thr_lead1", inReplyTo: owed.id, kind: "question", author: "thr_lead1", text: "which?", key: null }).reply;
-    w.leads.set(pixel.projectId, null);
+    const unacked = w.mailbox.addReply({ ...abc, leadThreadId: "thr_lead1", inReplyTo: owed.id, kind: "question", author: "thr_lead1", text: "which?", key: null }).reply;
+    w.leads.set(abc.projectId, null);
     const waiting = w.mailbox.enqueue(ask("still waiting")).request;
     await w.courier.deliver(waiting.id);
 
@@ -438,29 +438,29 @@ describe("several agent systems", () => {
   it("a failure report goes to the agent that sent the request, and wake-ups count each agent's backlog", async () => {
     const clock = new Clock();
     const w = world(openDb(), clock);
-    w.mailbox.touchConsumer(pixel.projectId, "dots");
+    w.mailbox.touchConsumer(abc.projectId, "dots");
     w.faults.send = 1_000;
     const mine = w.mailbox.enqueue({ ...ask("dots asks"), source: "dots" }).request;
     await w.courier.deliver(mine.id);
     await failUntilTerminal(w, clock, mine.id);
     expect(w.mailbox.listReplies({ consumer: "dots" }).map((reply) => reply.kind)).toEqual(["failure"]);
     expect(w.mailbox.listReplies({ consumer: "grok-bot" })).toEqual([]);
-    w.mailbox.addReply({ ...pixel, leadThreadId: "thr_lead1", inReplyTo: null, kind: "update", author: "thr_lead1", text: "news", key: null });
+    w.mailbox.addReply({ ...abc, leadThreadId: "thr_lead1", inReplyTo: null, kind: "update", author: "thr_lead1", text: "news", key: null });
     w.wakes.length = 0;
     w.mailbox.wantWake();
     await w.courier.tick();
-    expect(w.wakes.at(-1)).toMatchObject({ pending: 3, projects: { PIXEL: 3 }, consumers: { dots: { PIXEL: 2 }, "grok-bot": { PIXEL: 1 } } });
+    expect(w.wakes.at(-1)).toMatchObject({ pending: 3, projects: { ABC: 3 }, consumers: { dots: { ABC: 2 }, "grok-bot": { ABC: 1 } } });
   });
 
   it("keeps project news until every agent following it has acknowledged it", async () => {
     const clock = new Clock();
     const w = world(openDb(), clock);
-    w.mailbox.touchConsumer(pixel.projectId, "dots");
-    const news = w.mailbox.addReply({ ...pixel, leadThreadId: "thr_lead1", inReplyTo: null, kind: "update", author: "thr_lead1", text: "news", key: null }).reply;
-    w.mailbox.ack(pixel.projectId, "grok-bot", [news.id]);
+    w.mailbox.touchConsumer(abc.projectId, "dots");
+    const news = w.mailbox.addReply({ ...abc, leadThreadId: "thr_lead1", inReplyTo: null, kind: "update", author: "thr_lead1", text: "news", key: null }).reply;
+    w.mailbox.ack(abc.projectId, "grok-bot", [news.id]);
     clock.advance(RETENTION_MS + 1);
     expect(w.mailbox.prune().replies).toBe(0);
-    w.mailbox.ack(pixel.projectId, "dots", [news.id]);
+    w.mailbox.ack(abc.projectId, "dots", [news.id]);
     expect(w.mailbox.prune().replies).toBe(0);
     clock.advance(RETENTION_MS + 1);
     expect(w.mailbox.prune().replies).toBe(1);
@@ -477,7 +477,7 @@ describe("upgrade from the first schema", () => {
     const old = new Database(path);
     migrate(old as never, MIGRATIONS.slice(0, 1));
     old
-      .prepare("INSERT INTO requests (id, project_id, prefix, source, text, ref, idem_key, content_hash, created_at, state, next_attempt_at, delivered_at, delivery, target_thread_id) VALUES ('req_aaaaaaaaaaaaaaaaaaaa', 'proj_pixel', 'PIXEL', 'grok-bot', 'old', NULL, 'k', 'h', 1, 'delivered', 1, 5, 'queued', 'thr_lead1')")
+      .prepare("INSERT INTO requests (id, project_id, prefix, source, text, ref, idem_key, content_hash, created_at, state, next_attempt_at, delivered_at, delivery, target_thread_id) VALUES ('req_aaaaaaaaaaaaaaaaaaaa', 'proj_abc', 'ABC', 'grok-bot', 'old', NULL, 'k', 'h', 1, 'delivered', 1, 5, 'queued', 'thr_lead1')")
       .run();
     old.close();
     const clock = new Clock();
@@ -498,10 +498,10 @@ describe("upgrade to per-agent replies", () => {
     const path = tempDbPath();
     const old = new Database(path);
     migrate(old as never, MIGRATIONS.slice(0, 2));
-    const insertRequest = old.prepare("INSERT INTO requests (id, project_id, prefix, source, text, ref, idem_key, content_hash, created_at, state, next_attempt_at) VALUES (?, 'proj_pixel', 'PIXEL', ?, 'x', NULL, NULL, ?, 1, 'delivered', 1)");
+    const insertRequest = old.prepare("INSERT INTO requests (id, project_id, prefix, source, text, ref, idem_key, content_hash, created_at, state, next_attempt_at) VALUES (?, 'proj_abc', 'ABC', ?, 'x', NULL, NULL, ?, 1, 'delivered', 1)");
     insertRequest.run("req_g", "grok-bot", "h1");
     insertRequest.run("req_d", "dots", "h2");
-    const insertReply = old.prepare("INSERT INTO replies (id, project_id, prefix, lead_thread_id, in_reply_to, kind, author, text, idem_key, created_at, acked_at) VALUES (?, 'proj_pixel', 'PIXEL', 'thr_lead1', ?, 'result', 'thr_lead1', 't', ?, 2, ?)");
+    const insertReply = old.prepare("INSERT INTO replies (id, project_id, prefix, lead_thread_id, in_reply_to, kind, author, text, idem_key, created_at, acked_at) VALUES (?, 'proj_abc', 'ABC', 'thr_lead1', ?, 'result', 'thr_lead1', 't', ?, 2, ?)");
     insertReply.run("rep_g", "req_g", "k1", null);
     insertReply.run("rep_d", "req_d", "k2", 3);
     insertReply.run("rep_news", null, "k3", 4);

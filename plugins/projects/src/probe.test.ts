@@ -7,7 +7,7 @@ import { requestPrompt } from "./courier";
 const SERVER_TOKEN_PATTERN = /[\p{L}\p{N}]+/gu;
 const SERVER_LIMIT_MAX = 50;
 const id = "req_0123456789abcdef0123";
-const relay = requestPrompt({ id, prefix: "PIXEL", source: "grok-bot", text: "Login 500s", ref: null }, false);
+const relay = requestPrompt({ id, prefix: "ABC", source: "grok-bot", text: "Login 500s", ref: null }, false);
 
 function api(opts: { queue?: unknown; search?: unknown; events?: Record<number, unknown> }): ProbeApi & { asked: string[] } {
   const asked: string[] = [];
@@ -30,7 +30,7 @@ describe("thread search contract", () => {
 
   it("accepts the response exactly as the installed BB returned it (captured read-only, content replaced)", () => {
     expect(readSearch("thr_lead1", capturedSearch("thr_lead1", "…replied to 0123456789abcdef0123 with the result"))).toEqual([]);
-    expect(readSearch("thr_lead1", capturedSearch("thr_lead1", "[Outer loop · grok-bot] PIXEL Request …", "user_message", 8831))).toEqual([8831]);
+    expect(readSearch("thr_lead1", capturedSearch("thr_lead1", "[Outer loop · grok-bot] ABC Request …", "user_message", 8831))).toEqual([8831]);
   });
 
   it("fails loudly on a changed response shape instead of guessing", () => {
@@ -64,7 +64,7 @@ describe("only the relay message itself counts as delivered", () => {
     expect(await sight(api({ search: typedSearch([{ threadId: "thr_lead1", text: `answered ${id}`, kind: "assistant_message", seq: 7 }]) }), "thr_lead1", id)).toEqual({ kind: "absent" });
     expect(await sight(api({ search: hit(7), events: { 7: typedRelayEvent("thr_lead1", 7, relay, "thr_worker") } }), "thr_lead1", id)).toEqual({ kind: "absent" });
     expect(await sight(api({ search: hit(7), events: { 7: typedRelayEvent("thr_lead1", 7, `Can you check ${id}? It says Request ${id} from grok-bot.`) } }), "thr_lead1", id)).toEqual({ kind: "absent" });
-    const other = requestPrompt({ id: "req_ffffffffffffffffffff", prefix: "PIXEL", source: "grok-bot", text: `see also ${id}`, ref: null }, false);
+    const other = requestPrompt({ id: "req_ffffffffffffffffffff", prefix: "ABC", source: "grok-bot", text: `see also ${id}`, ref: null }, false);
     expect(await sight(api({ search: hit(7), events: { 7: typedRelayEvent("thr_lead1", 7, other) } }), "thr_lead1", id)).toEqual({ kind: "absent" });
     expect(await sight(api({ search: hit(7), events: { 8: typedRelayEvent("thr_lead1", 8, relay) } }), "thr_lead1", id)).toEqual({ kind: "absent" });
   });
