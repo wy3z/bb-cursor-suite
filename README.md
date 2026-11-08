@@ -65,9 +65,12 @@ Before it changes anything, the script runs `npm run versions` with the new vers
 - Agent Pills, Files, Projects or Pull Requests would drop below 1.0.0.
 - Cursor Sidebar or UI Tweaks would leave its legacy stream (`^0.3.2`, `^0.30.0`). Ending a stream on purpose means removing it from `legacyStreams` in `scripts/versions.mjs`.
 - The range in `marketplace/marketplace.json` would never offer the new version, or the install lines above disagree with it.
-- A plugin's `@wy3z/bb-suite` range no longer matches `packages/suite-shared`, or `package-lock.json` has a stale version.
+- A plugin depends on `@wy3z/bb-suite` with anything but `file:../../packages/suite-shared`, or lists it as a peer, optional or bundled dependency. Any of those would send BB's install to the public npm registry.
+- `package-lock.json` has a stale version.
 
-`npm run install-check -- <plugin-id>` builds the layout the release would tag, installs it the way BB does (BB's bundled npm with `--omit=dev --ignore-scripts`, then `bb plugin build`) and checks the bundles exist. Add `--legacy` for the root-level stream, or `--ref <tag>` to check a published tag. CI runs it for every plugin on each pull request and for the tagged plugin on each `<id>/vX.Y.Z` push.
+It also refuses a downgrade, and any version at or below one already tagged on origin (or on the legacy stream's remote). It then runs the install check below on the exact tree it is about to tag, for the legacy layout too, and only tags if that passes. If it fails, the script drops the version bump commit it made.
+
+`npm run install-check -- <plugin-id>` builds the layout the release would tag, installs it the way BB does (BB's bundled npm with `--prefix`, `--omit=dev` and `--ignore-scripts`, then `bb plugin build`). It checks that `@wy3z/bb-suite` resolved to the vendored copy and that each `dist/*.meta.json` carries the right plugin id and version. Add `--legacy` for the root-level stream, or `--ref <tag>` to check a published tag. CI runs it for every plugin on each pull request and for the tagged plugin on each `<id>/vX.Y.Z` push.
 
 ## Licence
 
