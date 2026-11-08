@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  GIT_SAFETY_ARGS,
   gitDriverOverrides,
+  gitNowhere,
+  gitSafetyArgs,
   resolveTrustedGit,
   safeGitArgs,
   scrubbedGitEnv,
@@ -16,6 +17,8 @@ describe("git spawn environment", () => {
         GIT_WORK_TREE: "/tmp/outside",
         GIT_COMMON_DIR: "/tmp/outside/.git",
         HOME: "/home/test",
+        XDG_CONFIG_HOME: "/home/test/.config",
+        LANG: "C.UTF-8",
         PATH: "/tmp/outside:/usr/bin",
       },
       "linux",
@@ -31,7 +34,9 @@ describe("git spawn environment", () => {
     expect(env.GIT_NO_LAZY_FETCH).toBe("1");
     expect(env.GIT_ALLOW_PROTOCOL).toBe("none");
     expect(env.PATH).toBe(TRUSTED_GIT_PATH);
-    expect(env.HOME).toBe("/home/test");
+    expect(env.HOME).toBe("/dev/null");
+    expect(env.XDG_CONFIG_HOME).toBe("/dev/null");
+    expect(env.LANG).toBe("C.UTF-8");
     if (process.platform !== "win32")
       expect(resolveTrustedGit().startsWith("/")).toBe(true);
   });
@@ -41,6 +46,8 @@ describe("git spawn environment", () => {
         Git_Dir: "C:\\outside\\.git",
         git_work_tree: "C:\\outside",
         Path: "C:\\outside;C:\\Windows\\System32",
+        Home: "D:\\repo-drive",
+        xdg_config_home: "D:\\repo-drive\\.config",
         SystemRoot: "C:\\Windows",
         USERPROFILE: "C:\\Users\\test",
       },
@@ -55,6 +62,17 @@ describe("git spawn environment", () => {
     expect(env.git_work_tree).toBeUndefined();
     expect(env.GIT_CONFIG_GLOBAL).toBe("/dev/null");
     expect(env.USERPROFILE).toBe("C:\\Users\\test");
+    expect(env.Home).toBeUndefined();
+    expect(env.xdg_config_home).toBeUndefined();
+    expect(env.HOME).toBe("C:\\Windows\\System32\\cmd.exe\\nonexistent");
+    expect(env.XDG_CONFIG_HOME).toBe(env.HOME);
+    const pinned = scrubbedGitEnv(
+      { SystemRoot: "C:\\Windows" },
+      "win32",
+      "C:\\Program Files\\Git\\cmd\\git.exe",
+    );
+    expect(pinned.HOME).toBe("C:\\Program Files\\Git\\cmd\\git.exe\\nonexistent");
+    expect(pinned.PATH?.startsWith("C:\\Program Files\\Git\\cmd;")).toBe(true);
   });
   it("only trusts Git for Windows from install locations", () => {
     expect(
@@ -73,15 +91,31 @@ describe("git spawn environment", () => {
     expect(windowsGitCandidates({ ProgramFiles: "relative\\dir" })).toEqual([]);
   });
   it("puts the safety options before every Git command", () => {
-    expect(safeGitArgs(["rev-parse", "--show-prefix"])).toEqual([
-      ...GIT_SAFETY_ARGS,
+    const git = "/usr/bin/git";
+    expect(safeGitArgs(["rev-parse", "--show-prefix"], git, "linux")).toEqual([
+      ...gitSafetyArgs(git, "linux"),
       "rev-parse",
       "--show-prefix",
     ]);
-    expect(GIT_SAFETY_ARGS.slice(0, 2)).toEqual(["--no-optional-locks", "--no-pager"]);
-    expect(GIT_SAFETY_ARGS).toContain("core.fsmonitor=");
+    expect(gitSafetyArgs(git, "linux").slice(0, 2)).toEqual([
+      "--no-optional-locks",
+      "--no-pager",
+    ]);
+    expect(gitSafetyArgs(git, "linux")).toContain("core.fsmonitor=");
+    expect(gitSafetyArgs(git, "linux")).toContain("core.hooksPath=/dev/null");
   });
-  it("switches off every filter, diff and merge driver the repository defines", () => {
+  it("points Windows hooks and home under the git.exe file, not a drive-relative path", () => {
+    const git = "C:\\Program Files\\Git\\cmd\\git.exe";
+    expect(gitNowhere(git, "win32")).toBe(`${git}\\nonexistent`);
+    expect(gitSafetyArgs(git, "win32")).toContain(
+      `core.hooksPath=${git}\\nonexistent`,
+    );
+    expect(gitNowhere(null, "win32", { SystemRoot: "D:\\Win" })).toBe(
+      "D:\\Win\\System32\\cmd.exe\\nonexistent",
+    );
+    expect(gitNowhere(null, "darwin")).toBe("/dev/null");
+  });
+  it("switches off every filter, diff, merge and hook the repository defines", () => {
     const output = [
       "filter.lfs.clean",
       "filter.lfs.process",
@@ -90,10 +124,13 @@ describe("git spawn environment", () => {
       "diff.external",
       "diff.renames",
       "merge.ours.driver",
+      "hook.lint.command",
+      "hook.lint.event",
+      "hook.post-index-change.enabled",
       "core.fsmonitor",
       "",
     ].join("\0");
-    expect(gitDriverOverrides(output)).toEqual([
+    expect(gitDriverOverrides(Buffer.from(output))).toEqual([
       "-c",
       "diff.evil.textconv=",
       "-c",
@@ -115,15 +152,33 @@ describe("git spawn environment", () => {
       "-c",
       "filter.lfs.required=false",
       "-c",
+      "hook.lint.enabled=false",
+      "-c",
+      "hook.post-index-change.enabled=false",
+      "-c",
       "merge.ours.driver=",
     ]);
-    expect(gitDriverOverrides("")).toEqual([]);
+    expect(gitDriverOverrides(Buffer.from("filter.caf\u00e9.clean\0"))).toEqual([
+      "-c",
+      "filter.caf\u00e9.clean=",
+      "-c",
+      "filter.caf\u00e9.smudge=",
+      "-c",
+      "filter.caf\u00e9.process=",
+      "-c",
+      "filter.caf\u00e9.required=false",
+    ]);
+    expect(gitDriverOverrides(Buffer.alloc(0))).toEqual([]);
   });
   it("refuses driver names a -c override can't express", () => {
-    expect(gitDriverOverrides("filter.a=b.clean\0")).toBeNull();
-    expect(gitDriverOverrides("filter.a\nb.clean\0")).toBeNull();
+    const refuse = (bytes: Buffer) => expect(gitDriverOverrides(bytes)).toBeNull();
+    refuse(Buffer.from("filter.a=b.clean\0"));
+    refuse(Buffer.from("filter.a\nb.clean\0"));
+    refuse(Buffer.concat([Buffer.from("filter."), Buffer.from([0xff]), Buffer.from(".clean\0")]));
+    refuse(Buffer.concat([Buffer.from("filter."), Buffer.from([0xc0, 0xae]), Buffer.from(".clean\0")]));
+    refuse(Buffer.concat([Buffer.from("hook."), Buffer.from([0xed, 0xa0, 0x80]), Buffer.from(".command\0")]));
     const many = Array.from({ length: 65 }, (_, index) => `filter.d${index}.clean`);
-    expect(gitDriverOverrides(many.join("\0"))).toBeNull();
-    expect(gitDriverOverrides(`filter.${"x".repeat(5000)}.clean\0`)).toBeNull();
+    refuse(Buffer.from(many.join("\0")));
+    refuse(Buffer.from(`filter.${"x".repeat(5000)}.clean\0`));
   });
 });

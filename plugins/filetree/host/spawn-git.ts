@@ -17,10 +17,11 @@ export async function spawnGitAtPath(
   options: SpawnGitOptions,
 ): Promise<SpawnGitResult> {
   return await new Promise<SpawnGitResult>((resolve, reject) => {
-    const child = spawn(resolveTrustedGit(), safeGitArgs(args), {
+    const git = resolveTrustedGit();
+    const child = spawn(git, safeGitArgs(args, git), {
       cwd,
       detached: true,
-      env: scrubbedGitEnv(),
+      env: scrubbedGitEnv(process.env, process.platform, git),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });

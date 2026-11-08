@@ -277,13 +277,14 @@ export function createNativeOpenatPrimitive(
       }
     },
     async gitStatusAt(dirfd, args, options) {
+      const git = resolveTrustedGit();
       const started = addon.gitStatusAt(
         dirfd,
-        resolveTrustedGit(),
-        safeGitArgs(args),
+        git,
+        safeGitArgs(args, git, platform),
         options.timeoutMs,
         options.maxBytes,
-        scrubbedGitEnvPairs(),
+        scrubbedGitEnvPairs(process.env, git),
       );
       const onAbort = () => addon.cancelGit(started.id);
       options.signal.addEventListener("abort", onAbort, { once: true });

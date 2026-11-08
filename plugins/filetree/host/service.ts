@@ -533,12 +533,12 @@ export class NativeFileHostService {
           reason: reason || "Git configuration could not be read",
         };
       }
-      const overrides = gitDriverOverrides(drivers.stdout.toString("utf8"));
+      const overrides = gitDriverOverrides(drivers.stdout);
       if (overrides === null)
         return {
           kind: "unavailable",
           reason:
-            "Git status is off for this repository because its Git config defines filter, diff or merge commands Files can't switch off.",
+            "Git status is off for this repository because its Git config defines filter, diff, merge or hook commands Files can't switch off.",
         };
       const result = await binding.primitive.gitStatusAt(
         binding.rootFd,

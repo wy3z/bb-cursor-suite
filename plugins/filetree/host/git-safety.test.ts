@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { constants as fsConstants } from "node:fs";
 import {
   chmod,
   mkdir,
@@ -11,14 +10,20 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   createLinuxProcFdPrimitive,
+  OPEN_DIRECTORY_FLAGS,
   type OpenatPrimitive,
 } from "./confinement.js";
-import { GIT_SAFETY_ENV, resolveTrustedGit } from "./git-env.js";
+import {
+  GIT_DRIVER_QUERY,
+  GIT_SAFETY_ENV,
+  gitDriverOverrides,
+  resolveTrustedGit,
+} from "./git-env.js";
 import { loadNativeFilesAddon, prepareNativeAddon } from "./native-addon.js";
 import { NativeFileHostService } from "./service.js";
 const execFileAsync = promisify(execFile);
@@ -50,6 +55,17 @@ async function plainGit(base: string, cwd: string, args: string[]) {
     ["-c", "user.name=Files", "-c", "user.email=files@example.com", ...args],
     { cwd, env: await plainGitEnv(base) },
   );
+}
+async function plainGitVersion(): Promise<[number, number]> {
+  const { stdout } = await execFileAsync(resolveTrustedGit(), ["--version"]);
+  const match = /(\d+)\.(\d+)/u.exec(stdout);
+  return match ? [Number(match[1]), Number(match[2])] : [0, 0];
+}
+const [gitMajor, gitMinor] = await plainGitVersion();
+const configHooks = gitMajor > 2 || (gitMajor === 2 && gitMinor >= 54);
+async function appendRawConfig(root: string, bytes: Buffer): Promise<void> {
+  const config = join(root, ".git", "config");
+  await writeFile(config, Buffer.concat([await readFile(config), bytes]));
 }
 async function plainStatus(base: string, root: string): Promise<void> {
   await plainGit(base, root, [
@@ -116,7 +132,31 @@ async function hostileHelpersRepo() {
     ["diff.evil.command", writes(base, "diff-command")],
     ["diff.external", writes(base, "diff-external")],
     ["merge.evil.driver", writes(base, "merge-driver")],
+    ["hook.evil.command", writes(base, "config-hook")],
+    ["hook.evil.event", "post-index-change"],
   ]);
+  await staleWorktree(root);
+  return { base, root };
+}
+async function configHookRepo() {
+  const { base, root } = await committedRepo();
+  await configure(base, root, [
+    ["hook.evil.command", writes(base, "config-hook")],
+    ["hook.evil.event", "post-index-change"],
+  ]);
+  await staleWorktree(root);
+  return { base, root };
+}
+async function nonUtf8DriverRepo() {
+  const { base, root } = await committedRepo();
+  await writeFile(
+    join(root, ".gitattributes"),
+    Buffer.from("a.txt filter=\xff\n", "latin1"),
+  );
+  await appendRawConfig(
+    root,
+    Buffer.from(`[filter "\xff"]\n\tclean = "${writes(base, "nonutf8-clean")}; cat"\n`, "latin1"),
+  );
   await staleWorktree(root);
   return { base, root };
 }
@@ -202,7 +242,33 @@ describe.runIf(addon !== null)("Git status in a hostile repository", () => {
     const equals = await unoverridableDriverRepo();
     await plainStatus(equals.base, equals.root);
     expect(await markers(equals.base)).toEqual([`${MARKER_PREFIX}equals-clean`]);
+    const nonUtf8 = await nonUtf8DriverRepo();
+    await plainStatus(nonUtf8.base, nonUtf8.root);
+    expect(await markers(nonUtf8.base)).toEqual([`${MARKER_PREFIX}nonutf8-clean`]);
+    if (configHooks) {
+      const hook = await configHookRepo();
+      await plainStatus(hook.base, hook.root);
+      expect(await markers(hook.base)).toEqual([`${MARKER_PREFIX}config-hook`]);
+    }
   });
+  it.runIf(configHooks)(
+    "switches off repository-defined hooks even when Git writes the index",
+    async () => {
+      const { base, root } = await configHookRepo();
+      const { stdout } = await execFileAsync(
+        resolveTrustedGit(),
+        [...GIT_DRIVER_QUERY],
+        { cwd: root, encoding: "buffer", env: await plainGitEnv(base) },
+      );
+      const overrides = gitDriverOverrides(stdout);
+      expect(overrides).toEqual(["-c", "hook.evil.enabled=false"]);
+      const index = join(root, ".git", "index");
+      const indexBefore = await readFile(index);
+      await plainGit(base, root, [...(overrides ?? []), "status", "--porcelain=v2"]);
+      expect(await readFile(index)).not.toEqual(indexBefore);
+      expect(await markers(base)).toEqual([]);
+    },
+  );
   describe.each(spawnPaths)("through %s", (_label, primitive) => {
     it("runs no repository helper, filter or hook and leaves the index untouched", async () => {
       const { base, root } = await hostileHelpersRepo();
@@ -237,42 +303,62 @@ describe.runIf(addon !== null)("Git status in a hostile repository", () => {
       expect(await markers(base)).toEqual([]);
       expect(result).toMatchObject({ kind: "unavailable" });
     });
+    it("refuses a driver name that isn't valid UTF-8", async () => {
+      const { base, root } = await nonUtf8DriverRepo();
+      const result = await filesStatus(root, primitive());
+      expect(await markers(base)).toEqual([]);
+      expect(result).toMatchObject({ kind: "unavailable" });
+    });
   });
 });
-describe.runIf(addon !== null && process.platform !== "win32")(
-  "native Git environment",
-  () => {
-    it("pins the Git safety variables whatever the caller passes", async () => {
-      if (addon === null) throw new Error("addon missing");
-      const base = await mkdtemp(join(tmpdir(), "files-git-safety-env-"));
-      bases.push(base);
-      const fake = join(base, "fake-git");
-      await writeFile(fake, "#!/bin/sh\nenv\n");
-      await chmod(fake, 0o755);
-      const fd = addon.open(
-        base,
-        fsConstants.O_RDONLY | fsConstants.O_DIRECTORY,
+describe.runIf(addon !== null)("native Git environment", () => {
+  it("pins the Git safety variables and home whatever the caller passes", async () => {
+    if (addon === null) throw new Error("addon missing");
+    const base = await mkdtemp(join(tmpdir(), "files-git-safety-env-"));
+    bases.push(base);
+    const fd = addon.open(
+      process.platform === "win32" ? win32.toNamespacedPath(base) : base,
+      OPEN_DIRECTORY_FLAGS,
+    );
+    try {
+      const inherited = Object.entries(process.env).flatMap(([key, value]) =>
+        value === undefined ? [] : [`${key}=${value}`],
       );
-      try {
-        const started = addon.gitStatusAt(fd, fake, [], 5000, 65536, [
-          "PATH=/usr/bin:/bin",
+      const started = addon.gitStatusAt(
+        fd,
+        process.execPath,
+        ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+        10000,
+        1024 * 1024,
+        [
+          ...inherited,
           "GIT_ALLOW_PROTOCOL=ext:file",
           "GIT_OPTIONAL_LOCKS=1",
           "GIT_NO_LAZY_FETCH=0",
           "GIT_CONFIG_GLOBAL=/tmp/attacker",
-        ]);
-        const result = await started.promise;
-        const lines = result.stdout.toString("utf8").split("\n");
-        for (const [key, value] of Object.entries(GIT_SAFETY_ENV))
-          expect(lines).toContain(`${key}=${value}`);
-        expect(lines.filter((line) => line.startsWith("GIT_")).sort()).toEqual(
-          Object.entries(GIT_SAFETY_ENV)
-            .map(([key, value]) => `${key}=${value}`)
-            .sort(),
-        );
-      } finally {
-        addon.close(fd);
-      }
-    });
-  },
-);
+          "HOME=/tmp/attacker",
+          "XDG_CONFIG_HOME=/tmp/attacker",
+        ],
+      );
+      const result = await started.promise;
+      const seen = JSON.parse(result.stdout.toString("utf8")) as Record<string, string>;
+      const nowhere =
+        process.platform === "win32"
+          ? win32.join(process.execPath, "nonexistent")
+          : "/dev/null";
+      const pinned = Object.entries(seen)
+        .filter(([key]) => /^(GIT_|HOME$|XDG_CONFIG_HOME$)/iu.test(key))
+        .map(([key, value]) => `${key.toUpperCase()}=${value}`)
+        .sort();
+      expect(pinned).toEqual(
+        [
+          ...Object.entries(GIT_SAFETY_ENV).map(([key, value]) => `${key}=${value}`),
+          `HOME=${nowhere}`,
+          `XDG_CONFIG_HOME=${nowhere}`,
+        ].sort(),
+      );
+    } finally {
+      addon.close(fd);
+    }
+  });
+});
