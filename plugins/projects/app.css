@@ -604,7 +604,7 @@ span.bbp-status {
 .bbp-card__tools[data-open] {
   opacity: 1;
 }
-@media (hover: none) {
+@media (pointer: coarse) {
   .bbp-card__tools {
     opacity: 1;
   }

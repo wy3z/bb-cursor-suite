@@ -269,13 +269,22 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
 .bb-pr-tray__row:focus-within .bb-pr-tray__actions ~ .bb-pr-tray__meta {
   opacity: 0;
 }
-@media (hover: none) {
-  .bb-pr-tray__actions {
+@media (pointer: coarse) {
+  .bb-pr-tray__end {
+    display: inline-flex;
+    gap: var(--bbs-gap-xs);
+  }
+  .bb-pr-tray__end > * {
+    grid-area: auto;
+  }
+  .bb-pr-tray__row .bb-pr-tray__actions {
     opacity: 1;
     pointer-events: auto;
   }
-  .bb-pr-tray__actions:not(:empty) ~ .bb-pr-tray__meta {
-    opacity: 0;
+  .bb-pr-tray__row .bb-pr-tray__actions ~ .bb-pr-tray__meta,
+  .bb-pr-tray__row:hover .bb-pr-tray__actions ~ .bb-pr-tray__meta,
+  .bb-pr-tray__row:focus-within .bb-pr-tray__actions ~ .bb-pr-tray__meta {
+    opacity: 1;
   }
 }
 .bb-pr-tray__subheader {

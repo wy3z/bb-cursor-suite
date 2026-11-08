@@ -1418,13 +1418,22 @@ button.bb-agent-pills__tray-row:disabled:hover {
 .bb-agent-pills__tray-row:focus-within .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta {
   opacity: 0;
 }
-@media (hover: none) {
-  .bb-agent-pills__tray-actions {
+@media (pointer: coarse) {
+  .bb-agent-pills__tray-end {
+    display: inline-flex;
+    gap: var(--bbs-gap-xs);
+  }
+  .bb-agent-pills__tray-end > * {
+    grid-area: auto;
+  }
+  .bb-agent-pills__tray-row .bb-agent-pills__tray-actions {
     opacity: 1;
     pointer-events: auto;
   }
-  .bb-agent-pills__tray-actions:not(:empty) ~ .bb-agent-pills__tray-meta {
-    opacity: 0;
+  .bb-agent-pills__tray-row .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta,
+  .bb-agent-pills__tray-row:hover .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta,
+  .bb-agent-pills__tray-row:focus-within .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta {
+    opacity: 1;
   }
 }
 /* Allow / Answer buttons stay visible, inline before the end column. */
@@ -1448,6 +1457,11 @@ button.bb-agent-pills__tray-row:disabled:hover {
   border-color: transparent;
   background: var(--primary);
   color: var(--primary-foreground);
+}
+.bb-agent-pills__tray-button[data-tone="danger"] {
+  border-color: transparent;
+  background: var(--destructive);
+  color: var(--destructive-foreground, white);
 }
 .bb-agent-pills__tray-subheader {
   padding: 8px 8px 4px;
