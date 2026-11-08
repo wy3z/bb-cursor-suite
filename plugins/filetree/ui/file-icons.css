@@ -1,0 +1,108 @@
+.filetree-entry-chevron-slot {
+  display: inline-flex;
+  width: 11px;
+  height: 16px;
+  flex: 0 0 11px;
+  align-items: center;
+  justify-content: center;
+  color: var(
+    --muted-foreground,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 62%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-entry-chevron {
+  width: 11px;
+  height: 11px;
+  transition: transform 90ms ease;
+}
+
+.filetree-entry-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.filetree-entry-icon {
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
+  flex: 0 0 14px;
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+.filetree-git-status-icon {
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
+  flex: 0 0 14px;
+}
+
+.filetree-git-status-icon.is-added {
+  color: var(
+    --success,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 72%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-git-status-icon.is-deleted,
+.filetree-git-status-icon.is-conflicted {
+  color: var(
+    --destructive,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 78%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-git-status-icon.is-renamed {
+  color: var(
+    --warning,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 70%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-git-status-icon.is-modified {
+  color: var(
+    --primary,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 72%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+
+.filetree-symbols-icon {
+  display: block;
+}
