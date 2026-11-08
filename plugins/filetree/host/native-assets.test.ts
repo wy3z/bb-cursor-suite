@@ -4,8 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   attestedCommits,
+  buildInputs,
+  buildInputsAt,
   matchingAttestation,
-  nativeTreeAt,
 } from "../scripts/native-assets.mjs";
 const script = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -51,33 +52,49 @@ describe("native addon provenance", () => {
     ).toEqual([commitA, commitB, commitC]);
     expect(attestedCommits({})).toEqual([]);
   });
-  it("accepts a build only when its source commit has HEAD's host/native tree", () => {
-    const trees: Record<string, string> = {
-      [commitA]: "1".repeat(40),
-      [commitB]: "2".repeat(40),
+  it("accepts a build only when every build input matches HEAD", () => {
+    const inputs = ["workflow", "script", "native", "lock"];
+    const head = ["1", "2", "3", "4"].map((digit) => digit.repeat(40));
+    const trees: Record<string, string[]> = {
+      [commitA]: [head[0], "9".repeat(40), head[2], head[3]] as string[],
+      [commitB]: head,
     };
-    const treeAt = (commit: string) => trees[commit] ?? null;
+    const inputsAt = (commit: string) => trees[commit] ?? null;
     const results = [attestation(commitA), attestation(commitB), attestation(commitC)];
-    expect(matchingAttestation(results, "2".repeat(40), treeAt)).toEqual({
+    expect(matchingAttestation(results, inputs, head, inputsAt)).toEqual({
       commit: commitB,
       commits: [commitA, commitB, commitC],
+      mismatches: [{ commit: commitA, differing: ["script"] }],
     });
-    expect(matchingAttestation(results, "3".repeat(40), treeAt)).toEqual({
+    expect(
+      matchingAttestation([attestation(commitA), attestation(commitC)], inputs, head, inputsAt),
+    ).toEqual({
       commit: null,
-      commits: [commitA, commitB, commitC],
+      commits: [commitA, commitC],
+      mismatches: [
+        { commit: commitA, differing: ["script"] },
+        { commit: commitC, differing: inputs },
+      ],
     });
-    expect(matchingAttestation([], "1".repeat(40), treeAt)).toEqual({
+    expect(matchingAttestation([], inputs, head, inputsAt)).toEqual({
       commit: null,
       commits: [],
+      mismatches: [],
     });
   });
-  it("resolves a local commit's host/native tree without the network", () => {
+  it("names the workflow, script, native source and lockfile as build inputs", () => {
+    expect(buildInputs()).toEqual([
+      ".github/workflows/files-native.yml",
+      "plugins/filetree/scripts/native-assets.mjs",
+      "plugins/filetree/host/native",
+      "package-lock.json",
+    ]);
+  });
+  it("resolves a local commit's build inputs without the network", () => {
     const cwd = join(dirname(script), "..");
-    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
-    const tree = execFileSync("git", ["rev-parse", "HEAD:./host/native"], {
-      cwd,
-      encoding: "utf8",
-    }).trim();
-    expect(nativeTreeAt(head)).toBe(tree);
+    const rev = (value: string) =>
+      execFileSync("git", ["rev-parse", value], { cwd, encoding: "utf8" }).trim();
+    const head = rev("HEAD");
+    expect(buildInputsAt(head)).toEqual(buildInputs().map((input) => rev(`HEAD:${input}`)));
   });
 });

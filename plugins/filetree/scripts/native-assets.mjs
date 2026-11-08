@@ -151,8 +151,22 @@ export function attestedCommits(results) {
   return [...commits];
 }
 
-function nativeTreeFromGitHub(commit) {
+export function buildInputs() {
+  const prefix = git(["rev-parse", "--show-prefix"]);
+  return [
+    ".github/workflows/files-native.yml",
+    `${prefix}scripts/native-assets.mjs`,
+    `${prefix}host/native`,
+    "package-lock.json",
+  ];
+}
+
+function buildInputsFromGitHub(commit, inputs) {
   const [owner, name] = repository.split("/");
+  const variables = inputs.map((_, index) => `$e${index}: String!`).join(", ");
+  const fields = inputs
+    .map((_, index) => `e${index}: object(expression: $e${index}) { oid }`)
+    .join(" ");
   const looked = spawnSync(
     "gh",
     [
@@ -162,37 +176,61 @@ function nativeTreeFromGitHub(commit) {
       `owner=${owner}`,
       "-f",
       `name=${name}`,
+      ...inputs.flatMap((input, index) => ["-f", `e${index}=${commit}:${input}`]),
       "-f",
-      `expression=${commit}:${git(["rev-parse", "--show-prefix"])}host/native`,
-      "-f",
-      "query=query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { oid } } }",
-      "--jq",
-      ".data.repository.object.oid // empty",
+      `query=query($owner: String!, $name: String!, ${variables}) { repository(owner: $owner, name: $name) { ${fields} } }`,
     ],
     { encoding: "utf8" },
   );
-  const oid = looked.status === 0 ? looked.stdout.trim() : "";
-  return commitPattern.test(oid) ? oid : null;
-}
-
-export function nativeTreeAt(commit) {
+  if (looked.status !== 0) return null;
+  let found;
   try {
-    return git(["rev-parse", "--verify", "--quiet", `${commit}:./host/native`]);
+    found = JSON.parse(looked.stdout)?.data?.repository;
   } catch {
-    return nativeTreeFromGitHub(commit);
+    return null;
+  }
+  const oids = inputs.map((_, index) => found?.[`e${index}`]?.oid);
+  return oids.every((oid) => typeof oid === "string" && commitPattern.test(oid))
+    ? oids
+    : null;
+}
+
+export function buildInputsAt(commit, inputs = buildInputs()) {
+  try {
+    git(["cat-file", "-e", `${commit}^{commit}`]);
+  } catch {
+    return buildInputsFromGitHub(commit, inputs);
+  }
+  try {
+    return inputs.map((input) =>
+      git(["rev-parse", "--verify", "--quiet", `${commit}:${input}`]),
+    );
+  } catch {
+    return null;
   }
 }
 
-export function matchingAttestation(results, headTree, treeAt = nativeTreeAt) {
+export function differingInputs(inputs, head, attested) {
+  if (attested === null) return inputs;
+  return inputs.filter((_, index) => attested[index] !== head[index]);
+}
+
+export function matchingAttestation(results, inputs, head, inputsAt = buildInputsAt) {
   const commits = attestedCommits(results);
+  const mismatches = [];
   for (const commit of commits) {
-    if (treeAt(commit) === headTree) return { commit, commits };
+    const differing = differingInputs(inputs, head, inputsAt(commit, inputs));
+    if (differing.length === 0) return { commit, commits, mismatches };
+    mismatches.push({ commit, differing });
   }
-  return { commit: null, commits };
+  return { commit: null, commits, mismatches };
 }
 
 async function verifyCommitted(source) {
-  const headTree = git(["rev-parse", "--verify", "HEAD:./host/native"]);
+  const inputs = buildInputs();
+  const head = buildInputsAt("HEAD", inputs);
+  if (head === null)
+    throw new Error(`HEAD is missing a native build input: ${inputs.join(", ")}`);
   const committed = await readCommitted();
   const prebuilt = await readPrebuilds();
   const scratch = await mkdtemp(join(tmpdir(), "files-native-verify-"));
@@ -242,17 +280,21 @@ async function verifyCommitted(source) {
         failures.push(`${platform}: gh attestation verify returned unreadable JSON`);
         continue;
       }
-      const { commit, commits } = matchingAttestation(results, headTree);
+      const { commit, commits, mismatches } = matchingAttestation(
+        results,
+        inputs,
+        head,
+      );
       if (commit === null) {
         failures.push(
           commits.length === 0
             ? `${platform}: ${asset.sha256} has no attestation naming its source commit`
-            : `${platform}: ${asset.sha256} is only attested from ${commits.map((value) => value.slice(0, 12)).join(", ")}, and none has HEAD's host/native tree ${headTree.slice(0, 12)}`,
+            : `${platform}: ${asset.sha256} is only attested from commits whose build inputs differ from HEAD's: ${mismatches.map(({ commit: value, differing }) => `${value.slice(0, 12)} (${differing.join(", ")})`).join("; ")}`,
         );
         continue;
       }
       console.log(
-        `${platform}: ${asset.sha256} attested by files-native.yml at ${commit.slice(0, 12)}, whose host/native tree matches HEAD`,
+        `${platform}: ${asset.sha256} attested by files-native.yml at ${commit.slice(0, 12)}, whose build inputs match HEAD`,
       );
       if (
         reproduciblePlatforms.includes(platform) &&
