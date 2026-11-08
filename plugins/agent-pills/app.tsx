@@ -5,7 +5,6 @@
 import "@wy3z/bb-suite/tokens.css";
 import "@wy3z/bb-suite/settings.css";
 import "./app.css";
-import { useEffect, useState } from "react";
 import {
   definePluginApp,
   experimental_THREAD_CONTEXT_SEGMENT_GROUPS,
@@ -16,18 +15,14 @@ import { ChangesPill, useChanges } from "./src/ChangesPill";
 import { useActivity } from "./src/pill-data";
 import { CompactPill, useCompactToggleVisible } from "./src/CompactPill";
 import {
-  applyComposerRestyle,
-  readComposerRestyle,
-  writeComposerRestyle,
+  applyPillsEnabled,
+  onPillsEnabledChange,
+  readPillsEnabled,
+  usePillsEnabled,
+  writePillsEnabled,
 } from "./src/preferences";
-import {
-  COMPOSER_PREFERENCE_EVENT,
-  COMPOSER_PREFERENCE_KEY,
-} from "./src/channels";
-import {
-  startComposerLayout,
-  syncComposerLayout,
-} from "./src/composer-layout";
+import { COMPOSER_ATTRIBUTE } from "./src/channels";
+import { startComposerLayout } from "./src/composer-layout";
 
 /** The segment exists only while it has at least one pill to draw. */
 function usePillsVisible({
@@ -37,8 +32,9 @@ function usePillsVisible({
   projectId: string;
   environment: { id: string } | null;
 }): boolean {
+  const enabled = usePillsEnabled();
   const { activity } = useActivity(threadId);
-  return (
+  return enabled && (
     activity.subagents.length > 0 ||
     activity.background.length > 0 ||
     activity.workflows.length > 0 ||
@@ -53,36 +49,16 @@ function usePillsVisible({
   );
 }
 
-function ComposerSettings() {
-  const [enabled, setEnabled] = useState(readComposerRestyle);
-
-  useEffect(() => {
-    const onChange = (event: Event) => {
-      setEnabled((event as CustomEvent<boolean>).detail);
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === COMPOSER_PREFERENCE_KEY || event.key === null) {
-        setEnabled(readComposerRestyle());
-      }
-    };
-    window.addEventListener(COMPOSER_PREFERENCE_EVENT, onChange);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(COMPOSER_PREFERENCE_EVENT, onChange);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+function PillsSettings() {
+  const enabled = usePillsEnabled();
 
   return (
     <SettingsCard>
       <SettingsToggleRow
-        label="Cursor-style composer"
-        description={`Rounds the prompt box, puts the run controls on one row and makes Send a round arrow. On by default. ${DEVICE_ONLY}`}
+        label="Agent pills"
+        description={`Pills above the composer for child threads, background tasks, to-dos, the queue and changed files, in place of BB's full-width cards. Off brings BB's cards back; the composer stays. On by default. ${DEVICE_ONLY}`}
         checked={enabled}
-        onCheckedChange={(next) => {
-          writeComposerRestyle(next);
-          setEnabled(next);
-        }}
+        onCheckedChange={writePillsEnabled}
       />
     </SettingsCard>
   );
@@ -104,7 +80,10 @@ export default definePluginApp((app) => {
     group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.thread,
     order: 30,
     summary: CompactPill,
-    useVisible: () => useCompactToggleVisible(),
+    useVisible: () => {
+      const enabled = usePillsEnabled();
+      return useCompactToggleVisible() && enabled;
+    },
   });
 
   // Git +/- for the thread's checkout, in BB's git group (after the thread
@@ -115,42 +94,30 @@ export default definePluginApp((app) => {
     group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.git,
     order: 10,
     summary: ChangesPill,
-    useVisible: (input) => useChanges(input) !== null,
+    useVisible: (input) => {
+      const enabled = usePillsEnabled();
+      return useChanges(input) !== null && enabled;
+    },
   });
 
   app.slots.settingsSection({
-    id: "composer",
-    title: "Composer",
-    component: ComposerSettings,
+    id: "pills",
+    title: "Agent pills",
+    component: PillsSettings,
   });
 
   app.contentScripts.register({
     id: "composer-restyle",
     mount: ({ signal }) => {
       const root = document.documentElement;
-      const apply = (on: boolean) => {
-        applyComposerRestyle(on, root);
-        syncComposerLayout(on);
-      };
-      apply(readComposerRestyle());
-
-      const onChange = (event: Event) =>
-        apply((event as CustomEvent<boolean>).detail);
-      const onStorage = (event: StorageEvent) => {
-        if (event.key === COMPOSER_PREFERENCE_KEY || event.key === null) {
-          apply(readComposerRestyle());
-        }
-      };
-
-      window.addEventListener(COMPOSER_PREFERENCE_EVENT, onChange);
-      window.addEventListener("storage", onStorage);
-      const refresh = startComposerLayout(signal);
-      window.addEventListener(COMPOSER_PREFERENCE_EVENT, refresh);
+      root.setAttribute(COMPOSER_ATTRIBUTE, "cursor");
+      applyPillsEnabled(readPillsEnabled(), root);
+      const stopPills = onPillsEnabledChange((on) => applyPillsEnabled(on, root));
+      startComposerLayout(signal);
       signal.addEventListener("abort", () => {
-        window.removeEventListener(COMPOSER_PREFERENCE_EVENT, onChange);
-        window.removeEventListener(COMPOSER_PREFERENCE_EVENT, refresh);
-        window.removeEventListener("storage", onStorage);
-        root.removeAttribute("data-bb-agent-pills-composer");
+        stopPills();
+        root.removeAttribute(COMPOSER_ATTRIBUTE);
+        applyPillsEnabled(false, root);
       });
     },
   });

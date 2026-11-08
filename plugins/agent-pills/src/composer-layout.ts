@@ -5,7 +5,6 @@
  * position is measured from the model button, which is the one anchor whose
  * width changes with the model name.
  */
-import { readComposerRestyle } from "./preferences";
 import { startRelationalMarkers } from "./relational-markers";
 import { startSendContextMenu } from "./send-context-menu";
 
@@ -157,7 +156,7 @@ export function startComposerLayout(signal: AbortSignal): () => void {
     if (frame !== 0) return;
     frame = window.requestAnimationFrame(() => {
       frame = 0;
-      if (!signal.aborted) syncComposerLayout(readComposerRestyle());
+      if (!signal.aborted) syncComposerLayout(true);
     });
   }
 
