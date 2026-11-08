@@ -49,6 +49,7 @@ function Demo({ disabledSecond = false }: { disabledSecond?: boolean }) {
       </button>
       {open ? (
         <div role="menu">
+          <button type="button">Header</button>
           <button type="button" role="menuitem" onClick={() => setOpen(false)}>
             First
           </button>
@@ -58,9 +59,13 @@ function Demo({ disabledSecond = false }: { disabledSecond?: boolean }) {
           <div role="menuitem" aria-disabled="true">
             Note
           </div>
-          <div role="menuitem">Third</div>
+          <div role="menuitem" tabIndex={0}>
+            Third
+            <button type="button">Stop</button>
+          </div>
         </div>
       ) : null}
+      <button type="button">After</button>
     </div>
   );
 }
@@ -84,22 +89,44 @@ describe("menu keyboard", () => {
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     expect(active()).toBe("Second");
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
-    expect(active()).toBe("Third");
+    expect(active()).toBe("ThirdStop");
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
-    expect(active()).toBe("First");
+    expect(active()).toBe("Header");
     fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
-    expect(active()).toBe("Third");
+    expect(active()).toBe("ThirdStop");
     fireEvent.keyDown(menu, { key: "Home" });
-    expect(active()).toBe("First");
+    expect(active()).toBe("Header");
     fireEvent.keyDown(menu, { key: "End" });
-    expect(active()).toBe("Third");
+    expect(active()).toBe("ThirdStop");
   });
 
   it("skips disabled items", () => {
     render(<Demo disabledSecond />);
     openWithKeyboard();
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
-    expect(active()).toBe("Third");
+    expect(active()).toBe("ThirdStop");
+  });
+
+  it("reaches a row's own buttons with ArrowRight and ArrowLeft", () => {
+    render(<Demo />);
+    openWithKeyboard();
+    fireEvent.keyDown(document.activeElement!, { key: "End" });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    expect(active()).toBe("Stop");
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+    expect(active()).toBe("ThirdStop");
+  });
+
+  it("is one tab stop: items leave the tab order, and Tab closes the menu", () => {
+    render(<Demo />);
+    const trigger = openWithKeyboard();
+    const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
+    expect(Array.from(menu.querySelectorAll("button, [tabindex]")).every((element) => element.getAttribute("tabindex") === "-1")).toBe(true);
+    act(() => {
+      fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    });
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("closes on Escape and returns focus to the trigger", () => {
