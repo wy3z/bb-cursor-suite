@@ -15,7 +15,8 @@
     "dist",
     "src",
     "server.ts",
-    "skills"
+    "skills",
+    "vendor"
   ],
   "scripts": {
     "build": "bb plugin build",
@@ -40,7 +41,7 @@
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.4.0",
-    "@wy3z/bb-suite": "file:../../packages/suite-shared",
+    "@wy3z/bb-suite": "file:./vendor/bb-suite",
     "zod": "^4.3.6",
     "@get-bb/plugin-sdk": "0.6.132"
   },
