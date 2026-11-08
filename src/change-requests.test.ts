@@ -454,3 +454,21 @@ test("copy link treats the same nested failure as Pull Requests failing, not mis
   assert.equal(status.kind, "unavailable");
   assert.equal(requestFilterState(status), undefined);
 });
+
+test("copy link's SDK errors carry an HTTP status prefix, and only the queried plugin's own absence falls back to GitHub", async () => {
+  const absent = (error: unknown) => pluginAbsent(error, "pull-requests");
+  assert.equal(absent(rpcError("handler_error", 404, 'HTTP 404: unknown plugin "pull-requests"')), true);
+  assert.equal(absent(rpcError("handler_error", 503, 'HTTP 503: plugin "pull-requests" is not running (status: disabled)')), true);
+  assert.equal(absent(rpcError("unknown_method", 404, 'HTTP 404: plugin "pull-requests" has no rpc method "changeRequests"')), true);
+  assert.equal(absent(rpcError("handler_error", 503, `HTTP 503: ${NESTED_FAILURE}`)), false);
+  assert.equal(absent(rpcError("handler_error", 404, 'HTTP 503: unknown plugin "pull-requests"')), false);
+  assert.equal(absent(rpcError("handler_error", 404, 'HTTP 404: HTTP 404: unknown plugin "pull-requests"')), false);
+  const viaCopyLink = (error: unknown) =>
+    readRequestOnce(async (args) => {
+      if (args.pluginId === "pull-requests") throw error;
+      return { e: { outcome: "absent" } };
+    }, "e", "feature");
+  assert.deepEqual(await viaCopyLink(rpcError("handler_error", 404, 'HTTP 404: unknown plugin "pull-requests"')), { kind: "absent", provider: "github" });
+  assert.deepEqual(await viaCopyLink(rpcError("handler_error", 503, 'HTTP 503: plugin "pull-requests" is not running (status: disabled)')), { kind: "absent", provider: "github" });
+  assert.equal((await viaCopyLink(rpcError("handler_error", 503, `HTTP 503: ${NESTED_FAILURE}`))).kind, "unavailable");
+});

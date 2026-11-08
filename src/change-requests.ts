@@ -263,8 +263,10 @@ export function pluginAbsent(error: unknown, pluginId: string): boolean {
   if (typeof error !== "object" || error === null) return false;
   const code = Reflect.get(error, "code");
   const status = Reflect.get(error, "status");
-  const message = Reflect.get(error, "message");
-  if (typeof status !== "number" || typeof message !== "string") return false;
+  const raw = Reflect.get(error, "message");
+  if (typeof status !== "number" || typeof raw !== "string") return false;
+  const prefix = `HTTP ${status}: `;
+  const message = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
   if (status === 404 && code === "unknown_method") return message.startsWith(`${quoted(pluginId)} has no rpc method "`);
   if (status === 404) return message === `unknown plugin "${pluginId}"`;
   if (status !== 503) return false;
