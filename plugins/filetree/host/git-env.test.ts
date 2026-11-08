@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { GitLookupProbe } from "@wy3z/bb-suite/git";
 import {
   gitDriverOverrides,
   gitNowhere,
@@ -7,8 +8,18 @@ import {
   safeGitArgs,
   scrubbedGitEnv,
   TRUSTED_GIT_PATH,
+  trustedGitDirs,
   windowsGitCandidates,
 } from "./git-env.js";
+function probeWith(dir: string, dirMode = 0o755): GitLookupProbe {
+  return {
+    stat(path) {
+      if (path !== dir && path !== `${dir}/git`) return null;
+      const isDir = path === dir;
+      return { isFile: () => !isDir, isDirectory: () => isDir, mode: isDir ? dirMode : 0o755, uid: 0 };
+    },
+  };
+}
 describe("git spawn environment", () => {
   it("drops inherited GIT_* overrides and pins a trusted PATH", () => {
     const env = scrubbedGitEnv(
@@ -72,7 +83,7 @@ describe("git spawn environment", () => {
       "C:\\Program Files\\Git\\cmd\\git.exe",
     );
     expect(pinned.HOME).toBe("C:\\Program Files\\Git\\cmd\\git.exe\\nonexistent");
-    expect(pinned.PATH?.startsWith("C:\\Program Files\\Git\\cmd;")).toBe(true);
+    expect(pinned.PATH?.split(";")).toContain("C:\\Program Files\\Git\\cmd");
   });
   it("only trusts Git for Windows from install locations", () => {
     expect(
@@ -189,5 +200,37 @@ describe("git spawn environment", () => {
     const many = Array.from({ length: 65 }, (_, index) => `filter.d${index}.clean`);
     refuse(Buffer.from(many.join("\0")));
     refuse(Buffer.from(`filter.${"x".repeat(5000)}.clean\0`));
+  });
+  it("finds git on NixOS, Nix profiles, Guix, Homebrew and Linuxbrew when the system dirs have none", () => {
+    const me = { username: "u", home: "/home/u", uid: 1000 };
+    for (const dir of [
+      "/run/current-system/sw/bin",
+      "/nix/var/nix/profiles/default/bin",
+      "/etc/profiles/per-user/u/bin",
+      "/run/current-system/profile/bin",
+      "/home/linuxbrew/.linuxbrew/bin",
+      "/home/u/.nix-profile/bin",
+      "/home/u/.guix-profile/bin",
+      "/home/u/.linuxbrew/bin",
+    ]) {
+      expect(
+        resolveTrustedGit("/usr/local/bin:/usr/bin:/bin", "linux", {}, me, probeWith(dir)),
+      ).toBe(`${dir}/git`);
+    }
+  });
+  it("never falls back to the server PATH, and names every place it checked", () => {
+    const me = { username: "u", home: "/home/u", uid: 1000 };
+    const fromPath = () =>
+      resolveTrustedGit("/usr/bin", "linux", { PATH: "/opt/tools/bin" }, me, probeWith("/opt/tools/bin"));
+    expect(fromPath).toThrow("git executable was not found. Checked: /usr/bin, /usr/local/bin");
+    expect(fromPath).toThrow("/run/current-system/sw/bin");
+    expect(fromPath).not.toThrow("/opt/tools/bin");
+    expect(trustedGitDirs("/usr/bin", me)).not.toContain("/opt/tools/bin");
+  });
+  it("skips a world-writable git directory", () => {
+    const me = { username: "u", home: "/home/u", uid: 1000 };
+    expect(() =>
+      resolveTrustedGit("/usr/bin", "linux", {}, me, probeWith("/usr/bin", 0o777)),
+    ).toThrow("git executable was not found");
   });
 });

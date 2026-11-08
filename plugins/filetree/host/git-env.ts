@@ -1,9 +1,27 @@
-import { accessSync, constants as fsConstants, statSync } from "node:fs";
-import { join, win32 } from "node:path";
+import { statSync } from "node:fs";
+import { posix, win32 } from "node:path";
+import {
+  currentIdentity,
+  knownGitDirs,
+  trustworthyExecutable,
+  windowsGitCandidates,
+  type GitLookupIdentity,
+  type GitLookupProbe,
+} from "@wy3z/bb-suite/git";
+export { windowsGitCandidates };
 export const TRUSTED_GIT_PATH =
   process.platform === "darwin"
     ? "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
     : "/usr/local/bin:/usr/bin:/bin";
+const fsProbe: GitLookupProbe = {
+  stat(path) {
+    try {
+      return statSync(path);
+    } catch {
+      return null;
+    }
+  },
+};
 function envValue(source: NodeJS.ProcessEnv, name: string): string | undefined {
   const key = Object.keys(source).find(
     (candidate) => candidate.toUpperCase() === name.toUpperCase(),
@@ -14,27 +32,6 @@ function absoluteWindowsDirectory(value: string | undefined): string | null {
   if (value === undefined || !/^[A-Za-z]:[\\/]/u.test(value)) return null;
   return win32.normalize(value);
 }
-export function windowsGitCandidates(
-  source: NodeJS.ProcessEnv = process.env,
-): string[] {
-  const installRoots = [
-    absoluteWindowsDirectory(envValue(source, "ProgramW6432")),
-    absoluteWindowsDirectory(envValue(source, "ProgramFiles")),
-    absoluteWindowsDirectory(envValue(source, "ProgramFiles(x86)")),
-  ];
-  const localAppData = absoluteWindowsDirectory(
-    envValue(source, "LOCALAPPDATA"),
-  );
-  if (localAppData !== null) installRoots.push(win32.join(localAppData, "Programs"));
-  const candidates: string[] = [];
-  for (const root of installRoots) {
-    if (root === null) continue;
-    const candidate = win32.join(root, "Git", "cmd", "git.exe");
-    if (!candidates.some((seen) => seen.toLowerCase() === candidate.toLowerCase()))
-      candidates.push(candidate);
-  }
-  return candidates;
-}
 function windowsTrustedPath(
   git: string | null,
   source: NodeJS.ProcessEnv,
@@ -42,35 +39,59 @@ function windowsTrustedPath(
   const systemRoot =
     absoluteWindowsDirectory(envValue(source, "SystemRoot")) ?? "C:\\Windows";
   const dirs = [win32.join(systemRoot, "System32"), systemRoot];
-  if (git !== null) dirs.unshift(win32.dirname(git));
+  if (git !== null) dirs.push(win32.dirname(git));
   return dirs.join(";");
 }
-function resolveWindowsGit(source: NodeJS.ProcessEnv): string | null {
+function resolveWindowsGit(
+  source: NodeJS.ProcessEnv,
+  probe: GitLookupProbe,
+): string | null {
   for (const candidate of windowsGitCandidates(source)) {
-    try {
-      if (statSync(candidate).isFile()) return candidate;
-    } catch {}
+    if (probe.stat(candidate)?.isFile()) return candidate;
   }
   return null;
+}
+export function trustedGitDirs(
+  pathValue: string = TRUSTED_GIT_PATH,
+  identity: GitLookupIdentity = currentIdentity(),
+): string[] {
+  const dirs = [
+    ...pathValue.split(":").filter((dir) => dir.startsWith("/")),
+    ...knownGitDirs(identity),
+  ];
+  return [...new Set(dirs)];
 }
 export function resolveTrustedGit(
   pathValue: string = TRUSTED_GIT_PATH,
   platform: NodeJS.Platform = process.platform,
+  source: NodeJS.ProcessEnv = process.env,
+  identity: GitLookupIdentity = currentIdentity(),
+  probe: GitLookupProbe = fsProbe,
 ): string {
   if (platform === "win32") {
-    const git = resolveWindowsGit(process.env);
+    const git = resolveWindowsGit(source, probe);
     if (git !== null) return git;
-    throw new Error("git executable was not found in the trusted path");
+    throw new Error(
+      `git executable was not found. Checked: ${windowsGitCandidates(source).join(", ") || "no Git for Windows install folders"}`,
+    );
   }
-  for (const dir of pathValue.split(":")) {
-    if (!dir.startsWith("/")) continue;
-    const candidate = join(dir, "git");
-    try {
-      accessSync(candidate, fsConstants.X_OK);
+  const dirs = trustedGitDirs(pathValue, identity);
+  for (const dir of dirs) {
+    const candidate = posix.join(dir, "git");
+    if (trustworthyExecutable(dir, candidate, identity, probe, false))
       return candidate;
-    } catch {}
   }
-  throw new Error("git executable was not found in the trusted path");
+  throw new Error(`git executable was not found. Checked: ${dirs.join(", ")}`);
+}
+function posixTrustedPath(): string {
+  try {
+    const dir = posix.dirname(resolveTrustedGit(TRUSTED_GIT_PATH, "linux"));
+    return TRUSTED_GIT_PATH.split(":").includes(dir)
+      ? TRUSTED_GIT_PATH
+      : `${TRUSTED_GIT_PATH}:${dir}`;
+  } catch {
+    return TRUSTED_GIT_PATH;
+  }
 }
 export const GIT_SAFETY_ENV: Readonly<Record<string, string>> = {
   GIT_CONFIG_GLOBAL: "/dev/null",
@@ -190,8 +211,8 @@ export function scrubbedGitEnv(
     if (PINNED_ENV_NAMES.has(name)) continue;
     env[key] = value;
   }
-  const git = windows ? (gitPath ?? resolveWindowsGit(source)) : null;
-  env.PATH = windows ? windowsTrustedPath(git, source) : TRUSTED_GIT_PATH;
+  const git = windows ? (gitPath ?? resolveWindowsGit(source, fsProbe)) : null;
+  env.PATH = windows ? windowsTrustedPath(git, source) : posixTrustedPath();
   const nowhere = gitNowhere(git, platform, source);
   env.HOME = nowhere;
   env.XDG_CONFIG_HOME = nowhere;

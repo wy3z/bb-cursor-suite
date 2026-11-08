@@ -85,8 +85,9 @@ describe("inspecting a checkout on the host", () => {
   it("separates a missing path, a plain folder and a missing git", async () => {
     expect(await inspectCheckout(isolatedGit, join(root, "nope"))).toEqual({ ok: false, path: join(root, "nope"), error: "missing" });
     expect(await inspectCheckout(isolatedGit, neutral)).toEqual({ ok: false, path: neutral, error: "notGit" });
-    const noGit: Runner = (command, args, options) => runProcess(command, args, { ...options, env: { ...options.env, PATH: fakeBin } });
+    const noGit: Runner = (_command, args, options) => runProcess(join(root, "missing-bin", "git"), args, options);
     expect(await inspectCheckout(noGit, repo)).toEqual({ ok: false, path: repo, error: "gitMissing" });
+    expect(await runProcess("bb-no-such-tool", [], { cwd: neutral, env: { PATH: `${fakeBin}::.` }, timeoutMs: 1000, maxBytes: 1024 })).toMatchObject({ error: "missing" });
   });
 });
 
@@ -129,6 +130,7 @@ describe("glab on the host", () => {
   });
 
   it("reports a machine without glab as cliMissing", async () => {
-    expect(await glabGet(withFake("ok", neutral).run, "gitlab.com", "projects/77/merge_requests/4", neutral)).toEqual({ ok: false, failure: "cliMissing", status: null });
+    const noGlab: Runner = (_command, args, options) => runProcess(join(root, "missing-bin", "glab"), args, options);
+    expect(await glabGet(noGlab, "gitlab.com", "projects/77/merge_requests/4", neutral)).toEqual({ ok: false, failure: "cliMissing", status: null });
   });
 });

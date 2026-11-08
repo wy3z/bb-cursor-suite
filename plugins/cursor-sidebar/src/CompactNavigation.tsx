@@ -6,6 +6,7 @@ import {
   type ExperimentalSidebarHeaderProps,
 } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
+import { NavigationNotice } from "./NavigationNotice";
 
 /** Same gap BB uses between its own header controls (--bb-chrome-control-gap). */
 const CONTROL_GAP = 4;
@@ -18,7 +19,7 @@ const MENU_ITEM =
 
 /** Compact replaces the navigation list entirely; the header draws its controls. */
 export function CompactNavigation() {
-  return null;
+  return <NavigationNotice layout="Compact" />;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   experimental_Icon as Icon,
   experimental_ThreadStatusGlyph as ThreadStatusGlyph,
@@ -123,6 +123,52 @@ function Leading({ item }: { item: TrayItem }) {
 
 type ApplyState = { kind: "busy" } | { kind: "done"; text: string } | { kind: "error"; text: string };
 
+function hasCoarsePointer(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+}
+
+function StopButton({ thread, onClose }: { thread: SubagentItem; onClose: (item: SubagentItem) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    if (!confirming) return;
+    const timer = setTimeout(() => setConfirming(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirming]);
+  const active = isActive(thread);
+  if (confirming) {
+    return (
+      <button
+        type="button"
+        className="bb-agent-pills__tray-button"
+        data-tone="danger"
+        aria-label={`Confirm stopping ${thread.title}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setConfirming(false);
+          onClose(thread);
+        }}
+      >
+        Stop?
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="bb-agent-pills__tray-icon-button"
+      aria-label={`${active ? "Stop" : "Close"} ${thread.title}`}
+      title={active ? "Stop" : "Close"}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (active && hasCoarsePointer()) setConfirming(true);
+        else onClose(thread);
+      }}
+    >
+      <Icon name="X" />
+    </button>
+  );
+}
+
 export function AgentRow({
   item,
   now,
@@ -223,18 +269,7 @@ export function AgentRow({
                 <Icon name="Download" />
               </button>
             ) : null}
-            <button
-              type="button"
-              className="bb-agent-pills__tray-icon-button"
-              aria-label={`${isActive(thread) ? "Stop" : "Close"} ${thread.title}`}
-              title={isActive(thread) ? "Stop" : "Close"}
-              onClick={(event) => {
-                event.stopPropagation();
-                onClose(thread);
-              }}
-            >
-              <Icon name="X" />
-            </button>
+            <StopButton thread={thread} onClose={onClose} />
           </span>
         ) : null}
         <span className="bb-agent-pills__tray-meta">{formatElapsed(item.startedAt, now)}</span>

@@ -253,9 +253,9 @@ html.dark {
 
 
 [data-cursor-sidebar-root],
-[aria-label="Sidebar navigation"],
-[data-testid="app-sidebar-trigger-overlay"],
-[data-testid="app-sidebar-top-reserve-row"] {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"],
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"],
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] {
   --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
   --bbs-text-secondary: color-mix(in srgb, var(--bbs-text-primary) 74%, transparent);
   --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
@@ -381,7 +381,7 @@ html.dark {
   0%, 100% { opacity: 0.45; transform: scale(0.92); }
   50% { opacity: 1; transform: scale(1.06); }
 }
-.animate-shine-icon {
+:is([data-cursor-sidebar-root], [data-bb-plugin="cursor-sidebar"]) .animate-shine-icon {
   animation: cs-shine-icon 1.6s ease-in-out infinite;
 }
 
@@ -409,18 +409,18 @@ html.dark {
   --cs-nav-shade: 87%;
   --cs-nav-shade-emphasis: 100%;
 }
-[aria-label="Sidebar navigation"] :is(button, a),
-[data-testid="app-sidebar-trigger-overlay"] button,
-[data-testid="app-sidebar-top-reserve-row"] button {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button {
   color: color-mix(in oklab, var(--sidebar-foreground) var(--cs-nav-shade), transparent);
 }
-[aria-label="Sidebar navigation"] :is(button, a):hover,
-[aria-label="Sidebar navigation"] :is(button, a):focus-visible,
-[aria-label="Sidebar navigation"] :is(button, a)[aria-current="page"],
-[data-testid="app-sidebar-trigger-overlay"] button:hover,
-[data-testid="app-sidebar-trigger-overlay"] button:focus-visible,
-[data-testid="app-sidebar-top-reserve-row"] button:hover,
-[data-testid="app-sidebar-top-reserve-row"] button:focus-visible {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):hover,
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):focus-visible,
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a)[aria-current="page"],
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button:hover,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button:focus-visible,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button:hover,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button:focus-visible {
   color: color-mix(in oklab, var(--sidebar-foreground) var(--cs-nav-shade-emphasis), transparent);
 }
 
@@ -508,7 +508,7 @@ html.dark {
     animation: none !important;
     transition: none !important;
   }
-  .animate-shine-icon {
+  :is([data-cursor-sidebar-root], [data-bb-plugin="cursor-sidebar"]) .animate-shine-icon {
     animation: none !important;
   }
   .cs-drag-ghost {
@@ -757,71 +757,71 @@ html.dark {
   .cs-board-row:has(.cs-board-row__archive):is(:hover, :focus-within) .cs-board-row__name { padding-right: 0; }
 }
 
-[data-testid="app-sidebar-trigger-overlay"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] {
   padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-inset));
 }
-[data-testid="app-sidebar-trigger-overlay"] button,
-[data-testid="app-sidebar-top-reserve-row"] > :last-child > button {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child > button {
   width: var(--cs-chrome-button);
   height: var(--cs-chrome-button);
 }
-[data-testid="app-sidebar-top-reserve-row"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] {
   padding-left: var(--cs-chrome-inset);
   padding-right: var(--cs-chrome-inset);
 }
-[data-testid="app-sidebar-top-reserve-row"] > :first-child {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :first-child {
   padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-button) + var(--cs-chrome-gap));
 }
-[data-testid="app-sidebar-top-reserve-row"] > :last-child {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child {
   gap: var(--cs-chrome-gap);
 }
-[data-testid="app-sidebar-body"] > [data-sidebar="footer"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] {
   padding-left: var(--cs-chrome-inset);
   padding-right: var(--cs-chrome-inset);
 }
-[data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu"] {
   gap: var(--cs-chrome-gap);
 }
-[data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-item"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-item"] {
   min-width: var(--cs-chrome-button);
 }
-[data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-button"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-button"] {
   width: var(--cs-chrome-button);
   height: var(--cs-chrome-button);
 }
 
-[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child),
-[data-testid="app-sidebar-trigger-overlay"] button,
-[data-testid="app-sidebar-top-reserve-row"] button {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button {
   color: var(--bbs-text-tertiary);
 }
-[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child):is(:hover, :focus-visible),
-[data-testid="app-sidebar-trigger-overlay"] button:is(:hover, :focus-visible),
-[data-testid="app-sidebar-top-reserve-row"] button:is(:hover, :focus-visible) {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child):is(:hover, :focus-visible),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button:is(:hover, :focus-visible),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button:is(:hover, :focus-visible) {
   color: var(--bbs-text-primary);
 }
 
-[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child) > :is(svg, [data-icon-root]),
-[data-testid="app-sidebar-trigger-overlay"] button :is(svg, [data-icon-root]),
-[data-testid="app-sidebar-top-reserve-row"] button :is(svg, [data-icon-root]) {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child) > :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button :is(svg, [data-icon-root]) {
   width: var(--bbs-icon, 14px);
   height: var(--bbs-icon, 14px);
 }
 
-[data-testid^="plugin-sidebar-footer-item-"] > :is(svg, [data-icon-root]),
-a[aria-label^="Settings"][data-sidebar="menu-button"] :is(svg, [data-icon-root]),
-button[aria-label="More footer actions"] > :is(svg, [data-icon-root]) {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid^="plugin-sidebar-footer-item-"] > :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) a[aria-label^="Settings"][data-sidebar="menu-button"] :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) button[aria-label="More footer actions"] > :is(svg, [data-icon-root]) {
   width: var(--bbs-icon, 14px);
   height: var(--bbs-icon, 14px);
 }
-[data-testid^="plugin-sidebar-footer-item-"],
-a[aria-label^="Settings"][data-sidebar="menu-button"],
-button[aria-label="More footer actions"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid^="plugin-sidebar-footer-item-"],
+:where(:root:has([data-cursor-sidebar-root])) a[aria-label^="Settings"][data-sidebar="menu-button"],
+:where(:root:has([data-cursor-sidebar-root])) button[aria-label="More footer actions"] {
   --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
   --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
   color: var(--bbs-text-tertiary);
 }
-:is([data-testid^="plugin-sidebar-footer-item-"], a[aria-label^="Settings"][data-sidebar="menu-button"], button[aria-label="More footer actions"]):is(:hover, :focus-visible) {
+:where(:root:has([data-cursor-sidebar-root])) :is([data-testid^="plugin-sidebar-footer-item-"], a[aria-label^="Settings"][data-sidebar="menu-button"], button[aria-label="More footer actions"]):is(:hover, :focus-visible) {
   color: var(--bbs-text-primary);
 }
 
