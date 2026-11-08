@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "zod": [
+        "./node_modules/zod"
+      ]
+    },
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "server.ts",
+    "app.tsx",
+    "src",
+    "components",
+    "lib",
+    "hooks"
+  ],
+  "exclude": [
+    "**/*.test.ts"
+  ]
+}
