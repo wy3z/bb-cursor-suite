@@ -40,8 +40,10 @@ export function ProjectStatusGlyph({
   status = "idle",
   className,
   fallback: fallbackKind = "folder",
+  hiddenWork,
 }: {
   fallback?: "folder" | typeof BOARD_FALLBACK;
+  hiddenWork?: boolean;
   /** True when the project section is expanded; picks the open folder. */
   open?: boolean;
   /** A chosen project icon; its presence replaces the Folder/FolderOpen pair. */
@@ -56,9 +58,11 @@ export function ProjectStatusGlyph({
   const fallback: IconName | typeof BOARD_FALLBACK = fallbackKind === BOARD_FALLBACK ? BOARD_FALLBACK : open ? "FolderOpen" : "Folder";
   const badge =
     !open && (status === "input" || status === "failed") ? status : null;
-  const activity: ActivityState =
-    status === "working" ? "working" : badge !== null ? "attention" : "inactive";
-  const working = !open && status === "working";
+  const corner = hiddenWork !== undefined;
+  const activity: ActivityState = corner
+    ? badge !== null ? "attention" : hiddenWork ? "working" : "inactive"
+    : status === "working" ? "working" : badge !== null ? "attention" : "inactive";
+  const working = !corner && !open && status === "working";
   return (
     <span
       role="img"
@@ -82,7 +86,7 @@ export function ProjectStatusGlyph({
           mutedClassName="text-[color:var(--bbs-text-secondary)]"
         />
       )}
-      {badge !== null ? <ProjectStatusBadge status={badge} /> : null}
+      {badge !== null ? <ProjectStatusBadge status={badge} /> : corner && hiddenWork ? <ProjectWorkingBadge /> : null}
     </span>
   );
 }
@@ -120,6 +124,14 @@ export function ProjectRowIcon({
         className="size-3.5"
         mutedClassName={chats ? "text-sidebar-foreground/45" : "text-sidebar-foreground/55"}
       />
+    </span>
+  );
+}
+
+function ProjectWorkingBadge() {
+  return (
+    <span data-badge="working" className="cs-project-badge pointer-events-none absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-sidebar">
+      <Icon name="Loading" aria-hidden="true" strokeWidth={2} className="size-2.5 animate-spin text-[color:var(--bbs-text-secondary)]" />
     </span>
   );
 }

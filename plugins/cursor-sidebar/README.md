@@ -29,7 +29,12 @@ including chats with none.
 One fixed row sits above the thread list and never scrolls: the project switcher
 on the left and the view menu trigger on the right. Section headings below it
 carry no controls of their own; a heading is only a small muted label that folds
-its block, and a project or folder heading keeps its glyph.
+its block, and a project or folder heading keeps its glyph. A repository
+heading never swaps its folder or icon for a spinner: when a working chat in it
+is out of sight (the project is folded, its parent is folded, it is past **Show
+more** or filtered out), a small spinner sits on the folder's bottom-right
+corner, and when every working chat is on screen there is none. Chats under a
+Projects board count towards the board row, not their repository.
 
 Every grouping uses the same sections. Pinned always comes first, then the
 group's own headings (project names, dated buckets, statuses), then **Chats** for

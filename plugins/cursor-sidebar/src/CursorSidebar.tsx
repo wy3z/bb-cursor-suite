@@ -111,6 +111,7 @@ import type { ThreadShelf } from "./lifecycle";
 import { ageGroupKey, type AgeGroup } from "./age-groups";
 import { ProjectStatusGlyph, ProjectRowIcon, ACTIVITY_LABELS, glyphStateForStatus } from "./ProjectStatusGlyph";
 import { ProjectHoverCard } from "./ProjectHoverCard";
+import { hasHiddenWork, renderedRowIds, repoActivityMembers } from "./repo-activity";
 import { AnimatedList } from "./AnimatedList";
 import { Drawer } from "./Drawer";
 import { useShortcutGuide } from "./useShortcutGuide";
@@ -1386,11 +1387,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
     // must not also light the home they came from: a working pinned thread
     // would otherwise put a spinner on a closed project that is already
     // showing it. The same lifted set drives the status ordering above.
-    const sectionThreads = projectedThreads.filter(
-      (thread) =>
-        thread.projectId === section.id &&
-        !pinnedFamilyRoots.has(familyRootOfId(thread.id)),
-    );
+    const sectionThreads = repoActivityMembers(projectedThreads, section.id, familyRootOfId, pinnedFamilyRoots, projectLeadIds);
     // A collapsed project keeps the selected path on screen, so that row is
     // already drawing its own activity; the heading speaks only for the rows
     // the fold actually hides, or a working selection spins twice.
@@ -1413,6 +1410,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         ctx={ctx}
         status={aggregate.status}
         statusLabel={aggregate.statusLabel}
+        activityThreads={sectionThreads}
         onNewThread={
           nativeId !== null && section.known
             ? () => {
@@ -2060,6 +2058,7 @@ function ProjectSection({
   onHeadingDragStart,
   status,
   statusLabel,
+  activityThreads,
   flat = false,
   empty,
   hoverDisabled = false,
@@ -2072,6 +2071,7 @@ function ProjectSection({
   hoverThreads?: () => readonly PluginSidebarThread[];
   status?: ThreadStatusKind | null;
   statusLabel?: string | undefined;
+  activityThreads?: readonly PluginSidebarThread[];
   ctx: TreeContext;
   sectionOpen: boolean;
   onToggleProject: () => void;
@@ -2146,6 +2146,19 @@ function ProjectSection({
     const timeout = window.setTimeout(() => setKeepException(false), COLLAPSED_ROW_EXIT_MS);
     return () => window.clearTimeout(timeout);
   }, [keepException, showCollapsedSelection]);
+
+  const renderedIds = useMemo(
+    () =>
+      renderedRowIds(section, {
+        open: sectionOpen,
+        expandedParents: ctx.expandedParents,
+        keepIds: sectionOpen ? revealedConversations : exceptionIds,
+        expandIds: sectionOpen ? undefined : exceptionIds,
+        childLimit: pageSize,
+      }),
+    [ctx.expandedParents, exceptionIds, pageSize, revealedConversations, section, sectionOpen],
+  );
+  const hiddenWork = activityThreads !== undefined && hasHiddenWork(activityThreads, renderedIds);
 
   const showMore = (
     <ShowMoreButton
@@ -2248,6 +2261,7 @@ function ProjectSection({
                 icon={icon}
                 label={activityLabel}
                 status={status ?? "idle"}
+                hiddenWork={hiddenWork}
               />
             )}
           </span>
