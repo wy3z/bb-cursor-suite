@@ -56,14 +56,20 @@ status swaps for actions on hover, five rows then "More".
   Create PR commits first if needed, pushes the branch and runs
   `gh pr create --fill` against the environment's base branch, or returns the
   pull request already open for the branch. Progress and the result show
-  under the buttons. These run git and `gh` from the plugin's backend, so they
-  only work for environments on the BB server's own machine.
+  under the buttons. The Pull Requests plugin owns these actions: Agent Pills
+  draws the buttons and calls its git actions, which run git and `gh` from
+  that plugin's backend, so they only work for environments on the BB server's
+  own machine. Without Pull Requests installed and enabled, the buttons and
+  message box are disabled and the bar reads "Needs Pull Requests"; enabling
+  or disabling it updates the bar without a reload.
 - **Apply locally.** A child thread in its own worktree gets a download
   button on hover in the Agents tray. It copies everything the worktree has
   against the parent's checkout (commits, uncommitted and untracked files,
   binaries) into the parent's checkout as uncommitted changes. It refuses
-  rather than half-applying when the patch doesn't apply cleanly. Plugins can't open another plugin's tab at a file, so the diff
-  starts at the top. BB's own changed-files
+  rather than half-applying when the patch doesn't apply cleanly. This is
+  also a Pull Requests git action: without that plugin the button is disabled
+  and its tooltip says "Needs Pull Requests". Plugins can't open another
+  plugin's tab at a file, so the diff starts at the top. BB's own changed-files
   segment only appears for worktree environments (segments get no environment
   for project checkouts), so this reads the same status from BB's git plugin
   by the thread's environment id, and BB's segment is hidden.

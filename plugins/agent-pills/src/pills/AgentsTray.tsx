@@ -5,6 +5,8 @@ import {
   useBbNavigate,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
+import { PULL_REQUESTS_PLUGIN } from "@wy3z/bb-suite/contracts";
+import { NEEDS_PULL_REQUESTS, usePluginAvailability, type PluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import { useGitActions } from "../git-client";
 import { STATE_ORDER, type PillState, type SubagentItem, type TaskItem } from "../pill-data";
 import { AgentIcon, CommandIcon, Orb, StateDot, formatElapsed, shortModel, useNow } from "./primitives";
@@ -121,10 +123,11 @@ function Leading({ item }: { item: TrayItem }) {
 
 type ApplyState = { kind: "busy" } | { kind: "done"; text: string } | { kind: "error"; text: string };
 
-function AgentRow({
+export function AgentRow({
   item,
   now,
   canApply,
+  gitActions,
   apply,
   onOpen,
   onClose,
@@ -133,6 +136,7 @@ function AgentRow({
   item: TrayItem;
   now: number;
   canApply: boolean;
+  gitActions: PluginAvailability;
   apply: ApplyState | undefined;
   onOpen: (item: SubagentItem, split: boolean) => void;
   onClose: (item: SubagentItem) => void;
@@ -209,8 +213,8 @@ function AgentRow({
                 type="button"
                 className="bb-agent-pills__tray-icon-button"
                 aria-label={`Apply ${thread.title} locally`}
-                title="Apply locally: copy this worktree's changes into your checkout"
-                disabled={apply?.kind === "busy"}
+                title={gitActions === "unavailable" ? `Apply locally: ${NEEDS_PULL_REQUESTS}` : "Apply locally: copy this worktree's changes into your checkout"}
+                disabled={apply?.kind === "busy" || gitActions !== "available"}
                 onClick={(event) => {
                   event.stopPropagation();
                   onApply(thread);
@@ -253,6 +257,7 @@ export function AgentsTray({
   const navigate = useBbNavigate();
   const sdk = useSdk();
   const rpc = useGitActions();
+  const gitActions = usePluginAvailability(PULL_REQUESTS_PLUGIN);
   const [applies, setApplies] = useState<Record<string, ApplyState>>({});
   const canApply = (item: SubagentItem) =>
     parentEnvironmentId !== null &&
@@ -260,7 +265,7 @@ export function AgentsTray({
     item.environmentId !== null &&
     item.environmentId !== parentEnvironmentId;
   const applyLocally = (item: SubagentItem) => {
-    if (!canApply(item) || applies[item.threadId]?.kind === "busy") return;
+    if (gitActions !== "available" || !canApply(item) || applies[item.threadId]?.kind === "busy") return;
     const set = (state: ApplyState) => setApplies((current) => ({ ...current, [item.threadId]: state }));
     set({ kind: "busy" });
     rpc
@@ -301,6 +306,7 @@ export function AgentsTray({
       item={item}
       now={now}
       canApply={item.type === "thread" && canApply(item.thread)}
+      gitActions={gitActions}
       apply={item.type === "thread" ? applies[item.thread.threadId] : undefined}
       onOpen={open}
       onClose={close}

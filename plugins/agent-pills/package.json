@@ -24,7 +24,8 @@
   ],
   "scripts": {
     "build": "bb plugin build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src"
   },
   "engines": {
     "bb": ">=0.49",

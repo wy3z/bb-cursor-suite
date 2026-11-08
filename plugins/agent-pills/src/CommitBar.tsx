@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import type { GitActionResult } from "@wy3z/bb-suite/contracts";
+import { NEEDS_PULL_REQUESTS, type PluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import { useGitActions } from "./git-client";
 import { Orb } from "./pills/primitives";
 
@@ -19,6 +20,8 @@ const BUSY_LABEL: Record<Action, string> = {
   pr: "Creating pull request",
 };
 
+const UNAVAILABLE_NOTE = `${NEEDS_PULL_REQUESTS}: install or enable it to commit and push here`;
+
 function shortSha(sha: string | undefined): string {
   return sha ? sha.slice(0, 7) : "";
 }
@@ -27,10 +30,12 @@ export function CommitBar({
   environmentId,
   uncommitted,
   untracked,
+  gitActions,
 }: {
   environmentId: string;
   uncommitted: boolean;
   untracked: number;
+  gitActions: PluginAvailability;
 }) {
   const [includeUntracked, setIncludeUntracked] = useState(false);
   const needsMessage = untracked > 0 && !includeUntracked;
@@ -39,6 +44,8 @@ export function CommitBar({
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const textRef = useRef<HTMLTextAreaElement>(null);
   const busy = phase.kind === "busy";
+  const blocked = busy || gitActions !== "available";
+  const hint = (title: string) => (gitActions === "unavailable" ? NEEDS_PULL_REQUESTS : title);
 
   useEffect(() => {
     const text = textRef.current;
@@ -51,7 +58,7 @@ export function CommitBar({
     setPhase({ kind: "error", text: result?.error ?? fallback });
 
   const runAction = async (action: Action) => {
-    if (busy) return;
+    if (blocked) return;
     setPhase({ kind: "busy", action });
     try {
       if (action === "push") {
@@ -85,14 +92,14 @@ export function CommitBar({
   };
 
   return (
-    <div className="bb-agent-pills__commit" data-busy={busy || undefined}>
+    <div className="bb-agent-pills__commit" data-busy={busy || undefined} data-unavailable={gitActions === "unavailable" || undefined}>
       {uncommitted ? (
         <textarea
           ref={textRef}
           className="bb-agent-pills__commit-message"
           rows={1}
           value={message}
-          disabled={busy}
+          disabled={blocked}
           placeholder={needsMessage ? "Commit message (required while untracked files are left out)" : "Commit message (empty to generate)"}
           aria-label="Commit message"
           onChange={(event) => setMessage(event.currentTarget.value)}
@@ -110,7 +117,7 @@ export function CommitBar({
           <input
             type="checkbox"
             checked={includeUntracked}
-            disabled={busy}
+            disabled={blocked}
             onChange={(event) => setIncludeUntracked(event.currentTarget.checked)}
           />
           <span>
@@ -125,8 +132,8 @@ export function CommitBar({
               type="button"
               className="bb-agent-pills__commit-button"
               data-variant="primary"
-              disabled={busy}
-              title="Commit (Ctrl+Enter)"
+              disabled={blocked}
+              title={hint("Commit (Ctrl+Enter)")}
               onClick={() => void runAction("commit")}
             >
               <Icon name="Check" />
@@ -135,8 +142,8 @@ export function CommitBar({
             <button
               type="button"
               className="bb-agent-pills__commit-button"
-              disabled={busy}
-              title="Commit and push (Ctrl+Shift+Enter)"
+              disabled={blocked}
+              title={hint("Commit and push (Ctrl+Shift+Enter)")}
               onClick={() => void runAction("commit-push")}
             >
               <Icon name="ArrowUp" />
@@ -148,7 +155,8 @@ export function CommitBar({
             type="button"
             className="bb-agent-pills__commit-button"
             data-variant="primary"
-            disabled={busy}
+            disabled={blocked}
+            title={hint("Push")}
             onClick={() => void runAction("push")}
           >
             <Icon name="ArrowUp" />
@@ -158,14 +166,21 @@ export function CommitBar({
         <button
           type="button"
           className="bb-agent-pills__commit-button"
-          disabled={busy}
-          title={uncommitted ? "Commit, push and open a pull request" : "Push and open a pull request"}
+          disabled={blocked}
+          title={hint(uncommitted ? "Commit, push and open a pull request" : "Push and open a pull request")}
           onClick={() => void runAction("pr")}
         >
           <Icon name="GitPullRequest" />
           Create PR
         </button>
       </div>
+      {gitActions === "unavailable" ? (
+        <div className="bb-agent-pills__commit-status" data-kind="unavailable" role="note">
+          <span className="bb-agent-pills__commit-text" title={UNAVAILABLE_NOTE}>
+            {UNAVAILABLE_NOTE}
+          </span>
+        </div>
+      ) : null}
       {phase.kind !== "idle" ? (
         <div className="bb-agent-pills__commit-status" data-kind={phase.kind} key={phase.kind === "busy" ? phase.action : phase.text} role="status">
           {phase.kind === "busy" ? (
