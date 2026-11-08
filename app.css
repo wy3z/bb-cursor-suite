@@ -168,6 +168,18 @@
   -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
 }
 
+[data-cursor-sidebar-root] [data-thread-row] .cs-thread-title--inline,
+[data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-title--inline {
+  padding-right: 0;
+  mask-image: none;
+  -webkit-mask-image: none;
+  text-overflow: ellipsis;
+}
+[data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-titleline:has(.cs-thread-title--inline) {
+  padding-right: 2.75rem;
+}
+
+
 [data-cursor-sidebar-root],
 [aria-label="Sidebar navigation"],
 [data-testid="app-sidebar-trigger-overlay"],

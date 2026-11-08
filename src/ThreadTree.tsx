@@ -1256,6 +1256,7 @@ function ThreadRow({
           ) : null}
 
           <div className={cn("pointer-events-none flex min-w-0 flex-1 flex-col items-start", secondary ? "gap-0 leading-none" : "gap-0")}>
+          <div className="cs-thread-titleline flex w-full min-w-0 items-center gap-1">
           <InlineThreadTitle
             thread={thread}
             editing={isRenaming}
@@ -1270,10 +1271,23 @@ function ThreadRow({
               open(event);
             }}
             className={cn(
-              "cs-thread-title w-full min-w-0 overflow-hidden whitespace-nowrap text-sm",
+              "cs-thread-title min-w-0 overflow-hidden whitespace-nowrap text-sm",
+              cloudHostTitle === null || isRenaming ? "w-full" : "cs-thread-title--inline max-w-full",
               thread.isUnread && "font-medium",
             )}
           />
+          {cloudHostTitle !== null && !isRenaming ? (
+            <span
+              role="img"
+              aria-label={cloudHostTitle}
+              title={cloudHostTitle}
+              data-cloud-host={native.host?.id}
+              className="cs-thread-cloud pointer-events-none flex shrink-0 items-center"
+            >
+              <Icon name="Cloud" aria-hidden="true" className="size-3" />
+            </span>
+          ) : null}
+          </div>
           {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{secondaryMobile}</span></span> : null}
           </div>
 
@@ -1322,17 +1336,6 @@ function ThreadRow({
                 </button>
               </span>
             </span>
-            {cloudHostTitle !== null ? (
-              <span
-                role="img"
-                aria-label={cloudHostTitle}
-                title={cloudHostTitle}
-                data-cloud-host={native.host?.id}
-                className="cs-thread-cloud pointer-events-none flex shrink-0 items-center text-sidebar-foreground/45"
-              >
-                <Icon name="Cloud" aria-hidden="true" className="size-3" />
-              </span>
-            ) : null}
             <span className="cs-thread-time pointer-events-none tabular-nums text-xs text-sidebar-foreground/45">
               {activeChildCount > 0 ? (
                 /* While children are running, a light accent pill with their
