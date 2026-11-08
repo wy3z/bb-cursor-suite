@@ -51,7 +51,8 @@ live cards, and a project lead workflow.
   `projects` skill teaches it to plan, delegate as child threads attached to
   tasks, keep the board true and write status updates.
 - **Pinned lead instructions**: the lead thread gets a short block with the
-  status rules and the PR landing rule appended to its instructions, so they
+  status rules, the PR landing rule and how to answer a worker blocked on a
+  question appended to its instructions, so they
   survive compaction. BB applies it when the provider session is next built
   (thread start, resume or restart), never mid-session.
 - **Loop**: behind the loop button in the board header. A
