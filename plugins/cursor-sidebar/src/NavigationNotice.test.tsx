@@ -1,33 +1,56 @@
 import assert from "node:assert/strict";
 import { after, afterEach, test } from "node:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
 
-const store = new Map<string, string>();
-const host = globalThis as { window?: unknown };
-const previous = host.window;
-host.window = {
-  localStorage: {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => void store.set(key, value),
-  },
+const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/" });
+const globals: Record<string, unknown> = {
+  window: dom.window,
+  document: dom.window.document,
+  navigator: dom.window.navigator,
+  HTMLElement: dom.window.HTMLElement,
+  Element: dom.window.Element,
+  Node: dom.window.Node,
+  Event: dom.window.Event,
+  MouseEvent: dom.window.MouseEvent,
+  IS_REACT_ACT_ENVIRONMENT: true,
 };
+const previous = new Map<string, PropertyDescriptor | undefined>();
+for (const [name, value] of Object.entries(globals)) {
+  previous.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
+  Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+}
+process.env.RTL_SKIP_AUTO_CLEANUP = "true";
+const { act, cleanup, render } = await import("@testing-library/react");
 const { NavigationNotice, NAVIGATION_NOTICE_KEY } = await import("./NavigationNotice");
 
-afterEach(() => store.clear());
+afterEach(() => {
+  cleanup();
+  dom.window.localStorage.clear();
+});
 after(() => {
-  host.window = previous;
+  for (const [name, descriptor] of previous) {
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    else delete (globalThis as Record<string, unknown>)[name];
+  }
+  dom.window.close();
 });
 
 test("the notice names the layout and how to switch back to BB's navigation", () => {
-  const html = renderToStaticMarkup(<NavigationNotice layout="Compact" />);
-  assert.match(html, /role="note"/);
-  assert.match(html, /its Compact layout/);
-  assert.match(html, /Settings → Appearance → Navigation/);
-  assert.match(html, /Rail or Top list/);
-  assert.match(html, /Got it/);
+  const { container } = render(<NavigationNotice layout="Compact" />);
+  const note = container.querySelector('[role="note"]');
+  assert.ok(note);
+  assert.match(note.textContent ?? "", /Cursor Sidebar's Compact layout/);
+  assert.match(note.textContent ?? "", /Rail or Top list under Settings → Appearance → Navigation/);
 });
 
-test("a dismissed notice stays gone", () => {
-  store.set(NAVIGATION_NOTICE_KEY, "dismissed");
-  assert.equal(renderToStaticMarkup(<NavigationNotice layout="Cursor" />), "");
+test("Got it hides the notice and remembers it", () => {
+  const { container } = render(<NavigationNotice layout="Cursor" />);
+  const button = Array.from(container.querySelectorAll("button")).find((element) => element.textContent === "Got it");
+  assert.ok(button);
+  act(() => button.click());
+  assert.equal(container.querySelector('[role="note"]'), null);
+  assert.equal(dom.window.localStorage.getItem(NAVIGATION_NOTICE_KEY), "dismissed");
+  cleanup();
+  const again = render(<NavigationNotice layout="Cursor" />);
+  assert.equal(again.container.querySelector('[role="note"]'), null);
 });

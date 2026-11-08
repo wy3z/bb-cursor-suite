@@ -28,7 +28,7 @@ export function NavigationNotice({ layout }: { layout: "Compact" | "Cursor" }) {
     >
       <div className="rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 py-2 text-xs leading-snug text-sidebar-foreground">
         <p>
-          Cursor Sidebar has switched the sidebar navigation to its {layout} layout.
+          This navigation is Cursor Sidebar&apos;s {layout} layout.
         </p>
         <p className="mt-1 text-muted-foreground">
           To use BB&apos;s own, pick Rail or Top list under Settings → Appearance → Navigation.
