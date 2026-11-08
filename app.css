@@ -9,7 +9,7 @@
   scrollbar-gutter: auto;
 }
 
-@media (max-width: 767px), (pointer: coarse) {
+@media (max-width: 767px) {
   [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) {
     overflow-y: auto;
     overscroll-behavior-y: contain;
