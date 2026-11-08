@@ -8,75 +8,154 @@ import {
   useState,
   useSyncExternalStore,
   type ClipboardEvent as ReactClipboardEvent,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useRpc } from "@get-bb/plugin-sdk/app";
+import type { projectIconGlyphContract } from "./contracts";
 import {
+  PICKER_GLYPH_PREFIX,
   PROJECT_ICON_COLORS,
   PROJECT_ICON_IMAGE_EDGE,
+  PROJECT_ICON_NAMES,
   filterProjectIconNames,
   isProjectIconPickerColor,
   projectIconColorClass,
+  type CompactGlyph,
   type ProjectIcon,
   type ProjectIconPickerColor,
-  type ProjectIconShape,
 } from "./project-icon";
 
-type GlyphModule = typeof import("./project-icon-glyphs");
+export type GlyphFetch = (names: string[] | null) => Promise<Record<string, CompactGlyph>>;
 
-let glyphModule: GlyphModule | null = null;
-let glyphLoad: Promise<void> | null = null;
-const glyphListeners = new Set<() => void>();
+const STORE_KEY = `bbs-pi-glyphs:${PROJECT_ICON_NAMES.length}`;
+const STORE_LIMIT = 300;
+const cache = new Map<string, CompactGlyph | null>();
+const persisted = new Map<string, CompactGlyph>();
+const listeners = new Set<() => void>();
+const queued = new Set<string>();
+let flushScheduled = false;
+let allLoad: Promise<void> | null = null;
+let version = 0;
 
-export function preloadProjectIconGlyphs(): Promise<void> {
-  if (glyphModule) return Promise.resolve();
-  glyphLoad ??= import("./project-icon-glyphs").then(
-    (loaded) => {
-      glyphModule = loaded;
-      for (const listener of glyphListeners) listener();
+function readStore() {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(STORE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === "object") {
+      for (const [name, glyph] of Object.entries(parsed as Record<string, CompactGlyph>)) {
+        if (Array.isArray(glyph)) {
+          cache.set(name, glyph);
+          persisted.set(name, glyph);
+        }
+      }
+    }
+  } catch {
+    return;
+  }
+}
+readStore();
+
+function writeStore() {
+  try {
+    const entries = [...persisted].slice(-STORE_LIMIT);
+    localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    return;
+  }
+}
+
+function emit() {
+  version += 1;
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function requestGlyph(fetch: GlyphFetch, name: string) {
+  if (cache.has(name) || queued.has(name)) return;
+  queued.add(name);
+  if (flushScheduled) return;
+  flushScheduled = true;
+  queueMicrotask(() => {
+    flushScheduled = false;
+    const names = [...queued];
+    queued.clear();
+    fetch(names).then(
+      (glyphs) => {
+        for (const requested of names) {
+          const glyph = glyphs[requested];
+          cache.set(requested, glyph ?? null);
+          if (glyph) persisted.set(requested, glyph);
+        }
+        writeStore();
+        emit();
+      },
+      () => undefined,
+    );
+  });
+}
+
+function requestAllGlyphs(fetch: GlyphFetch) {
+  allLoad ??= fetch(null).then(
+    (glyphs) => {
+      for (const [name, glyph] of Object.entries(glyphs)) cache.set(name, glyph);
+      emit();
     },
-    (error: unknown) => {
-      glyphLoad = null;
-      throw error;
+    () => {
+      allLoad = null;
     },
   );
-  return glyphLoad;
 }
 
-function subscribeGlyphs(listener: () => void) {
-  glyphListeners.add(listener);
-  return () => glyphListeners.delete(listener);
+function useGlyphFetch(): GlyphFetch {
+  const rpc = useRpc<typeof projectIconGlyphContract>();
+  return useCallback((names: string[] | null) => rpc.call("iconGlyphs", { names }).then((result) => result.glyphs as Record<string, CompactGlyph>), [rpc]);
 }
 
-function useGlyphModule(): GlyphModule | null {
-  const loaded = useSyncExternalStore(subscribeGlyphs, () => glyphModule, () => null);
+function useGlyph(name: string): CompactGlyph | null | undefined {
+  const fetch = useGlyphFetch();
+  useSyncExternalStore(subscribe, () => version, () => version);
   useEffect(() => {
-    if (!loaded) void preloadProjectIconGlyphs().catch(() => undefined);
-  }, [loaded]);
-  return loaded;
+    if (!cache.has(name)) requestGlyph(fetch, name);
+  }, [name, fetch]);
+  return cache.get(name);
 }
 
-function Shape({ shape, className, strokeWidth }: { shape: ProjectIconShape | undefined; className?: string; strokeWidth: number }) {
+function GlyphSvg({ glyph, className, strokeWidth }: { glyph: CompactGlyph | null | undefined; className?: string; strokeWidth: number }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true" focusable="false" data-bbs-glyph="">
-      {(shape ?? []).map(([tag, attrs], index) => {
-        const { key: _key, ...rest } = attrs as Record<string, string | number>;
-        return createElement(tag, { ...rest, key: index, ...("strokeWidth" in rest ? { strokeWidth } : {}) });
-      })}
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={strokeWidth}
+      aria-hidden="true"
+      focusable="false"
+      data-bbs-glyph=""
+    >
+      {(glyph ?? []).map((element, index) =>
+        typeof element === "string" ? <path key={index} d={element} /> : createElement(element[0], { ...element[1], key: index }),
+      )}
     </svg>
   );
 }
 
 export function ProjectIconGlyph({ name, className, strokeWidth = 1.5 }: { name: string; className?: string; strokeWidth?: number }) {
-  const glyphs = useGlyphModule();
-  return <Shape shape={glyphs?.PROJECT_ICON_GLYPHS[name]} className={className} strokeWidth={strokeWidth} />;
+  return <GlyphSvg glyph={useGlyph(name)} className={className} strokeWidth={strokeWidth} />;
 }
 
-function PickerGlyph({ name, className }: { name: keyof GlyphModule["PICKER_GLYPHS"]; className?: string }) {
-  const glyphs = useGlyphModule();
-  return <Shape shape={glyphs?.PICKER_GLYPHS[name]} className={className} strokeWidth={1.5} />;
+function PickerGlyph({ name, className }: { name: "none" | "upload" | "check"; className?: string }) {
+  return <GlyphSvg glyph={useGlyph(`${PICKER_GLYPH_PREFIX}${name}`)} className={className} strokeWidth={1.5} />;
 }
 
 export function ProjectIconArt({
@@ -127,6 +206,26 @@ export function pickerColorOf(icon: ProjectIcon | null): ProjectIconPickerColor 
   return "default";
 }
 
+export function nextGridIndex(key: string, index: number, count: number, columns: number = COLUMNS): number | null {
+  if (count === 0) return null;
+  switch (key) {
+    case "ArrowRight":
+      return Math.min(count - 1, index + 1);
+    case "ArrowLeft":
+      return Math.max(0, index - 1);
+    case "ArrowDown":
+      return index + columns < count ? index + columns : index;
+    case "ArrowUp":
+      return index - columns >= 0 ? index - columns : null;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return index;
+  }
+}
+
 export async function imageToProjectIcon(file: Blob): Promise<ProjectIcon> {
   const url = URL.createObjectURL(file);
   try {
@@ -149,9 +248,7 @@ export async function imageToProjectIcon(file: Blob): Promise<ProjectIcon> {
   }
 }
 
-function stopSearchKeys(event: ReactKeyboardEvent<HTMLInputElement>) {
-  if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation();
-}
+const NAVIGATION_KEYS = new Set(["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"]);
 
 export function ProjectIconPickerPanel({
   value,
@@ -170,21 +267,31 @@ export function ProjectIconPickerPanel({
   const deferred = useDeferredValue(query);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const colorsRef = useRef<HTMLFieldSetElement>(null);
+  const fetch = useGlyphFetch();
   const glyphValue = value?.kind === "glyph" ? value : null;
   const color = glyphValue ? pickerColorOf(glyphValue) : pendingColor;
 
   useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
+    requestAllGlyphs(fetch);
+  }, [fetch]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [deferred]);
+    searchRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const names = filterProjectIconNames(deferred, glyphValue?.name);
   const cells = clearable ? [NONE, ...names] : names;
   const height = gridHeight(cells.length);
+  const selectedIndex = cells.findIndex((name) => (name === NONE ? value === null : glyphValue?.name === name));
+  const [activeCell, setActiveCell] = useState<string | null>(null);
+  const activeIndex = activeCell !== null && cells.includes(activeCell) ? cells.indexOf(activeCell) : Math.max(0, selectedIndex);
+
+  useEffect(() => {
+    setActiveCell(null);
+    if (gridRef.current) gridRef.current.scrollTop = 0;
+  }, [deferred]);
 
   const pickImage = useCallback(
     async (file: Blob) => {
@@ -199,17 +306,53 @@ export function ProjectIconPickerPanel({
     [onChange, onDone],
   );
 
-  const onGridClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-icon-color-picker-option]") : null;
-    const option = target?.dataset.iconColorPickerOption;
-    if (option === undefined) return;
-    if (option === NONE) {
+  const choose = (name: string) => {
+    if (name === NONE) {
       if (value !== null) onChange(null);
-      onDone?.();
+    } else onChange({ kind: "glyph", name, color });
+    onDone?.();
+  };
+
+  const focusCell = (index: number) => {
+    const name = cells[index];
+    if (name === undefined) return;
+    setActiveCell(name);
+    const button = gridRef.current?.querySelector<HTMLButtonElement>(`[data-icon-color-picker-option="${CSS.escape(name)}"]`);
+    button?.focus({ preventScroll: true });
+    button?.scrollIntoView({ block: "nearest" });
+  };
+
+  const onGridKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!NAVIGATION_KEYS.has(event.key)) return;
+    event.preventDefault();
+    const next = nextGridIndex(event.key, activeIndex, cells.length);
+    if (next === null) searchRef.current?.focus();
+    else focusCell(next);
+  };
+
+  const colorIndex = PROJECT_ICON_COLORS.findIndex((option) => option.id === color);
+  const onColorsKeyDown = (event: ReactKeyboardEvent<HTMLFieldSetElement>) => {
+    if (!NAVIGATION_KEYS.has(event.key) || event.key === "ArrowUp" || event.key === "ArrowDown") return;
+    event.preventDefault();
+    const next = nextGridIndex(event.key, colorIndex, PROJECT_ICON_COLORS.length, PROJECT_ICON_COLORS.length) ?? colorIndex;
+    const option = PROJECT_ICON_COLORS[next];
+    if (!option) return;
+    pickColor(option.id);
+    colorsRef.current?.querySelector<HTMLButtonElement>(`[data-color="${option.id}"]`)?.focus();
+  };
+
+  const pickColor = (id: ProjectIconPickerColor) => {
+    setPendingColor(id);
+    if (glyphValue) onChange({ kind: "glyph", name: glyphValue.name, color: id });
+  };
+
+  const onSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusCell(activeIndex);
       return;
     }
-    onChange({ kind: "glyph", name: option, color });
-    onDone?.();
+    if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation();
   };
 
   const onPaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
@@ -230,7 +373,7 @@ export function ProjectIconPickerPanel({
           placeholder="Search icons..."
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={stopSearchKeys}
+          onKeyDown={onSearchKeyDown}
         />
         <button
           type="button"
@@ -262,7 +405,7 @@ export function ProjectIconPickerPanel({
           {imageError}
         </p>
       ) : null}
-      <fieldset className="bbs-icon-picker__colors" aria-label="Icon color">
+      <fieldset ref={colorsRef} className="bbs-icon-picker__colors" aria-label="Icon color" onKeyDown={onColorsKeyDown}>
         {PROJECT_ICON_COLORS.map((option) => {
           const selected = option.id === color;
           return (
@@ -272,11 +415,10 @@ export function ProjectIconPickerPanel({
               className={`bbs-icon-picker__cell bbs-icon-picker__color ${projectIconColorClass(option.id)}`}
               aria-label={option.label}
               aria-pressed={selected}
+              tabIndex={selected ? 0 : -1}
+              data-color={option.id}
               data-selected={selected || undefined}
-              onClick={() => {
-                setPendingColor(option.id);
-                if (glyphValue) onChange({ kind: "glyph", name: glyphValue.name, color: option.id });
-              }}
+              onClick={() => pickColor(option.id)}
             >
               <span className="bbs-icon-picker__swatch" />
               {selected ? (
@@ -291,10 +433,10 @@ export function ProjectIconPickerPanel({
       <div className="bbs-icon-picker__rule" aria-hidden="true" />
       <div className={`bbs-icon-picker__scroll ${projectIconColorClass(color)}`} data-icon-color-picker-tint={color}>
         {cells.length > 0 ? (
-          <div ref={scrollRef} role="group" aria-label="Icons" className="bbs-icon-picker__grid" style={{ height }} onClick={onGridClick}>
-            {cells.map((name) => {
+          <div ref={gridRef} role="group" aria-label="Icons" className="bbs-icon-picker__grid" style={{ height }} onKeyDown={onGridKeyDown}>
+            {cells.map((name, index) => {
               const none = name === NONE;
-              const selected = none ? value === null : glyphValue?.name === name;
+              const selected = index === selectedIndex;
               return (
                 <button
                   key={name}
@@ -303,9 +445,12 @@ export function ProjectIconPickerPanel({
                   aria-label={none ? "No icon" : name}
                   title={none ? "No icon" : name}
                   aria-pressed={selected}
+                  tabIndex={index === activeIndex ? 0 : -1}
                   data-icon-color-picker-option={name}
                   data-icon-color-picker-none={none || undefined}
                   data-selected={selected || undefined}
+                  onFocus={() => setActiveCell(name)}
+                  onClick={() => choose(name)}
                 >
                   {none ? <PickerGlyph name="none" /> : <ProjectIconGlyph name={name} />}
                 </button>
@@ -379,6 +524,12 @@ export function ProjectIconPicker({
     };
   }, [open, anchor]);
 
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!open || position === null || !popup || popup.contains(document.activeElement)) return;
+    popup.querySelector<HTMLInputElement>(".bbs-icon-picker__input")?.focus({ preventScroll: true });
+  }, [open, position]);
+
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -400,6 +551,11 @@ export function ProjectIconPicker({
     };
   }, [open, close, onOpenChange]);
 
+  const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && !popupRef.current?.contains(next)) onOpenChange(false);
+  };
+
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div
@@ -408,7 +564,8 @@ export function ProjectIconPicker({
       aria-label={label}
       className="bbs-icon-picker-popover"
       data-ui-icon-color-picker-popover=""
-      style={position ? { top: position.top, left: position.left } : { top: 0, left: 0, visibility: "hidden" }}
+      onBlur={onBlur}
+      style={position ? { top: position.top, left: position.left } : { top: 0, left: 0, opacity: 0, pointerEvents: "none" }}
     >
       <ProjectIconPickerPanel value={value} onChange={onChange} onDone={close} clearable={clearable} />
     </div>,

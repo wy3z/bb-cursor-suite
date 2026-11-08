@@ -7,6 +7,8 @@
 //
 // Derived from bb-plugin-thread-inbox (MIT, Copyright (c) 2026 Michael Yong);
 // see THIRD-PARTY-NOTICES.md at the repository root.
+import { PROJECT_ICON_GLYPHS_METHOD } from "@wy3z/bb-suite/contracts";
+import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
 import { execFile } from "node:child_process";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
@@ -222,6 +224,7 @@ export const cursorSidebarRpcContract = defineRpcContract({
     input: z.object({}),
     output: z.object({ icons: z.array(projectIconRowSchema) }),
   },
+  iconGlyphs: PROJECT_ICON_GLYPHS_METHOD,
   setProjectIcon: {
     input: z.object({
       projectId: z.string().trim().min(1),
@@ -472,6 +475,7 @@ export default function plugin(bb: BbPluginApi) {
       db.prepare(`DELETE FROM project_icon WHERE project_id = ?`).run(projectId);
       return { ok: true as const };
     },
+    iconGlyphs: (input) => serveProjectIconGlyphs(input),
     listProjectIcons() {
       return { icons: readIcons() };
     },

@@ -15,6 +15,7 @@
     "./change-requests": "./src/change-requests.ts",
     "./project-icon": "./src/project-icon.ts",
     "./project-icon/picker": "./src/project-icon-picker.tsx",
+    "./project-icon/server": "./src/project-icon-glyph-server.ts",
     "./machine-backend": "./src/machine-backend.ts",
     "./machine-backend/server": "./src/machine-backend-server.ts",
     "./tokens.css": "./tokens.css",

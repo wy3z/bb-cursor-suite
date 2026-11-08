@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { experimental_useRpcQuery, useSdk } from "@get-bb/plugin-sdk/app";
 import { PROJECTS_PLUGIN, TASKS_PLUGIN, projectsContract, tasksContract } from "./suite-contracts";
 import { serializeProjectIcon, type ProjectIcon } from "./project-icons";
@@ -55,8 +56,6 @@ export function useRemoveManager() {
     });
 }
 
-const BOARD_ICON_REFRESH_MS = 60_000;
-
 export interface BoardIcons {
   available: boolean;
   iconFor: (boardId: string) => ProjectIcon | null;
@@ -70,18 +69,6 @@ export function useBoardIcons(enabled: boolean): BoardIcons {
   const [overrides, setOverrides] = useState<ReadonlyMap<string, string | null>>(() => new Map());
   const failed = Boolean(query.error) && !query.data;
   useEffect(() => {
-    if (!enabled || failed) return;
-    const again = () => {
-      if (document.visibilityState === "visible") void refetch().catch(() => undefined);
-    };
-    const timer = window.setInterval(again, BOARD_ICON_REFRESH_MS);
-    window.addEventListener("focus", again);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", again);
-    };
-  }, [enabled, failed, refetch]);
-  useEffect(() => {
     setOverrides((current) => (current.size === 0 ? current : new Map()));
   }, [query.data]);
   const iconFor = useMemo(() => boardIconLookup(enabled ? query.data?.icons : undefined, overrides), [enabled, query.data, overrides]);
@@ -93,12 +80,13 @@ export function useBoardIcons(enabled: boolean): BoardIcons {
         .callRpc({ pluginId: PROJECTS_PLUGIN, method: "setIcon", input: { projectId: boardId, icon: stored }, outputSchema: projectsContract.setIcon.output })
         .then(
           () => void refetch().catch(() => undefined),
-          () => {
+          (cause: unknown) => {
             setOverrides((current) => {
               const next = new Map(current);
               next.delete(boardId);
               return next;
             });
+            toast.error("Couldn't save the board icon", { description: cause instanceof Error ? cause.message : String(cause) });
           },
         );
     },

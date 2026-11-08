@@ -5,6 +5,7 @@ import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb
 import { BOARD_ICONS_CHANGED, META_CHANGED, projectsContract, type ProjectMeta } from "./src/meta";
 import { describeProjectIcon, parseProjectIcon, PROJECT_ICON_NAMES } from "@wy3z/bb-suite/project-icon";
 import { BoardIconError, createBoardIcons, iconArgument, pngToIcon } from "./src/board-icons";
+import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
 import { createLoop } from "./src/outer-loop";
 import { createMessaging } from "./src/messaging";
 import { TASKS_PLUGIN, tasksContract, type Project, type Task } from "./src/contracts";
@@ -32,10 +33,14 @@ export default function plugin(bb: BbPluginApi) {
 
   const leadPrefixes = new Map<string, string>();
 
-  const icons = createBoardIcons(bb.storage.kv, (projectId) => {
-    bb.realtime.publish(BOARD_ICONS_CHANGED, { projectId });
-    bb.rpc.experimental_invalidate(["icons"]);
-  });
+  const icons = createBoardIcons(
+    bb.storage.kv,
+    (projectId) => {
+      bb.realtime.publish(BOARD_ICONS_CHANGED, { projectId });
+      bb.rpc.experimental_invalidate(["icons"]);
+    },
+    async () => new Set((await projects()).map((project) => project.id)),
+  );
 
   async function writeIcon(projectId: string, icon: string | null) {
     try {
@@ -217,6 +222,7 @@ export default function plugin(bb: BbPluginApi) {
     },
     listIcons: async () => ({ icons: await icons.list() }),
     setIcon: ({ projectId, icon }) => writeIcon(projectId, icon),
+    iconGlyphs: (input) => serveProjectIconGlyphs(input),
   });
 
   const json = { type: "boolean", description: "Emit JSON" } as const;

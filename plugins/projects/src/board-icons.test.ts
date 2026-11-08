@@ -6,16 +6,18 @@ import plugin from "../server";
 import { fakeBb } from "../test/fake-bb";
 import { BoardIconError, ICON_PREFIX, boardIconFor, createBoardIcons, iconArgument, pngToIcon } from "./board-icons";
 
-const PNG_URL = "data:image/png;base64,iVBORw0KGgo=";
-
-function png(width = 64, height = 64): Uint8Array {
-  const bytes = new Uint8Array(64);
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+function png(width = 64, height = 64, size = 64): Uint8Array {
+  const bytes = new Uint8Array(size);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
   const view = new DataView(bytes.buffer);
   view.setUint32(16, width);
   view.setUint32(20, height);
   return bytes;
 }
+
+const dataUrl = (bytes: Uint8Array) => `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+const PNG_URL = dataUrl(png());
+const KNOWN = async () => new Set(["proj_abc", "proj_other"]);
 
 function memoryKv() {
   const map = new Map<string, unknown>();
@@ -34,7 +36,7 @@ describe("board icon storage", () => {
   it("stores, lists and clears an icon per tracker project", async () => {
     const { kv, map } = memoryKv();
     const changed: string[] = [];
-    const icons = createBoardIcons(kv, (projectId) => changed.push(projectId));
+    const icons = createBoardIcons(kv, (projectId) => changed.push(projectId), KNOWN);
     expect(await icons.get("proj_abc")).toBeNull();
     expect(await icons.set("proj_abc", "glyph:rocket:blue")).toBe("glyph:rocket:blue");
     await icons.set("proj_other", "emoji:🧪");
@@ -50,7 +52,7 @@ describe("board icon storage", () => {
 
   it("normalises legacy values and refuses junk without writing", async () => {
     const { kv, map } = memoryKv();
-    const icons = createBoardIcons(kv, () => undefined);
+    const icons = createBoardIcons(kv, () => undefined, KNOWN);
     expect(await icons.set("proj_abc", "monogram:px:teal")).toBe("monogram:PX:teal");
     await expect(icons.set("proj_abc", "glyph:nope:blue")).rejects.toBeInstanceOf(BoardIconError);
     await expect(icons.set("proj_abc", `data:image/png;base64,${"A".repeat(300 * 1024)}`)).rejects.toBeInstanceOf(BoardIconError);
@@ -59,11 +61,41 @@ describe("board icon storage", () => {
 
   it("skips stored values it can no longer parse", async () => {
     const { kv, map } = memoryKv();
-    map.set(`${ICON_PREFIX}proj_bad`, "glyph:retired:blue");
-    map.set(`${ICON_PREFIX}proj_ok`, PNG_URL);
-    const icons = createBoardIcons(kv, () => undefined);
-    expect(await icons.list()).toEqual([{ projectId: "proj_ok", icon: PNG_URL }]);
-    expect(await icons.get("proj_bad")).toBeNull();
+    map.set(`${ICON_PREFIX}proj_abc`, "glyph:retired:blue");
+    map.set(`${ICON_PREFIX}proj_other`, PNG_URL);
+    const icons = createBoardIcons(kv, () => undefined, KNOWN);
+    expect(await icons.list()).toEqual([{ projectId: "proj_other", icon: PNG_URL }]);
+    expect(await icons.get("proj_abc")).toBeNull();
+  });
+
+  it("refuses unknown projects and prunes icons of deleted ones", async () => {
+    const { kv, map } = memoryKv();
+    map.set(`${ICON_PREFIX}proj_gone`, "glyph:rocket:blue");
+    map.set(`${ICON_PREFIX}proj_abc`, "glyph:rocket:green");
+    const icons = createBoardIcons(kv, () => undefined, KNOWN);
+    await expect(icons.set("proj_nope", "glyph:rocket:blue")).rejects.toThrow('No tracker project "proj_nope"');
+    expect(await icons.list()).toEqual([{ projectId: "proj_abc", icon: "glyph:rocket:green" }]);
+    expect(map.has(`${ICON_PREFIX}proj_gone`)).toBe(false);
+    expect(map.has(`${ICON_PREFIX}proj_nope`)).toBe(false);
+  });
+
+  it("keeps every row and refuses writes while Tasks can't be read", async () => {
+    const { kv, map } = memoryKv();
+    map.set(`${ICON_PREFIX}proj_gone`, "glyph:rocket:blue");
+    const icons = createBoardIcons(kv, () => undefined, async () => {
+      throw new Error("tasks is reloading");
+    });
+    expect(await icons.list()).toEqual([{ projectId: "proj_gone", icon: "glyph:rocket:blue" }]);
+    await expect(icons.set("proj_gone", null)).rejects.toThrow("Could not read tracker projects");
+  });
+
+  it("checks image data, not just its shape", async () => {
+    const { kv } = memoryKv();
+    const icons = createBoardIcons(kv, () => undefined, KNOWN);
+    await expect(icons.set("proj_abc", "data:image/png;base64,AAAA")).rejects.toThrow("not a PNG");
+    await expect(icons.set("proj_abc", dataUrl(png(1024, 1024)))).rejects.toThrow("1024x1024");
+    await expect(icons.set("proj_abc", dataUrl(png(64, 64, 60 * 1024)))).rejects.toThrow("48KB");
+    expect(await icons.set("proj_abc", PNG_URL)).toBe(PNG_URL);
   });
 });
 
@@ -95,6 +127,7 @@ describe("icon arguments", () => {
     expect(pngToIcon(png())).toMatch(/^data:image\/png;base64,/);
     expect(() => pngToIcon(new Uint8Array(32))).toThrow("not a PNG");
     expect(() => pngToIcon(png(4096, 64))).toThrow("4096x64");
+    expect(() => pngToIcon(png(64, 64, 49 * 1024))).toThrow("49KB");
   });
 });
 
@@ -143,11 +176,15 @@ describe("bb projects icon", () => {
     const rpc = fake.rpc() as unknown as {
       listIcons: (input: object) => Promise<{ icons: { projectId: string; icon: string }[] }>;
       setIcon: (input: { projectId: string; icon: string | null }) => Promise<{ icons: { projectId: string; icon: string }[] }>;
+      iconGlyphs: (input: { names: string[] | null }) => { glyphs: Record<string, unknown[]> };
     };
+    expect(Object.keys(rpc.iconGlyphs({ names: ["rocket"] }).glyphs)).toEqual(["rocket"]);
     expect(await rpc.listIcons({})).toEqual({ icons: [] });
     expect(await rpc.setIcon({ projectId: "proj_other", icon: "glyph:Rocket:violet" })).toEqual({ icons: [{ projectId: "proj_other", icon: "glyph:Rocket:violet" }] });
     await expect(rpc.setIcon({ projectId: "proj_other", icon: "glyph:nope:blue" })).rejects.toThrow("Unrecognised icon value");
     expect((await fake.run(["icon", "OTHER"])).stdout).toBe("OTHER: glyph Rocket (violet)\n");
+    await expect(rpc.setIcon({ projectId: "proj_unknown", icon: "glyph:rocket:blue" })).rejects.toThrow("No tracker project");
+    await expect(rpc.setIcon({ projectId: "proj_other", icon: "data:image/png;base64,AAAA" })).rejects.toThrow("not a PNG");
     expect(await rpc.setIcon({ projectId: "proj_other", icon: null })).toEqual({ icons: [] });
   });
 });

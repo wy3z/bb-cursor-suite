@@ -42,7 +42,9 @@ live cards, and a project lead workflow.
   Cursor's project icon picker (glyph and colour, or an uploaded image). A board
   with no icon shows the board glyph; it never borrows the linked BB project's
   or repository's icon. The lead's tab and Cursor Sidebar's board rows wear the
-  same icon.
+  same icon. The picker and icon artwork come from `packages/suite-shared`,
+  whose notices (Hugeicons, T3 Code) are in
+  [its THIRD-PARTY-NOTICES.md](../../packages/suite-shared/THIRD-PARTY-NOTICES.md).
 - **Focus**: one or two sentences on what matters now, kept for the lead with
   `bb projects focus`. It isn't shown on the board.
 - **Project lead**: a thread recorded as the lead (`bb projects lead`). The

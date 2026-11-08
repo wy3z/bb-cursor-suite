@@ -5,6 +5,7 @@ import {
   findProjectIconName,
   isProjectIconColor,
   parseProjectIcon,
+  pngDataUrlProblem,
   serializeProjectIcon,
   type ProjectIcon,
 } from "@wy3z/bb-suite/project-icon";
@@ -21,13 +22,16 @@ export type IconKv = {
 export class BoardIconError extends Error {}
 
 export function validateStoredIcon(icon: string): string {
-  if (icon.length > BOARD_ICON_MAX_LENGTH) throw new BoardIconError("That icon is too large.");
+  if (icon.startsWith("data:")) {
+    const problem = pngDataUrlProblem(icon);
+    if (problem !== null) throw new BoardIconError(problem);
+  } else if (icon.length > BOARD_ICON_MAX_LENGTH) throw new BoardIconError("That icon is too large.");
   const parsed = parseProjectIcon(icon);
   if (parsed === null) throw new BoardIconError(`Unrecognised icon value ${JSON.stringify(icon.length > 60 ? `${icon.slice(0, 60)}…` : icon)}.`);
   return serializeProjectIcon(parsed);
 }
 
-export function createBoardIcons(kv: IconKv, onChange: (projectId: string) => void) {
+export function createBoardIcons(kv: IconKv, onChange: (projectId: string) => void, knownProjects: () => Promise<ReadonlySet<string>>) {
   const key = (projectId: string) => `${ICON_PREFIX}${projectId}`;
 
   async function get(projectId: string): Promise<string | null> {
@@ -35,17 +39,34 @@ export function createBoardIcons(kv: IconKv, onChange: (projectId: string) => vo
     return typeof stored === "string" && parseProjectIcon(stored) !== null ? stored : null;
   }
 
+  async function known(): Promise<ReadonlySet<string> | null> {
+    try {
+      return await knownProjects();
+    } catch {
+      return null;
+    }
+  }
+
   async function list(): Promise<BoardIconRow[]> {
+    const projects = await known();
     const rows: BoardIconRow[] = [];
     for (const storageKey of (await kv.list(ICON_PREFIX)).sort()) {
+      const projectId = storageKey.slice(ICON_PREFIX.length);
+      if (projects !== null && !projects.has(projectId)) {
+        await kv.delete(storageKey);
+        continue;
+      }
       const stored = await kv.get<string>(storageKey);
-      if (typeof stored === "string" && parseProjectIcon(stored) !== null) rows.push({ projectId: storageKey.slice(ICON_PREFIX.length), icon: stored });
+      if (typeof stored === "string" && parseProjectIcon(stored) !== null) rows.push({ projectId, icon: stored });
     }
     return rows;
   }
 
   async function set(projectId: string, icon: string | null): Promise<string | null> {
     const next = icon === null ? null : validateStoredIcon(icon);
+    const projects = await known();
+    if (projects === null) throw new BoardIconError("Could not read tracker projects from Tasks; try again.");
+    if (!projects.has(projectId)) throw new BoardIconError(`No tracker project "${projectId}".`);
     if (next === null) await kv.delete(key(projectId));
     else await kv.set(key(projectId), next);
     onChange(projectId);

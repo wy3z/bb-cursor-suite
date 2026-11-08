@@ -5,7 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { PROJECT_ICON_NAMES, parseProjectIcon } from "./project-icons";
+import { PROJECT_ICON_NAMES, findProjectIconName, parseProjectIcon } from "./project-icons";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 /** Raw bytes that still fit the server's 256KB data-URL cap once base64'd. */
@@ -89,8 +89,8 @@ export function registerIconCli(bb: BbPluginApi, store: IconStore): void {
           return { exitCode: 0, stdout: `${project.name}: icon reset to the folder.\n` };
         case "glyph": {
           if (value === undefined) return fail("Name a glyph, or run `glyph --list`.");
-          const name = PROJECT_ICON_NAMES.find((glyph) => glyph.toLowerCase() === value.toLowerCase());
-          if (name === undefined) return fail(`Unknown glyph "${value}". Run \`bb cursor-sidebar icon glyph --list\`.`);
+          const name = findProjectIconName(value);
+          if (name === null) return fail(`Unknown glyph "${value}". Run \`bb cursor-sidebar icon glyph --list\`.`);
           store.save(project.id, name);
           return { exitCode: 0, stdout: `${project.name}: icon set to ${name}.\n` };
         }

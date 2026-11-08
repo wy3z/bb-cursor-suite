@@ -1,13 +1,22 @@
 .bbs-pi-default { --bbs-pi-fg: color-mix(in srgb, var(--foreground) 66%, transparent); }
-.bbs-pi-green { --bbs-pi-fg: #3fa266; }
-.bbs-pi-cyan { --bbs-pi-fg: #81a1c1; }
-.bbs-pi-blue { --bbs-pi-fg: #7bafe9; }
-.bbs-pi-purple { --bbs-pi-fg: #9386f2; }
-.bbs-pi-magenta { --bbs-pi-fg: #b48ead; }
-.bbs-pi-orange { --bbs-pi-fg: #d08770; }
-.bbs-pi-yellow { --bbs-pi-fg: #f1b467; }
-.bbs-pi-red { --bbs-pi-fg: #fc6b83; }
-.bbs-pi-brand { --bbs-pi-fg: #f54e00; }
+.bbs-pi-green { --bbs-pi-fg: #2e8a52; }
+.bbs-pi-cyan { --bbs-pi-fg: #0f7f8f; }
+.bbs-pi-blue { --bbs-pi-fg: #2f6fd6; }
+.bbs-pi-purple { --bbs-pi-fg: #6c5ce0; }
+.bbs-pi-magenta { --bbs-pi-fg: #a24a94; }
+.bbs-pi-orange { --bbs-pi-fg: #c4562c; }
+.bbs-pi-yellow { --bbs-pi-fg: #a06a00; }
+.bbs-pi-red { --bbs-pi-fg: #d42f4f; }
+.bbs-pi-brand { --bbs-pi-fg: #d94600; }
+html.dark .bbs-pi-green { --bbs-pi-fg: #3fa266; }
+html.dark .bbs-pi-cyan { --bbs-pi-fg: #56b6c2; }
+html.dark .bbs-pi-blue { --bbs-pi-fg: #7bafe9; }
+html.dark .bbs-pi-purple { --bbs-pi-fg: #9386f2; }
+html.dark .bbs-pi-magenta { --bbs-pi-fg: #b48ead; }
+html.dark .bbs-pi-orange { --bbs-pi-fg: #d08770; }
+html.dark .bbs-pi-yellow { --bbs-pi-fg: #f1b467; }
+html.dark .bbs-pi-red { --bbs-pi-fg: #fc6b83; }
+html.dark .bbs-pi-brand { --bbs-pi-fg: #f54e00; }
 
 .bbs-pi-gray { --bbs-pi-fg: oklch(44.6% 0.03 256.802); }
 .bbs-pi-amber { --bbs-pi-fg: oklch(66.6% 0.179 58.318); }

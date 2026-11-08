@@ -40,21 +40,11 @@ upstream.
 
 ## T3 Code
 
-The earlier project-icon model, colour palette, emoji list and monogram tile
-were ported from **T3 Code**
-(https://github.com/pingdotgg/t3code), used under the MIT License. That
-project's checkout was treated as read-only; only source was read and adapted
-into this plugin's own package. The icon set itself is drawn with this plugin's
-own Hugeicons/host registry, not T3's lucide components.
-
-The following files contain adapted source from that project:
-
-- `src/ProjectMonogram.tsx` (the monogram tile, kept so saved monograms still
-  show)
-- `packages/suite-shared/project-icon.css` (the 18-colour palette, kept so saved
-  icons in those colours still show)
-- `packages/suite-shared/src/project-icon.ts` (monogram validation, kept for
-  parsing saved values)
+`src/ProjectMonogram.tsx` (the monogram tile, kept so saved monograms still
+show) is adapted from **T3 Code** (https://github.com/pingdotgg/t3code), used
+under the MIT License below. The shared project-icon code this plugin bundles
+from `packages/suite-shared` carries its own notices in
+`packages/suite-shared/THIRD-PARTY-NOTICES.md` (T3 Code and Hugeicons).
 
 ### T3 Code MIT License
 

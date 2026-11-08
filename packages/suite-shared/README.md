@@ -20,7 +20,12 @@ and `bb plugin build` bundles it.
   of Cursor's project icon picker (search, colour swatches, icon grid, **No
   icon**) with an image upload and paste addition, plus `ProjectIconArt` and
   `ProjectIconGlyph` to draw a stored icon. Import
-  `@wy3z/bb-suite/project-icon.css` with it.
+  `@wy3z/bb-suite/project-icon.css` with it. Glyph artwork is not bundled into
+  the app: the picker and marks fetch it from the plugin's own server through
+  an `iconGlyphs` RPC (`PROJECT_ICON_GLYPHS_METHOD`), answered by
+  `serveProjectIconGlyphs` from `@wy3z/bb-suite/project-icon/server`.
+  Third-party notices for this code are in
+  [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 - `@wy3z/bb-suite/machine-backend`: the sandbox policy (`idleMinutes` 15,
   `ttlMinutes` 120, `maxConcurrent` 2, `monthlyCapUsd` 30, `hourlyRateUsd`,
   orphan handling), the machine resource schema, cap and concurrency refusal

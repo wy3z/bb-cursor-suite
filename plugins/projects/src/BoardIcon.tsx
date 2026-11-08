@@ -10,6 +10,7 @@ export function useBoardIcons() {
   const rpc = useRpc<typeof projectsContract>();
   const connection = useRealtimeConnectionState();
   const [rows, setRows] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [error, setError] = useState<string | null>(null);
   const apply = useCallback((icons: { projectId: string; icon: string }[]) => setRows(new Map(icons.map((row) => [row.projectId, row.icon]))), []);
   const load = useCallback(() => {
     rpc.call("listIcons", {}).then((result) => apply(result.icons), () => undefined);
@@ -25,12 +26,20 @@ export function useBoardIcons() {
         else next.set(projectId, stored);
         return next;
       });
-      rpc.call("setIcon", { projectId, icon: stored }).then((result) => apply(result.icons), load);
+      setError(null);
+      rpc.call("setIcon", { projectId, icon: stored }).then(
+        (result) => apply(result.icons),
+        (cause: unknown) => {
+          setError(`Couldn't save the board icon: ${cause instanceof Error ? cause.message : String(cause)}`);
+          load();
+        },
+      );
     },
     [rpc, apply, load],
   );
   const iconFor = useCallback((projectId: string | null) => boardIconFor(rows, projectId), [rows]);
-  return useMemo(() => ({ iconFor, setIcon }), [iconFor, setIcon]);
+  const clearError = useCallback(() => setError(null), []);
+  return useMemo(() => ({ iconFor, setIcon, error, clearError }), [iconFor, setIcon, error, clearError]);
 }
 
 export function BoardIconArt({ icon, className }: { icon: ProjectIcon | null; className?: string }) {

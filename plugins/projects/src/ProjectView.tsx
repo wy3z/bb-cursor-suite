@@ -192,6 +192,15 @@ export function ProjectView({
           </div>
         </div>
       </div>
+      {boardIcons.error ? (
+        <div className="bbp-error" role="alert">
+          <Icon name="AlertTriangle" />
+          <span>{boardIcons.error}</span>
+          <button type="button" className="bbp-icon-button" aria-label="Dismiss" onClick={boardIcons.clearError}>
+            <Icon name="X" />
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <div className="bbp-error" role="alert">
           <Icon name="AlertTriangle" />
