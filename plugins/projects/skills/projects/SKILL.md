@@ -61,7 +61,7 @@ thread can run:
 
 ```sh
 bb projects reply <PREFIX> --to <req id> --kind result "Fixed in PR #12, waiting on review"
-bb projects reply <PREFIX> --to <req id> --kind question "Which Samsung model? Can't reproduce on S23"
+bb projects reply <PREFIX> --to <req id> --kind question "Which browser? Can't reproduce on Firefox 128"
 bb projects reply <PREFIX> --kind blocker "main has been red for 2h; workers are paused"
 bb projects reply <PREFIX> --for dots --kind update "The cert dots asked about last week expires Friday"
 ```
@@ -89,8 +89,7 @@ them only when the user asks.
 
 - Read the board first: `bb projects status <PREFIX>` and `bb tasks list --project <PREFIX>`.
 - One task per outcome a person would check. Put the acceptance criteria in the
-  description. Use the project's labels; for Pixel, title tasks with their
-  SCOPE.md ID (`PLAY-3 · ...`) and add `Scope: <ID>` to the description.
+  description. Use the project's labels.
 - Do not invent priorities or due dates. Ask, or leave them unset.
 - Keep `bb projects focus <PREFIX> "<one or two sentences>"` current: what
   matters most right now. Clear it with `--clear` when that focus ends.

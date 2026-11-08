@@ -1,4 +1,5 @@
 import { longAge } from "@wy3z/bb-suite/time";
+import type { MergeSettings } from "./merge-method";
 // Pull request model and assessment, ported from Zeron
 // (crates/proto/src/change_request_assessment.rs and entities.rs, MIT).
 // One assessment drives board rows, the detail page and agent handoffs.
@@ -119,6 +120,7 @@ export interface PullRequestDetail {
   /** null: unavailable, not "no feedback". */
   reviewThreads: PullRequestReviewThread[] | null;
   files: PullRequestFile[];
+  mergeSettings: MergeSettings | null;
   fetchedAt: string;
 }
 

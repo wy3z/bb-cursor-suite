@@ -89,6 +89,27 @@ describe("file opener target", () => {
       ),
     ).toBeNull();
   });
+  it("maps Windows host paths case-insensitively onto a Windows root", () => {
+    const windowsRoot = { ...nested, rootId: "windows", rootPath: "C:\\Users\\me\\repo" };
+    const windowsRoots: NativeFileRootsResponse = {
+      ...roots,
+      roots: [workspace, windowsRoot],
+    };
+    expect(
+      resolveFileOpenerTarget(
+        "c:/users/me/Repo/src/App.ts",
+        { ...source, kind: "host" },
+        windowsRoots,
+      ),
+    ).toEqual({ root: windowsRoot, path: "src/App.ts" });
+    expect(
+      resolveFileOpenerTarget(
+        "C:\\Users\\me\\repo\\..\\secret.txt",
+        { ...source, kind: "host" },
+        windowsRoots,
+      ),
+    ).toBeNull();
+  });
   it.each([
     "/workspace-other/app.ts",
     "/workspace/../secret.ts",

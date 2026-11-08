@@ -5,7 +5,7 @@ import {
   type ExperimentalHostWatchSubscription,
 } from "@get-bb/plugin-sdk/host";
 import { hostContract, hostSignals } from "./contracts/host.js";
-import { NativeFileHostService } from "./host/service.js";
+import { NativeFileHostError, NativeFileHostService } from "./host/service.js";
 import { prepareNativeAddon } from "./host/native-addon.js";
 export function createFilesHostEntry() {
   const service = new NativeFileHostService();
@@ -33,7 +33,14 @@ export function createFilesHostEntry() {
     run: (bindingId: string, operationId: string) => Promise<T>,
   ) {
     context.signal.throwIfAborted();
-    await prepareNativeAddon(context.experimental_paths.tempDir);
+    const support = await prepareNativeAddon(
+      context.experimental_paths.tempDir,
+    );
+    if (support.kind === "unsupported")
+      throw new NativeFileHostError(
+        "native_file_confinement_unavailable",
+        support.reason,
+      );
     const { rootBindingId } = await service.bindRoot(rootPath);
     const operationId = randomUUID();
     const abort = () => service.cancel(operationId);
@@ -62,6 +69,8 @@ export function createFilesHostEntry() {
         ),
       gitStatus: (input, ctx) =>
         bound(input.rootPath, ctx, (id, op) => service.gitStatus(id, op)),
+      support: (_input, ctx) =>
+        prepareNativeAddon(ctx.experimental_paths.tempDir),
       watch: async ({ rootPath, threadId, rootId }, ctx) => {
         const key = JSON.stringify([threadId, rootId, rootPath]);
         const existing = watches.get(key);

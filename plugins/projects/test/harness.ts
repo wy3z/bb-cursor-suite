@@ -45,7 +45,7 @@ export type Sent = { threadId: string; text: string };
 type QueueRow = { id: string; text: string; state: "queued" | "claimed" | "waiting" | "failed_exhausted" | "failed_retrying" | "scheduled"; waitingOn?: { kind: "superseded" } | { kind: "thread-busy" } | null };
 
 export function world(db: SqlDb, clock: Clock) {
-  const leads = new Map<string, string | null>([["proj_pixel", "thr_lead1"]]);
+  const leads = new Map<string, string | null>([["proj_abc", "thr_lead1"]]);
   const threads = new Map<string, LeadState>([["thr_lead1", "ok"]]);
   const busy = new Set<string>();
   const queues = new Map<string, QueueRow[]>();
@@ -91,7 +91,7 @@ export function world(db: SqlDb, clock: Clock) {
   };
 
   const mailbox = createMailbox(() => db, clock.now);
-  mailbox.touchConsumer("proj_pixel", "grok-bot");
+  mailbox.touchConsumer("proj_abc", "grok-bot");
   const deps: CourierDeps = {
     mailbox,
     leadOf: async (projectId) => {
@@ -171,4 +171,4 @@ export function world(db: SqlDb, clock: Clock) {
   };
 }
 
-export const pixel = { projectId: "proj_pixel", prefix: "PIXEL" };
+export const abc = { projectId: "proj_abc", prefix: "ABC" };

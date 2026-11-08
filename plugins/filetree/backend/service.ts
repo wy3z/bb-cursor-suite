@@ -15,6 +15,7 @@ import {
   listAuthorizedNativeFileRoots,
   resolveAuthorizedNativeFileRoot,
 } from "./roots.js";
+import { joinHostPath } from "../contracts/host-path.js";
 type Host = ExperimentalHostClient<typeof hostContract, typeof hostSignals>;
 type RootRequest = {
   threadId: string;
@@ -47,8 +48,39 @@ export class FilesService {
     private readonly host: Host,
     private readonly pluginId: string,
   ) {}
-  roots(threadId: string) {
-    return listAuthorizedNativeFileRoots(this.sdk, threadId);
+  async roots(threadId: string) {
+    const listed = await listAuthorizedNativeFileRoots(this.sdk, threadId);
+    if (listed.kind !== "ready") return listed;
+    const hostIds = [...new Set(listed.roots.map((root) => root.hostId))];
+    const support = new Map(
+      await Promise.all(
+        hostIds.map(
+          async (hostId) =>
+            [
+              hostId,
+              await this.host
+                .call("support", {}, { hostId })
+                .catch(() => null),
+            ] as const,
+        ),
+      ),
+    );
+    const active = listed.roots.find(
+      (root) => root.rootId === listed.activeRootId,
+    );
+    const activeSupport = active ? support.get(active.hostId) : null;
+    if (activeSupport?.kind === "unsupported")
+      return {
+        kind: "unavailable" as const,
+        reason: activeSupport.reason,
+        threadId,
+      };
+    return {
+      ...listed,
+      roots: listed.roots.filter(
+        (root) => support.get(root.hostId)?.kind !== "unsupported",
+      ),
+    };
   }
   private async authorized<T>(
     input: RootRequest,
@@ -145,7 +177,7 @@ export class FilesService {
     );
   }
   async watch(threadId: string) {
-    const roots = await this.roots(threadId);
+    const roots = await listAuthorizedNativeFileRoots(this.sdk, threadId);
     if (roots.kind !== "ready") return { watching: false, rootIds: [] };
     const results = await Promise.allSettled(
       roots.roots.map((root) =>
@@ -194,7 +226,7 @@ export class FilesService {
         const snapshot = sdkFileSchema.parse(
           await this.sdk.files.read({
             hostId: root.hostId,
-            path: path.posix.join(root.rootPath, input.path),
+            path: joinHostPath(root.rootPath, input.path),
             rootPath: root.rootPath,
             signal,
           }),

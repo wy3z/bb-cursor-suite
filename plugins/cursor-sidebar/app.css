@@ -4,6 +4,52 @@
   --cs-pink: #e5577f;
 }
 
+:root {
+  --cs-row-inset: 8px;
+  --cs-row-pad-l: 5px;
+  --cs-row-pad-r: 6px;
+  --cs-icon: 14px;
+  --cs-icon-gap: 6px;
+  --cs-text-pad: 2px;
+  --cs-heading-pad: 6px;
+  --cs-text-x: calc(var(--cs-row-pad-l) + var(--cs-icon) + var(--cs-icon-gap) + var(--cs-text-pad));
+}
+.cs-row,
+.cs-heading.cs-project-heading {
+  padding-left: var(--cs-row-pad-l);
+  padding-right: var(--cs-row-pad-r);
+  column-gap: var(--cs-icon-gap);
+}
+.cs-heading {
+  padding-left: var(--cs-heading-pad);
+  padding-right: var(--cs-heading-pad);
+}
+.cs-heading.cs-heading--icon {
+  padding-left: var(--cs-row-pad-l);
+  padding-right: var(--cs-row-pad-r);
+}
+.cs-heading--icon .cs-heading-button {
+  column-gap: var(--cs-icon-gap);
+}
+.cs-row-text {
+  padding-left: var(--cs-text-pad);
+}
+.cs-row-note {
+  padding-left: var(--cs-text-x);
+  padding-right: var(--cs-row-pad-r);
+}
+.cs-row-inset {
+  padding-left: var(--cs-row-inset);
+  padding-right: var(--cs-row-inset);
+}
+.cs-nav-icon {
+  width: var(--cs-icon);
+  height: var(--cs-icon);
+}
+[data-cursor-sidebar-root] .cs-nest-line {
+  left: var(--cs-text-x);
+}
+
 /* The plugin owns scrolling; the host's reserved gutter adds an extra right inset. */
 [data-sidebar="content"]:has([data-cursor-sidebar-root]) {
   scrollbar-gutter: auto;
@@ -44,8 +90,6 @@
   .cs-move-dialog select { min-height: 44px; touch-action: manipulation; }
   [data-cursor-sidebar-root] button:has(> :is(svg, [data-icon-root]):only-child):not(.cs-icon-btn):not(.cs-new-project):not(.cs-row-action):not(.cs-board-row__toggle) { min-width: 44px; }
   [data-cursor-sidebar-root] button[aria-expanded]:not(.cs-board-row__toggle) { opacity: 1; }
-  [data-cursor-sidebar-root] [data-reorder-kind="project"] { gap: var(--bbs-gap-xs, 4px); }
-  [data-cursor-sidebar-root] .cs-project-glyph { width: var(--bbs-icon-toolbar, 16px); height: 16px; }
   [data-cursor-sidebar-root] .cs-project-name {
     white-space: normal; overflow-wrap: anywhere; font-size: 13px;
   }
@@ -101,15 +145,12 @@
   [data-cursor-sidebar-root] .cs-row-action { display: none; }
 }
 
-/* The project heading's glyph in the reserved leading slot: a fixed 16px box
-   left of the name (with a gap before the label). Native projects always use
-   a folder; live work is drawn on thread rows, never here. */
 .cs-project-glyph {
   display: inline-flex;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: var(--bbs-icon-toolbar, 16px);
-  height: var(--bbs-icon-toolbar, 16px);
+  width: var(--cs-icon);
+  height: var(--cs-icon);
   align-items: center;
   justify-content: center;
   overflow: visible;
@@ -119,15 +160,12 @@
   display: block;
 }
 
-/* One reserved left slot for Core/Project identity and thread status.
-   Threads draw a status circle (or spinner) here; Core status is a badge
-   on the glyph. Idle chats keep the box so titles stay aligned. */
 .cs-status-slot {
   display: inline-flex;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: var(--bbs-icon-toolbar, 16px);
-  height: var(--bbs-icon-toolbar, 16px);
+  width: var(--cs-icon);
+  height: var(--cs-icon);
   align-items: center;
   justify-content: center;
   pointer-events: none;
@@ -424,31 +462,6 @@
   white-space: nowrap;
 }
 
-/* A connector rail runs behind the glyph it meets. The disc hugs the glyph, so
-   a spinner's gaps show the list surface rather than the line, and the row's
-   own hover tint is barely touched. */
-[data-cursor-sidebar-root] .cs-status-glyph::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  z-index: 0;
-  border-radius: var(--bbs-pill-radius, 9999px);
-  background-color: var(--sidebar);
-}
-/* The disc has to follow the row's own surface: on a hovered or selected row a
-   list-coloured disc reads as a dark halo behind the glyph. Accent at 60% over
-   the list is the opaque equivalent of the hover tint the row paints. */
-[data-cursor-sidebar-root] [data-thread-row]:hover .cs-status-glyph::before {
-  background-color: color-mix(in oklab, var(--sidebar-accent) 60%, var(--sidebar));
-}
-[data-cursor-sidebar-root] [data-thread-row]:has(a[aria-current="true"]) .cs-status-glyph::before {
-  background-color: var(--sidebar-accent);
-}
-[data-cursor-sidebar-root] .cs-status-glyph > * {
-  position: relative;
-  z-index: 1;
-}
-
 /* The lifted row clone is purely visual: nothing inside it may take a hit, or
    the drop target under the pointer would resolve to the ghost. */
 .cs-drag-ghost,
@@ -537,10 +550,10 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--bbs-gap-icon, 6px);
+  gap: var(--cs-icon-gap);
   width: 100%;
   min-height: 1.75rem;
-  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  padding: 0.25rem var(--cs-row-pad-r) 0.25rem var(--cs-row-pad-l);
   border: 0;
   border-radius: 0.375rem;
   background: transparent;
@@ -567,6 +580,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
 .cs-board-row__name {
   flex: 1 1 auto;
   min-width: 0;
+  padding-left: var(--cs-text-pad);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -607,8 +621,8 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 1rem;
-  height: 1rem;
+  width: var(--cs-icon);
+  height: var(--cs-icon);
 }
 .cs-board-row__icon {
   display: inline-flex;
