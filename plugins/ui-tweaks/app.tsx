@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   UrlLink,
   definePluginApp,
@@ -47,6 +47,15 @@ import {
   setOwnedAttribute,
   type RootOverrides,
 } from "./lib/root-attributes.js";
+import {
+  SettingsButton,
+  SettingsCard,
+  SettingsRow,
+  SettingsSelectRow,
+  SettingsSwitch,
+  SettingsToggleRow,
+} from "@wy3z/bb-suite/settings";
+import "@wy3z/bb-suite/settings.css";
 import "./app.css";
 
 const WORKSPACE_APPS_STORAGE_KEY = "bb-plugin-ui-tweaks.workspace-apps.v3";
@@ -70,6 +79,16 @@ const PROMPT_POSITIONS = ["top", "center", "bottom"] as const;
 type PromptPosition = (typeof PROMPT_POSITIONS)[number];
 const PROMPT_HEIGHTS = ["default", "two-lines", "one-line"] as const;
 type PromptHeight = (typeof PROMPT_HEIGHTS)[number];
+const PROMPT_POSITION_OPTIONS = [
+  { value: "top", label: "Top" },
+  { value: "center", label: "Center" },
+  { value: "bottom", label: "Bottom" },
+] as const satisfies ReadonlyArray<{ value: PromptPosition; label: string }>;
+const PROMPT_HEIGHT_OPTIONS = [
+  { value: "default", label: "Standard" },
+  { value: "two-lines", label: "Two lines" },
+  { value: "one-line", label: "One line" },
+] as const satisfies ReadonlyArray<{ value: PromptHeight; label: string }>;
 
 const WORKSPACE_APP_CATEGORY_OPTIONS = [
   ["default-app", "Default app"],
@@ -912,157 +931,184 @@ function usePreferences() {
   return { preferences, update };
 }
 
-function ToggleSwitch({
-  ariaLabel,
-  checked,
-  disabled = false,
-  onCheckedChange,
+function ChoiceCards<Value extends string>({
+  name,
+  value,
+  options,
+  columns,
+  labelId,
+  descriptionId,
+  onChange,
+  preview,
 }: {
-  ariaLabel: string;
-  checked: boolean;
-  disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  name: string;
+  value: Value;
+  options: readonly { id: Value; label: string; description: string }[];
+  columns: string;
+  labelId: string;
+  descriptionId: string | undefined;
+  onChange: (value: Value) => void;
+  preview: (id: Value) => ReactNode;
 }) {
-  const state = checked ? "checked" : "unchecked";
-
   return (
-    <button
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      className="peer inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border border-transparent bg-input shadow-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted"
-      data-state={state}
-      disabled={disabled}
-      role="switch"
-      type="button"
-      onClick={() => onCheckedChange(!checked)}
+    <div
+      aria-describedby={descriptionId}
+      aria-labelledby={labelId}
+      className={`grid gap-2 ${columns}`}
+      role="radiogroup"
     >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none block size-3 rounded-full bg-background ring-0 transition-transform data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0"
-        data-state={state}
+      {options.map((option) => {
+        const selected = value === option.id;
+        return (
+          <label
+            key={option.id}
+            className={`flex cursor-pointer flex-col gap-2 rounded-md border bg-background p-3 focus-within:ring-2 focus-within:ring-ring ${
+              selected
+                ? "border-foreground ring-1 ring-foreground"
+                : "border-border hover:bg-muted/50"
+            }`}
+          >
+            <input
+              checked={selected}
+              className="sr-only"
+              name={name}
+              type="radio"
+              value={option.id}
+              onChange={() => onChange(option.id)}
+            />
+            {preview(option.id)}
+            <span className="text-sm font-medium text-foreground">
+              {option.label}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {option.description}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+const ICON_PREVIEWS = ["Search", "Folder", "MessageSquare", "Settings"] as const;
+
+function InterfaceSettings() {
+  const { preferences, update } = usePreferences();
+
+  return (
+    <SettingsCard>
+      <SettingsToggleRow
+        label="Disable sidebar and panel animations"
+        description="Opens and closes the left sidebar and the right panel instantly instead of sliding them. Off by default."
+        checked={preferences.disableChromeAnimations}
+        onCheckedChange={(checked) =>
+          update({ disableChromeAnimations: checked })
+        }
       />
-    </button>
+      <SettingsToggleRow
+        label="Clearer hierarchy"
+        description="Bolder thread titles, slightly larger thread prose, semibold bold text and quieter page-header and side-panel icons. Other sizes and weights stay put. On by default."
+        checked={preferences.clearerHierarchy}
+        onCheckedChange={(checked) => update({ clearerHierarchy: checked })}
+      />
+      <SettingsToggleRow
+        label="Hide Steer labels in threads"
+        description="Drops the Steer tag above messages you sent to steer a running agent, including pending and failed steers. Off by default."
+        checked={preferences.hideSteerLabels}
+        onCheckedChange={(checked) => update({ hideSteerLabels: checked })}
+      />
+      <SettingsToggleRow
+        label="Better syntax highlighting in the File Editor"
+        description="Teaches Monaco more about CSS, TypeScript and JavaScript, so functions, constants, operators, built-in types, @media queries and selectors get their own colours. Your theme still picks the colours. Off by default."
+        checked={preferences.editorSyntaxHighlighting}
+        onCheckedChange={(checked) =>
+          update({ editorSyntaxHighlighting: checked })
+        }
+      />
+      <SettingsSelectRow
+        label="Prompt box position on new threads"
+        description="Where the prompt box sits before a thread starts. Bottom by default."
+        value={preferences.promptPosition}
+        options={PROMPT_POSITION_OPTIONS}
+        onChange={(promptPosition) => update({ promptPosition })}
+      />
+      <SettingsSelectRow
+        label="Prompt box starting height"
+        description="How tall the empty prompt box is. It still grows as you type. Standard by default."
+        value={preferences.promptHeight}
+        options={PROMPT_HEIGHT_OPTIONS}
+        onChange={(promptHeight) => update({ promptHeight })}
+      />
+    </SettingsCard>
   );
 }
 
-function IconPackSettings({
-  value,
-  onChange,
-}: {
-  value: IconPack;
-  onChange: (pack: IconPack) => void;
-}) {
-  const previews = ["Search", "Folder", "MessageSquare", "Settings"] as const;
+function IconSettings() {
+  const { preferences, update } = usePreferences();
 
   return (
-    <fieldset>
-      <legend className="text-sm font-medium text-foreground">Icon pack</legend>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        Choose the artwork for BB's interface icons. Provider logos and brand
-        marks are left alone.
-      </p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-3">
-        {ICON_PACK_OPTIONS.map((option) => {
-          const selected = value === option.id;
-          return (
-            <label
-              key={option.id}
-              className={`flex cursor-pointer flex-col gap-2 rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring ${
-                selected
-                  ? "border-foreground ring-1 ring-foreground"
-                  : "border-border hover:bg-muted/50"
-              }`}
-            >
-              <input
-                checked={selected}
-                className="sr-only"
-                name="ui-tweaks-icon-pack"
-                type="radio"
-                value={option.id}
-                onChange={() => onChange(option.id)}
-              />
-              <span
-                aria-hidden="true"
-                className="flex items-center gap-2 text-foreground"
-              >
-                {previews.map((name) => (
-                  <IconPackPreview
-                    key={name}
-                    className="size-4"
-                    name={name}
-                    pack={option.id}
-                  />
-                ))}
-              </span>
-              <span className="text-sm font-medium text-foreground">
-                {option.label}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {option.description}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Lucide,{" "}
-        <UrlLink className="underline" href="https://lucide.dev">
-          ISC
-        </UrlLink>
-        .{" "}
-        <UrlLink
-          className="underline"
-          href="https://github.com/iconoir-icons/iconoir"
-        >
-          Iconoir
-        </UrlLink>{" "}
-        and{" "}
-        <UrlLink
-          className="underline"
-          href="https://github.com/tabler/tabler-icons"
-        >
-          Tabler Icons
-        </UrlLink>
-        , MIT.
-      </p>
-    </fieldset>
-  );
-}
-
-function SpinnerStyleSettings({
-  value,
-  onChange,
-}: {
-  value: SpinnerStyle;
-  onChange: (style: SpinnerStyle) => void;
-}) {
-  return (
-    <fieldset>
-      <legend className="text-sm font-medium text-foreground">Spinner</legend>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        Choose the spinner for BB's shared loading indicators. Other icons keep
-        the main icon pack.
-      </p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        {SPINNER_STYLE_OPTIONS.map((option) => {
-          const selected = value === option.id;
-          return (
-            <label
-              key={option.id}
-              className={`flex cursor-pointer flex-col gap-2 rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring ${
-                selected
-                  ? "border-foreground ring-1 ring-foreground"
-                  : "border-border hover:bg-muted/50"
-              }`}
-            >
-              <input
-                checked={selected}
-                className="sr-only"
-                name="ui-tweaks-spinner-style"
-                type="radio"
-                value={option.id}
-                onChange={() => onChange(option.id)}
-              />
+    <SettingsCard>
+      <SettingsRow
+        label="Icon pack"
+        description="The artwork for BB's interface icons. Provider logos and brand marks are left alone. BB Default by default."
+        placement="below"
+      >
+        {({ labelId, descriptionId }) => (
+          <>
+            <ChoiceCards
+              name="ui-tweaks-icon-pack"
+              value={preferences.iconPack}
+              options={ICON_PACK_OPTIONS}
+              columns="sm:grid-cols-3"
+              labelId={labelId}
+              descriptionId={descriptionId}
+              onChange={(iconPack) => update({ iconPack })}
+              preview={(pack) => (
+                <span
+                  aria-hidden="true"
+                  className="flex items-center gap-2 text-foreground"
+                >
+                  {ICON_PREVIEWS.map((name) => (
+                    <IconPackPreview
+                      key={name}
+                      className="size-4"
+                      name={name}
+                      pack={pack}
+                    />
+                  ))}
+                </span>
+              )}
+            />
+            <p className="bbs-settings-row__description">
+              Lucide,{" "}
+              <UrlLink href="https://lucide.dev">ISC</UrlLink>.{" "}
+              <UrlLink href="https://github.com/iconoir-icons/iconoir">
+                Iconoir
+              </UrlLink>{" "}
+              and{" "}
+              <UrlLink href="https://github.com/tabler/tabler-icons">
+                Tabler Icons
+              </UrlLink>
+              , MIT.
+            </p>
+          </>
+        )}
+      </SettingsRow>
+      <SettingsRow
+        label="Spinner"
+        description="The spinner for BB's shared loading indicators. Other icons keep the icon pack. Follows the icon pack by default."
+        placement="below"
+      >
+        {({ labelId, descriptionId }) => (
+          <ChoiceCards
+            name="ui-tweaks-spinner-style"
+            value={preferences.spinnerStyle}
+            options={SPINNER_STYLE_OPTIONS}
+            columns="sm:grid-cols-2"
+            labelId={labelId}
+            descriptionId={descriptionId}
+            onChange={(spinnerStyle) => update({ spinnerStyle })}
+            preview={(spinnerStyle) => (
               <span
                 aria-hidden="true"
                 className="flex h-6 items-center text-foreground"
@@ -1070,32 +1116,22 @@ function SpinnerStyleSettings({
                 <SpinnerStylePreview
                   className="size-5 animate-spin motion-reduce:animate-none"
                   name="Loading"
-                  spinnerStyle={option.id}
+                  spinnerStyle={spinnerStyle}
                 />
               </span>
-              <span className="text-sm font-medium text-foreground">
-                {option.label}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {option.description}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
+            )}
+          />
+        )}
+      </SettingsRow>
+    </SettingsCard>
   );
 }
 
-function InterfaceSettings() {
-  const { preferences, update } = usePreferences();
+function useWorkspaceApps() {
   const [workspaceApps, setWorkspaceApps] = useState(readWorkspaceAppCatalog);
   const [workspaceStatus, setWorkspaceStatus] = useState(
     workspaceAppDiscoveryStatus,
   );
-  const [expandedAppCategories, setExpandedAppCategories] = useState<
-    WorkspaceAppCategory[]
-  >([]);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -1120,8 +1156,6 @@ function InterfaceSettings() {
       onWorkspaceStatusChange,
     );
     window.addEventListener("storage", onStorage);
-    // Reconcile after subscribing so a startup discovery that completes
-    // between the initial render and this effect cannot be missed.
     setWorkspaceApps(readWorkspaceAppCatalog());
     window.dispatchEvent(new Event(WORKSPACE_APPS_REFRESH_EVENT));
     return () => {
@@ -1137,159 +1171,24 @@ function InterfaceSettings() {
     };
   }, []);
 
+  return { workspaceApps, workspaceStatus };
+}
+
+function OpenWithSettings() {
+  const { preferences, update } = usePreferences();
+  const { workspaceApps, workspaceStatus } = useWorkspaceApps();
+  const [expandedAppCategories, setExpandedAppCategories] = useState<
+    WorkspaceAppCategory[]
+  >([]);
+
   return (
-    <div className="space-y-5" data-bb-ui-tweaks-settings="">
-      <div className="space-y-5 rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">
-            Disable sidebar and panel animations
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Open and close the left sidebar and the right panel instantly
-            instead of sliding them.
-          </p>
-        </div>
-        <ToggleSwitch
-          ariaLabel="Disable sidebar and panel animations"
-          checked={preferences.disableChromeAnimations}
-          onCheckedChange={(checked) =>
-            update({ disableChromeAnimations: checked })
-          }
-        />
-      </div>
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">
-            Clearer hierarchy
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Bolder thread titles, slightly larger chat prose, semibold bold text
-            and quieter header and panel icons. Other sizes and weights stay put.
-          </p>
-        </div>
-        <ToggleSwitch
-          ariaLabel="Clearer hierarchy"
-          checked={preferences.clearerHierarchy}
-          onCheckedChange={(checked) => update({ clearerHierarchy: checked })}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">
-            Hide Steer labels in chats
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Drop the Steer tag above messages you sent to steer a running
-            agent. Pending and failed steers are hidden too.
-          </p>
-        </div>
-        <ToggleSwitch
-          ariaLabel="Hide Steer labels in chats"
-          checked={preferences.hideSteerLabels}
-          onCheckedChange={(checked) => update({ hideSteerLabels: checked })}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">
-            Better syntax highlighting in the File Editor
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Teaches Monaco more about CSS, TypeScript and JavaScript:
-            functions, constants, operators, built-in types, @media queries
-            and selectors get their own colours, closer to Zed and VS Code.
-            Your theme still picks the colours.
-          </p>
-        </div>
-        <ToggleSwitch
-          ariaLabel="Better syntax highlighting in the File Editor"
-          checked={preferences.editorSyntaxHighlighting}
-          onCheckedChange={(checked) =>
-            update({ editorSyntaxHighlighting: checked })
-          }
-        />
-      </div>
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
-        <div>
-          <label
-            className="text-sm font-medium text-foreground"
-            htmlFor="ui-tweaks-prompt-position"
-          >
-            Prompt box position on new threads
-          </label>
-          <p
-            className="mt-0.5 text-xs text-muted-foreground"
-            id="ui-tweaks-prompt-position-description"
-          >
-            Where the composer appears before a thread starts.
-          </p>
-        </div>
-        <select
-          id="ui-tweaks-prompt-position"
-          aria-describedby="ui-tweaks-prompt-position-description"
-          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-          value={preferences.promptPosition}
-          onChange={(event) => {
-            const promptPosition = event.target.value;
-            if (isPromptPosition(promptPosition)) update({ promptPosition });
-          }}
-        >
-          <option value="top">Top</option>
-          <option value="center">Center</option>
-          <option value="bottom">Bottom</option>
-        </select>
-      </div>
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center">
-        <div>
-          <label
-            className="text-sm font-medium text-foreground"
-            htmlFor="ui-tweaks-prompt-height"
-          >
-            Prompt box starting height
-          </label>
-          <p
-            className="mt-0.5 text-xs text-muted-foreground"
-            id="ui-tweaks-prompt-height-description"
-          >
-            How tall the empty composer is. It still grows as you type.
-          </p>
-        </div>
-        <select
-          id="ui-tweaks-prompt-height"
-          aria-describedby="ui-tweaks-prompt-height-description"
-          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-          value={preferences.promptHeight}
-          onChange={(event) => {
-            const promptHeight = event.target.value;
-            if (isPromptHeight(promptHeight)) update({ promptHeight });
-          }}
-        >
-          <option value="default">Default</option>
-          <option value="two-lines">Two lines</option>
-          <option value="one-line">One line</option>
-        </select>
-      </div>
-      <IconPackSettings
-        value={preferences.iconPack}
-        onChange={(iconPack) => update({ iconPack })}
-      />
-      <SpinnerStyleSettings
-        value={preferences.spinnerStyle}
-        onChange={(spinnerStyle) => update({ spinnerStyle })}
-      />
-
-      </div>
-
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">Open With Filter</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Choose which workspace apps appear in Open With and chat file
-            menus.
-          </p>
-        </div>
-        <div className="overflow-hidden rounded-lg border border-border bg-card p-1">
+    <SettingsCard>
+      <SettingsRow
+        label="Apps in Open With"
+        description="Which workspace apps appear in Open With and in file menus in threads. Everything except Other applications shows by default."
+        placement="below"
+      >
+        <div className="overflow-hidden rounded-md border border-border bg-background p-1">
           {WORKSPACE_APP_CATEGORY_OPTIONS.map(([category, label]) => {
             const apps = workspaceApps.filter(
               (app) => app.category === category,
@@ -1300,10 +1199,10 @@ function InterfaceSettings() {
 
             return (
               <div key={category}>
-                <div className="flex min-h-12 items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/50">
+                <div className="flex min-h-10 items-center gap-2 px-2 py-1.5 text-sm text-foreground">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <ToggleSwitch
-                      ariaLabel={`${categoryEnabled ? "Hide" : "Show"} ${label}`}
+                    <SettingsSwitch
+                      aria-label={`Show ${label}`}
                       checked={categoryEnabled}
                       onCheckedChange={(checked) => {
                         const workspaceAppCategories = new Set(
@@ -1326,6 +1225,7 @@ function InterfaceSettings() {
                       aria-expanded={expanded}
                       aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
                       className="size-7 rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title={`${expanded ? "Collapse" : "Expand"} ${label}`}
                       type="button"
                       onClick={() => {
                         const next = new Set(expandedAppCategories);
@@ -1347,15 +1247,15 @@ function InterfaceSettings() {
                         preferences.hiddenWorkspaceApps.includes(legacyKey);
                       return (
                         <div
-                          className={`flex min-h-9 items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50 ${
+                          className={`flex min-h-9 items-center gap-2 rounded px-2 py-1 text-sm ${
                             categoryEnabled
                               ? "text-foreground"
                               : "text-muted-foreground"
                           }`}
                           key={app.key}
                         >
-                          <ToggleSwitch
-                            ariaLabel={`${appHidden ? "Show" : "Hide"} ${app.label}`}
+                          <SettingsSwitch
+                            aria-label={`Show ${app.label}`}
                             checked={categoryEnabled && !appHidden}
                             disabled={!categoryEnabled}
                             onCheckedChange={(checked) => {
@@ -1386,52 +1286,49 @@ function InterfaceSettings() {
           {workspaceApps.length === 0 ? (
             <p className="p-3 text-xs text-muted-foreground">
               {workspaceStatus === "ready"
-                ? "No compatible applications were discovered."
+                ? "No compatible apps were found."
                 : workspaceStatus === "error"
-                  ? "Application discovery failed; retrying automatically."
+                  ? "Couldn't list your apps. Trying again automatically."
                   : workspaceStatus === "unavailable"
-                    ? "Application discovery is unavailable in this BB client."
-                    : "Discovering applications…"}
+                    ? "This BB client can't list apps."
+                    : "Looking for apps…"}
             </p>
           ) : null}
           {workspaceApps.length > 0 && workspaceStatus === "stale" ? (
             <p className="border-t border-border p-3 text-xs text-muted-foreground">
-              Showing the last discovered applications while reconnecting.
+              Showing the last apps found while BB reconnects.
             </p>
           ) : null}
           {workspaceApps.length > 0 && workspaceStatus === "unavailable" ? (
             <p className="border-t border-border p-3 text-xs text-muted-foreground">
-              Showing saved applications; discovery is unavailable in this BB
-              client.
+              Showing saved apps. This BB client can't list apps.
             </p>
           ) : null}
         </div>
-      </div>
-      <div className="flex justify-end">
-        <button
-          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-muted"
-          type="button"
-          onClick={() =>
-            update({
-              promptPosition: DEFAULT_PREFERENCES.promptPosition,
-              promptHeight: DEFAULT_PREFERENCES.promptHeight,
-              iconPack: DEFAULT_PREFERENCES.iconPack,
-              spinnerStyle: DEFAULT_PREFERENCES.spinnerStyle,
-              clearerHierarchy: DEFAULT_PREFERENCES.clearerHierarchy,
-              hideSteerLabels: DEFAULT_PREFERENCES.hideSteerLabels,
-              disableChromeAnimations: DEFAULT_PREFERENCES.disableChromeAnimations,
-              editorSyntaxHighlighting:
-                DEFAULT_PREFERENCES.editorSyntaxHighlighting,
-              workspaceAppCategories:
-                DEFAULT_PREFERENCES.workspaceAppCategories,
-              hiddenWorkspaceApps: DEFAULT_PREFERENCES.hiddenWorkspaceApps,
-            })
-          }
-        >
-          ↶ Reset to defaults
-        </button>
-      </div>
-    </div>
+      </SettingsRow>
+    </SettingsCard>
+  );
+}
+
+function ResetSettings() {
+  const { update } = usePreferences();
+
+  return (
+    <SettingsCard>
+      <SettingsRow
+        label="Reset to defaults"
+        description="Puts every UI Tweaks setting on this page back to its default."
+      >
+        {({ descriptionId }) => (
+          <SettingsButton
+            aria-describedby={descriptionId}
+            onClick={() => update({ ...DEFAULT_PREFERENCES })}
+          >
+            Reset
+          </SettingsButton>
+        )}
+      </SettingsRow>
+    </SettingsCard>
   );
 }
 
@@ -1454,7 +1351,22 @@ export default definePluginApp((app) => {
 
   app.slots.settingsSection({
     id: "preferences",
+    title: "Interface",
     component: InterfaceSettings,
+  });
+  app.slots.settingsSection({
+    id: "icons",
+    title: "Icons",
+    component: IconSettings,
+  });
+  app.slots.settingsSection({
+    id: "open-with",
+    title: "Open With",
+    component: OpenWithSettings,
+  });
+  app.slots.settingsSection({
+    id: "reset",
+    component: ResetSettings,
   });
 
   app.contentScripts.register({

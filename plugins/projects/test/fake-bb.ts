@@ -38,6 +38,10 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
   const sent: { threadId: string; text: string }[] = [];
   const subscribed: { threadId: string; urls: string[] }[] = [];
   const linked = new Map<string, string[]>();
+  const plugins = [
+    { id: "tasks", enabled: true, status: "running" },
+    { id: "pull-requests", enabled: true, status: "running" },
+  ];
   const services = new Map<string, { start(signal: AbortSignal): Promise<void> | void }>();
   const logs: string[] = [];
   const faults = { listProjects: 0, threadsList: 0, send: 0, kvSetDelayMs: 0 };
@@ -115,7 +119,9 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     },
     sdk: {
       plugins: {
+        list: async () => ({ plugins: structuredClone(plugins) }),
         callRpc: async ({ pluginId, method, input }: { pluginId: string; method: string; input: Record<string, unknown> }) => {
+          if (!plugins.some((plugin) => plugin.id === pluginId && plugin.enabled)) throw new Error(`Plugin ${pluginId} is not running`);
           if (pluginId === "tasks" && method === "listProjects") {
             if (faults.listProjects > 0) {
               faults.listProjects--;
@@ -204,6 +210,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     sent,
     subscribed,
     linked,
+    plugins,
     services,
     logs,
     faults,

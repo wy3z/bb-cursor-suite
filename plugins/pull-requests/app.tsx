@@ -161,7 +161,6 @@ export default definePluginApp((app) => {
     id: "pull-request",
     component: PullRequestDirective,
   });
-  // Decorates plain pull request links in messages, as Cursor does.
   app.slots.experimental_appOverlay({
     id: "pull-request-links",
     component: PullRequestLinkDecorator,

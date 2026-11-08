@@ -13,11 +13,10 @@ import { ProjectIconArt } from "@wy3z/bb-suite/project-icon/picker";
 import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
 import { projectsContract } from "./meta";
 import { useBoardIcons } from "./BoardIcon";
+import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, tabStore, viewStore } from "./thread-tabs";
 
-const STORE_KEY = "bb-projects:tabs";
 const HOST_ATTR = "data-bb-projects-tabs";
 const CHAT_ATTR = "data-bb-projects-chat";
-const HEADER_SELECTOR = "header:has([data-thread-header-workflow-actions])";
 const COMPACT_QUERY = "(max-width: 767px)";
 
 function subscribeCompact(listener: () => void) {
@@ -28,61 +27,6 @@ function subscribeCompact(listener: () => void) {
 
 function useCompactViewport(): boolean {
   return useSyncExternalStore(subscribeCompact, () => window.matchMedia(COMPACT_QUERY).matches);
-}
-
-type TabStore = Record<string, string[]>;
-
-function readStore(): TabStore {
-  try {
-    return JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}") as TabStore;
-  } catch {
-    return {};
-  }
-}
-
-function createStore<T>(initial: T, persist?: (value: T) => void) {
-  const listeners = new Set<() => void>();
-  let value = initial;
-  return {
-    get: () => value,
-    set(next: T) {
-      value = next;
-      persist?.(next);
-      for (const listener of listeners) listener();
-    },
-    use(): T {
-      return useSyncExternalStore(
-        (listener) => {
-          listeners.add(listener);
-          return () => listeners.delete(listener);
-        },
-        () => value,
-      );
-    },
-  };
-}
-
-const tabStore = createStore<TabStore>(readStore(), (next) => {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(next));
-  } catch {
-    void 0;
-  }
-});
-
-const viewStore = createStore<Record<string, string>>({});
-
-function setView(leadId: string, id: string | null) {
-  const next = { ...viewStore.get() };
-  if (id) next[leadId] = id;
-  else delete next[leadId];
-  viewStore.set(next);
-}
-
-function findHeader(): HTMLElement | null {
-  const headers = [...document.querySelectorAll<HTMLElement>(HEADER_SELECTOR)];
-  if (headers.length === 1) return headers[0]!;
-  return headers.find((header) => header.querySelector("[data-pane-header-focus-tab]") || header.querySelector(".bbp-tabs-host")) ?? null;
 }
 
 function useMountedHost(active: boolean, key: string, locate: () => HTMLElement | null, mount: (slot: HTMLElement, node: HTMLElement) => void, className: string, attr: string) {
@@ -130,12 +74,6 @@ function useMountedHost(active: boolean, key: string, locate: () => HTMLElement 
 
 function locateTabSlot(): HTMLElement | null {
   return findHeader()?.querySelector<HTMLElement>('[data-testid="app-page-header-content-row"] > div > div') ?? null;
-}
-
-function locateThreadWindow(): HTMLElement | null {
-  const header = findHeader();
-  const pane = header?.closest<HTMLElement>("[data-split-pane-id]") ?? document;
-  return pane.querySelector<HTMLElement>("[data-thread-window]");
 }
 
 const WORKING = new Set(["runtime", "workflow", "background-agent", "background-command", "goal", "plan-mode", "working-draft"]);
@@ -307,16 +245,7 @@ export function ManagerTabs() {
   const byId = useMemo(() => new Map(threads.map((thread) => [thread.id, thread])), [threads]);
   const leadIds = useMemo(() => new Set((leads.data?.leads ?? []).map((lead) => lead.threadId)), [leads.data]);
 
-  const leadId = useMemo(() => {
-    let cursor = threadId ? byId.get(threadId) : undefined;
-    const seen = new Set<string>();
-    while (cursor && !seen.has(cursor.id)) {
-      if (leadIds.has(cursor.id)) return cursor.id;
-      seen.add(cursor.id);
-      cursor = cursor.parentThreadId ? byId.get(cursor.parentThreadId) : undefined;
-    }
-    return null;
-  }, [byId, leadIds, threadId]);
+  const leadId = useMemo(() => findLead(threadId, byId, leadIds), [byId, leadIds, threadId]);
   const boardIcons = useBoardIcons();
   const leadProjectId = leadId ? (leads.data?.leads.find((lead) => lead.threadId === leadId)?.projectId ?? null) : null;
   const leadIcon = boardIcons.iconFor(leadProjectId);
@@ -332,18 +261,15 @@ export function ManagerTabs() {
   const selectedId = overlayId ?? threadId;
 
   useEffect(() => {
-    if (!leadId || !threadId || threadId === leadId) return;
-    const open = tabStore.get()[leadId] ?? [];
-    if (!open.includes(threadId)) tabStore.set({ ...tabStore.get(), [leadId]: [...open, threadId] });
+    if (leadId && threadId) addTab(leadId, threadId);
   }, [leadId, threadId]);
 
   const select = useCallback(
     (id: string) => {
       if (!leadId) return;
-      setView(leadId, id === leadId ? null : id);
-      if (!onLead) navigate.toThread(leadId);
+      applyOpenPlan(planThreadOpen({ target: id, current: threadId, leadId, split: false, conversationHidden: onLead && conversationHidden() }), navigate);
     },
-    [leadId, navigate, onLead],
+    [leadId, navigate, onLead, threadId],
   );
 
   const close = useCallback(

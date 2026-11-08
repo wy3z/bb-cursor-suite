@@ -33,11 +33,6 @@ export function startRelationalMarkers(signal: AbortSignal): void {
       if (button.parentElement?.localName === "span") voice.add(button.parentElement);
     }
     update("voice", voice);
-    const frames = new Set<Element>();
-    for (const viewport of document.querySelectorAll("[data-page-scroll-viewport]")) {
-      if (viewport.parentElement) frames.add(viewport.parentElement);
-    }
-    update("scroll-frame", frames);
   }
 
   const observer = new MutationObserver(sync);
@@ -45,7 +40,7 @@ export function startRelationalMarkers(signal: AbortSignal): void {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["class", "aria-label", "data-group", "data-testid", "data-thread-window", "data-app-composer", "data-promptbox", "data-page-scroll-viewport"],
+    attributeFilter: ["class", "aria-label", "data-group", "data-testid", "data-thread-window", "data-app-composer", "data-promptbox"],
   });
   const stop = () => {
     observer.disconnect();

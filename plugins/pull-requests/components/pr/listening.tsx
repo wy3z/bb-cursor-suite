@@ -1,7 +1,7 @@
 import { shortAgo } from "@wy3z/bb-suite/time";
-// Subscriptions in the UI: a "Listening N" chip above the composer, after
-// Cursor's subscriptions pill, opening a tray of the pull requests this thread
-// follows; and the Subscribe button in the pull request viewer.
+// Subscriptions in the UI: a "Listening N" chip above the composer, opening a
+// tray of the pull requests this thread follows; and the Subscribe button in
+// the pull request viewer.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useRealtime,

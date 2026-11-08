@@ -8,6 +8,8 @@ import {
   useBbNavigate,
   type ExperimentalThreadContextSegmentProps,
 } from "@get-bb/plugin-sdk/app";
+import { PULL_REQUESTS_PLUGIN } from "@wy3z/bb-suite/contracts";
+import { usePluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import { useActivity } from "./pill-data";
 import { CommitBar } from "./CommitBar";
 
@@ -133,6 +135,7 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
   const environmentId = useEnvironmentId(props);
   const navigate = useBbNavigate();
   const panel = experimental_useAppPanel();
+  const gitActions = usePluginAvailability(PULL_REQUESTS_PLUGIN);
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(FIRST_PAGE);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -266,6 +269,7 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
               environmentId={environmentId}
               uncommitted={changes.uncommitted}
               untracked={files.filter((file) => file.status === "??").length}
+              gitActions={gitActions}
             /> : null}
         </div>
       ) : null}

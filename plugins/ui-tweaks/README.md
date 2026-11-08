@@ -14,7 +14,7 @@ Small, configurable interface improvements for BB.
   chat prose, semibold bold text, and quieter page-header and side-panel
   icons. Other sizes and weights stay put.
 
-- **Hide Steer labels in chats** (off by default): removes the Steer tag
+- **Hide Steer labels in threads** (off by default): removes the Steer tag
   shown on messages that steered a running agent, including pending and
   failed ones.
 
@@ -28,7 +28,7 @@ Small, configurable interface improvements for BB.
 - Put the New thread prompt at the **Top**, **Center**, or **Bottom**. Bottom
   is the default.
 
-- Set the empty prompt box to the **Default** height, **Two lines**, or **One
+- Set the empty prompt box to the **Standard** height, **Two lines**, or **One
   line**. It still grows as you type.
 
 - Switch BB's interface icons between **BB Default**, **Lucide**, **Iconoir**,
@@ -54,7 +54,7 @@ Configure everything under **Settings → Plugins → UI Tweaks**.
 
 ## Requirements
 
-- BB `>=0.49 <0.50`.
+- BB `>=0.49`.
 - Plugin SDK `>=0.6.132 <0.7`.
 
 Workspace app discovery uses BB's local host daemon. In a client that cannot

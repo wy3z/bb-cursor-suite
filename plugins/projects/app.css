@@ -780,6 +780,20 @@ span.bbp-status {
   background: var(--state-hover);
   outline: none;
 }
+.bbp-menu__item:disabled {
+  color: var(--bbp-muted);
+  cursor: default;
+}
+.bbp-menu__item:disabled:hover {
+  background: transparent;
+}
+.bbp-menu__reason {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--bbp-muted);
+  font-size: var(--bbs-text-body);
+  white-space: nowrap;
+}
 .bbp-menu__item svg,
 .bbp-menu__item [data-icon-root] {
   width: var(--bbs-icon);

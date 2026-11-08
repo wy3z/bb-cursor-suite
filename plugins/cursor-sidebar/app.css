@@ -13,6 +13,22 @@
   --cs-text-pad: 2px;
   --cs-heading-pad: 6px;
   --cs-text-x: calc(var(--cs-row-pad-l) + var(--cs-icon) + var(--cs-icon-gap) + var(--cs-text-pad));
+  --cs-trail-gap: var(--cs-icon-gap);
+  --cs-status-dot: 6px;
+  --cs-time-color: #737373;
+  --cs-chrome-button: 24px;
+  --cs-chrome-gap: 8px;
+  --cs-chrome-inset: var(--cs-row-inset);
+}
+html.dark {
+  --cs-time-color: #929292;
+}
+@media (max-width: 767px) and (pointer: coarse) {
+  :root {
+    --cs-chrome-button: 36px;
+    --cs-chrome-gap: 4px;
+    --cs-chrome-inset: calc(var(--cs-row-pad-l) + var(--cs-row-inset) + var(--cs-icon) / 2 - var(--cs-chrome-button) / 2);
+  }
 }
 .cs-row,
 .cs-heading.cs-project-heading {
@@ -216,8 +232,19 @@
   mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
   -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
 }
-[data-cursor-sidebar-root] [data-thread-row] .cs-thread-titleline:has(.cs-thread-title--inline) {
-  padding-right: 8px;
+[data-cursor-sidebar-root] .cs-thread-titleline,
+[data-cursor-sidebar-root] .cs-row-trail {
+  column-gap: var(--cs-trail-gap);
+}
+[data-cursor-sidebar-root] .cs-row-trail > .cs-row-actions {
+  right: 100%;
+}
+.cs-status-dot {
+  width: var(--cs-status-dot);
+  height: var(--cs-status-dot);
+}
+[data-cursor-sidebar-root] .cs-status-dot[data-seen] {
+  background-color: color-mix(in srgb, var(--cs-icon-quaternary) 55%, transparent);
 }
 [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-titleline:has(.cs-thread-title--inline) {
   mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
@@ -232,6 +259,7 @@
   --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
   --bbs-text-secondary: color-mix(in srgb, var(--bbs-text-primary) 74%, transparent);
   --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
+  --cs-icon-quaternary: color-mix(in srgb, var(--bbs-text-primary) 28%, transparent);
 }
 [data-cursor-sidebar-root] .cs-heading-label {
   color: var(--bbs-text-tertiary);
@@ -243,10 +271,13 @@
 }
 [data-cursor-sidebar-root] [data-thread-shelf="settled"] .cs-thread-title,
 [data-cursor-sidebar-root] .cs-thread-info,
-[data-cursor-sidebar-root] .cs-thread-time,
 [data-cursor-sidebar-root] .cs-thread-cloud,
 [data-cursor-sidebar-root] .cs-board-row__meta {
   color: var(--bbs-text-tertiary);
+}
+[data-cursor-sidebar-root] .cs-thread-time,
+[data-cursor-sidebar-root] .cs-age {
+  color: var(--cs-time-color);
 }
 [data-cursor-sidebar-root] .cs-heading:is(:hover, :focus-within) .cs-heading-label,
 [data-cursor-sidebar-root] .cs-board-row:is(:hover, :focus-within, [data-active]),
@@ -724,6 +755,39 @@
 @media (pointer: coarse) {
   .cs-board-row__archive { display: none; }
   .cs-board-row:has(.cs-board-row__archive):is(:hover, :focus-within) .cs-board-row__name { padding-right: 0; }
+}
+
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] {
+  padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-inset));
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child > button {
+  width: var(--cs-chrome-button);
+  height: var(--cs-chrome-button);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] {
+  padding-left: var(--cs-chrome-inset);
+  padding-right: var(--cs-chrome-inset);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :first-child {
+  padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-button) + var(--cs-chrome-gap));
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child {
+  gap: var(--cs-chrome-gap);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] {
+  padding-left: var(--cs-chrome-inset);
+  padding-right: var(--cs-chrome-inset);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu"] {
+  gap: var(--cs-chrome-gap);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-item"] {
+  min-width: var(--cs-chrome-button);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-button"] {
+  width: var(--cs-chrome-button);
+  height: var(--cs-chrome-button);
 }
 
 :where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child),

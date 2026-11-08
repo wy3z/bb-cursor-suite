@@ -4,15 +4,18 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Shared contracts, project icons and picker, time formatting, design tokens, a git lookup for non-FHS hosts, keyboard handling for menus and the sandbox machine-backend helper for the wy3z BB plugin suite.",
+  "description": "Shared contracts, project icons and picker, time formatting, settings rows, design tokens, a git lookup for non-FHS hosts, keyboard handling for menus and the sandbox machine-backend helper for the wy3z BB plugin suite.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test test"
   },
   "exports": {
     "./time": "./src/time.ts",
+    "./settings": "./src/settings.tsx",
     "./contracts": "./src/contracts.ts",
     "./change-requests": "./src/change-requests.ts",
+    "./plugin-availability": "./src/plugin-availability.ts",
+    "./plugin-status": "./src/plugin-status.ts",
     "./project-icon": "./src/project-icon.ts",
     "./project-icon/picker": "./src/project-icon-picker.tsx",
     "./project-icon/server": "./src/project-icon-glyph-server.ts",
@@ -21,7 +24,8 @@
     "./git": "./src/git-binary.ts",
     "./menu-keyboard": "./src/menu-keyboard.ts",
     "./tokens.css": "./tokens.css",
-    "./project-icon.css": "./project-icon.css"
+    "./project-icon.css": "./project-icon.css",
+    "./settings.css": "./src/settings.css"
   },
   "peerDependencies": {
     "zod": "^4.3.6",

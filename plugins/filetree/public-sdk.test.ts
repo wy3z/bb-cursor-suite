@@ -15,6 +15,7 @@ describe("standalone plugin imports", () => {
         /^read-excel-file(?:\/.*)?$/,
         /^@xmldom\/xmldom$/,
         /^@radix-ui\/react-slot$/,
+        /^@wy3z\/bb-suite\/settings(?:\.css)?$/,
         /^@radix-ui\/react-context-menu$/,
         /^@radix-ui\/react-dropdown-menu$/,
         /^clsx$/,

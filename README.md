@@ -7,7 +7,7 @@ Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a tra
 | Plugin | Folder | What it does |
 |---|---|---|
 | Cursor Sidebar | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
-| Agent Pills | `plugins/agent-pills` | Cursor-style pills for child threads and background tasks, plus a Cursor-looking composer. |
+| Agent Pills | `plugins/agent-pills` | A Cursor-style composer for BB, with optional pills for child threads and background tasks above it. |
 | Files | `plugins/filetree` | Browse thread workspaces and project sources with search, Git status and document previews. |
 | Projects | `plugins/projects` | Board and list views over BB Tasks, with live agents, pull requests and changes on every card. |
 | Pull Requests | `plugins/pull-requests` | GitHub pull requests and GitLab merge requests in BB, grouped by what each one needs. |
