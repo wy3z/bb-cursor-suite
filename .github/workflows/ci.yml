@@ -19,6 +19,7 @@ jobs:
       SUITE_NO_GUARD: "1"
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
