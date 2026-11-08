@@ -76,6 +76,7 @@
     "README.md",
     "PLUGIN_OVERVIEW.md",
     "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
     "!**/*.test.*",
     "!host/native/build"
   ],

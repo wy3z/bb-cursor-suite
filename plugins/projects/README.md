@@ -209,3 +209,7 @@ npm run build
 bb plugin install path:$PWD --yes
 bb plugin reload projects
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).

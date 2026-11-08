@@ -218,5 +218,5 @@ that has the SDK installed.
 
 ## License
 
-MIT. Portions adapted from bb-plugin-thread-inbox and T3 Code. See
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT, see [LICENSE](LICENSE). Portions adapted from bb-plugin-thread-inbox and
+T3 Code. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

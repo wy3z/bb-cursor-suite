@@ -149,3 +149,7 @@ npm run typecheck
 npm run build
 bb plugin reload agent-pills
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).

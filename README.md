@@ -60,4 +60,4 @@ The script bumps the plugin's version on the current branch, writes a release co
 
 ## Licence
 
-MIT. Marketplace icons come from [Lucide](https://lucide.dev) (ISC).
+MIT, see [LICENSE](LICENSE). Marketplace icons come from [Lucide](https://lucide.dev) (ISC).
