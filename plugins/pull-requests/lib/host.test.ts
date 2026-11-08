@@ -85,7 +85,7 @@ describe("inspecting a checkout on the host", () => {
   it("separates a missing path, a plain folder and a missing git", async () => {
     expect(await inspectCheckout(isolatedGit, join(root, "nope"))).toEqual({ ok: false, path: join(root, "nope"), error: "missing" });
     expect(await inspectCheckout(isolatedGit, neutral)).toEqual({ ok: false, path: neutral, error: "notGit" });
-    const noGit: Runner = (command, args, options) => runProcess(command, args, { ...options, env: { ...options.env, PATH: fakeBin } });
+    const noGit: Runner = (_command, args, options) => runProcess("git", args, { ...options, env: { ...options.env, PATH: fakeBin } });
     expect(await inspectCheckout(noGit, repo)).toEqual({ ok: false, path: repo, error: "gitMissing" });
   });
 });

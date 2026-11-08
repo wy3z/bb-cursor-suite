@@ -1,5 +1,5 @@
 import { accessSync, constants as fsConstants, statSync } from "node:fs";
-import { join, win32 } from "node:path";
+import { dirname, join, win32 } from "node:path";
 export const TRUSTED_GIT_PATH =
   process.platform === "darwin"
     ? "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
@@ -53,24 +53,60 @@ function resolveWindowsGit(source: NodeJS.ProcessEnv): string | null {
   }
   return null;
 }
+export function fallbackGitDirs(
+  source: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const home = source.HOME;
+  const user = source.USER ?? source.LOGNAME;
+  return [
+    "/run/current-system/sw/bin",
+    user ? `/etc/profiles/per-user/${user}/bin` : "",
+    home ? join(home, ".nix-profile/bin") : "",
+    "/nix/var/nix/profiles/default/bin",
+    "/opt/homebrew/bin",
+    "/home/linuxbrew/.linuxbrew/bin",
+    home ? join(home, ".linuxbrew/bin") : "",
+    ...(source.PATH ?? "").split(":"),
+  ].filter((dir) => dir.startsWith("/"));
+}
+function isExecutableFile(candidate: string): boolean {
+  try {
+    accessSync(candidate, fsConstants.X_OK);
+    return statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
 export function resolveTrustedGit(
   pathValue: string = TRUSTED_GIT_PATH,
   platform: NodeJS.Platform = process.platform,
+  source: NodeJS.ProcessEnv = process.env,
+  isExecutable: (candidate: string) => boolean = isExecutableFile,
 ): string {
   if (platform === "win32") {
-    const git = resolveWindowsGit(process.env);
+    const git = resolveWindowsGit(source);
     if (git !== null) return git;
     throw new Error("git executable was not found in the trusted path");
   }
-  for (const dir of pathValue.split(":")) {
-    if (!dir.startsWith("/")) continue;
+  const dirs = [
+    ...pathValue.split(":").filter((dir) => dir.startsWith("/")),
+    ...fallbackGitDirs(source),
+  ];
+  for (const dir of dirs) {
     const candidate = join(dir, "git");
-    try {
-      accessSync(candidate, fsConstants.X_OK);
-      return candidate;
-    } catch {}
+    if (isExecutable(candidate)) return candidate;
   }
   throw new Error("git executable was not found in the trusted path");
+}
+function posixTrustedPath(source: NodeJS.ProcessEnv): string {
+  try {
+    const dir = dirname(resolveTrustedGit(TRUSTED_GIT_PATH, "linux", source));
+    return TRUSTED_GIT_PATH.split(":").includes(dir)
+      ? TRUSTED_GIT_PATH
+      : `${dir}:${TRUSTED_GIT_PATH}`;
+  } catch {
+    return TRUSTED_GIT_PATH;
+  }
 }
 export function scrubbedGitEnv(
   source: NodeJS.ProcessEnv = process.env,
@@ -87,7 +123,7 @@ export function scrubbedGitEnv(
   }
   env.PATH = windows
     ? windowsTrustedPath(resolveWindowsGit(source), source)
-    : TRUSTED_GIT_PATH;
+    : posixTrustedPath(source);
   env.GIT_CONFIG = "/dev/null";
   env.GIT_CONFIG_GLOBAL = "/dev/null";
   env.GIT_CONFIG_SYSTEM = "/dev/null";

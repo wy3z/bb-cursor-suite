@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { GitActionResult } from "@wy3z/bb-suite/contracts";
+import { gitBinary } from "@wy3z/bb-suite/git";
 
 class ActionError extends Error {}
 
@@ -24,7 +25,7 @@ function run(
 ): Promise<Run> {
   return new Promise((done) => {
     const child = execFile(
-      command,
+      command === "git" ? gitBinary() : command,
       [...args],
       {
         cwd,

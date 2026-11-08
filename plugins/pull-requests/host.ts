@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
+import { gitBinary } from "@wy3z/bb-suite/git";
 import { parseRemoteUrl, type ParsedRemote } from "./lib/change-request";
 import { hostContract, type GitLabHttp, type InspectResult } from "./lib/host-contract";
 import { parseGlabApiOutput } from "./lib/providers/gitlab";
@@ -78,7 +79,7 @@ export async function inspectCheckout(run: Runner, path: string, signal?: AbortS
     return { ok: false, path, error: "missing" };
   }
   const git = (args: string[]) =>
-    run("git", ["-C", path, ...args], {
+    run(gitBinary(), ["-C", path, ...args], {
       cwd: path,
       env: { ...process.env, ...GIT_ENV },
       timeoutMs: 10_000,

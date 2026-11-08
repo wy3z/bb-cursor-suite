@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fallbackGitDirs,
   resolveTrustedGit,
   scrubbedGitEnv,
   TRUSTED_GIT_PATH,
@@ -65,5 +66,34 @@ describe("git spawn environment", () => {
       "C:\\Users\\test\\AppData\\Local\\Programs\\Git\\cmd\\git.exe",
     ]);
     expect(windowsGitCandidates({ ProgramFiles: "relative\\dir" })).toEqual([]);
+  });
+  it("finds git on NixOS and Homebrew when the system dirs have none", () => {
+    const env = { HOME: "/home/u", USER: "u", PATH: "/usr/bin:/bin" };
+    for (const git of [
+      "/run/current-system/sw/bin/git",
+      "/etc/profiles/per-user/u/bin/git",
+      "/home/u/.nix-profile/bin/git",
+      "/home/linuxbrew/.linuxbrew/bin/git",
+    ]) {
+      expect(
+        resolveTrustedGit("/usr/local/bin:/usr/bin:/bin", "linux", env, (candidate) => candidate === git),
+      ).toBe(git);
+    }
+  });
+  it("falls back to absolute server PATH entries only after the system dirs", () => {
+    const env = { PATH: "relative:/opt/tools/bin" };
+    expect(fallbackGitDirs(env)).toContain("/opt/tools/bin");
+    expect(fallbackGitDirs(env)).not.toContain("relative");
+    expect(
+      resolveTrustedGit("/usr/bin", "linux", env, (candidate) =>
+        candidate === "/opt/tools/bin/git" || candidate === "/usr/bin/git",
+      ),
+    ).toBe("/usr/bin/git");
+    expect(
+      resolveTrustedGit("/usr/bin", "linux", env, (candidate) => candidate === "/opt/tools/bin/git"),
+    ).toBe("/opt/tools/bin/git");
+    expect(() => resolveTrustedGit("/usr/bin", "linux", env, () => false)).toThrow(
+      "git executable was not found in the trusted path",
+    );
   });
 });
