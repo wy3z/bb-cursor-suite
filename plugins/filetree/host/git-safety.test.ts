@@ -243,6 +243,14 @@ describe.runIf(addon !== null)("Git status in a hostile repository", () => {
     await plainStatus(equals.base, equals.root);
     expect(await markers(equals.base)).toEqual([`${MARKER_PREFIX}equals-clean`]);
     const nonUtf8 = await nonUtf8DriverRepo();
+    const listing = await execFileAsync(resolveTrustedGit(), [...GIT_DRIVER_QUERY], {
+      cwd: nonUtf8.root,
+      encoding: "buffer",
+      env: await plainGitEnv(nonUtf8.base),
+    });
+    expect(listing.stdout.includes(Buffer.from("filter.\xff.clean\0", "latin1"))).toBe(
+      true,
+    );
     await plainStatus(nonUtf8.base, nonUtf8.root);
     expect(await markers(nonUtf8.base)).toEqual([`${MARKER_PREFIX}nonutf8-clean`]);
     if (configHooks) {

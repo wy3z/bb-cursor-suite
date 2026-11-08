@@ -169,6 +169,15 @@ describe("git spawn environment", () => {
       "filter.caf\u00e9.required=false",
     ]);
     expect(gitDriverOverrides(Buffer.alloc(0))).toEqual([]);
+    expect(
+      gitDriverOverrides(
+        Buffer.concat([
+          Buffer.from("branch."),
+          Buffer.from([0xff]),
+          Buffer.from(".remote\0core.bare\0merge.ours.driver\0"),
+        ]),
+      ),
+    ).toEqual(["-c", "merge.ours.driver="]);
   });
   it("refuses driver names a -c override can't express", () => {
     const refuse = (bytes: Buffer) => expect(gitDriverOverrides(bytes)).toBeNull();
