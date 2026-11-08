@@ -94,7 +94,7 @@ const OPTION =
 const SECTION_LABEL =
   "px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground/70";
 
-/** The tick sits at the right edge, the way Cursor's menus do. */
+/** The tick sits at the right edge. */
 function CheckMark() {
   return (
     <span className="absolute right-1.5 flex size-3.5 items-center justify-center">
@@ -263,8 +263,8 @@ export function SidebarViewSyncNotice({
 }
 
 /**
- * The compact view menu. It mirrors Cursor's organization as submenus
- * (Grouping, Ordering, Threads per group, Show, Filters) over the one persisted
+ * The compact view menu. It groups the controls as submenus (Grouping,
+ * Ordering, Threads per group, Show, Filters) over the one persisted
  * SidebarView, using BB's theme tokens. Grouping is one radio: Projects, Updated, Status,
  * Environment or None — selecting one replaces the current extra grouping; they
  * never stack. Ordering chooses how conversations, projects and group sections

@@ -53,7 +53,7 @@ Configure everything under **Settings → Plugins → UI Tweaks**.
 
 ## Requirements
 
-- BB `>=0.49 <0.50`.
+- BB `>=0.49`.
 - Plugin SDK `>=0.6.132 <0.7`.
 
 Workspace app discovery uses BB's local host daemon. In a client that cannot
