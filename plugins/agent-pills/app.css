@@ -1418,6 +1418,15 @@ button.bb-agent-pills__tray-row:disabled:hover {
 .bb-agent-pills__tray-row:focus-within .bb-agent-pills__tray-actions ~ .bb-agent-pills__tray-meta {
   opacity: 0;
 }
+@media (hover: none) {
+  .bb-agent-pills__tray-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .bb-agent-pills__tray-actions:not(:empty) ~ .bb-agent-pills__tray-meta {
+    opacity: 0;
+  }
+}
 /* Allow / Answer buttons stay visible, inline before the end column. */
 .bb-agent-pills__tray-inline {
   display: inline-flex;

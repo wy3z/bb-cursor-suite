@@ -604,6 +604,11 @@ span.bbp-status {
 .bbp-card__tools[data-open] {
   opacity: 1;
 }
+@media (hover: none) {
+  .bbp-card__tools {
+    opacity: 1;
+  }
+}
 .bbp-card[data-layout="row"] .bbp-card__tools {
   flex: 0 0 auto;
   margin-left: 0;

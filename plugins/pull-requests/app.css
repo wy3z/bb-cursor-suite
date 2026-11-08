@@ -269,6 +269,15 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
 .bb-pr-tray__row:focus-within .bb-pr-tray__actions ~ .bb-pr-tray__meta {
   opacity: 0;
 }
+@media (hover: none) {
+  .bb-pr-tray__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .bb-pr-tray__actions:not(:empty) ~ .bb-pr-tray__meta {
+    opacity: 0;
+  }
+}
 .bb-pr-tray__subheader {
   padding: 8px 8px 4px;
   color: var(--bbs-text-tertiary);

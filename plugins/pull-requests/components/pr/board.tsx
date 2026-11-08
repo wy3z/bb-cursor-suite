@@ -631,7 +631,7 @@ function Row({
       >
         {compactRelativeTime(stamp, now)}
       </span>
-      <span className={cn("shrink-0", starred ? "" : "opacity-0 transition-opacity group-hover/pr:opacity-100 group-focus-within/pr:opacity-100")}>
+      <span className={cn("shrink-0", starred ? "" : "opacity-0 transition-opacity group-hover/pr:opacity-100 group-focus-within/pr:opacity-100 [@media(hover:none)]:opacity-100")}>
         <StarButton starred={starred} onToggle={onToggleStar} />
       </span>
     </div>
