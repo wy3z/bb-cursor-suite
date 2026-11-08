@@ -1,9 +1,54 @@
-# Agent Pills
+# Cursor Composer
 
-Replaces the full-width boxes above BB's composer with small pills, and
-restyles the composer to look like Cursor's and Zeron's.
+Restyles BB's composer to look like Cursor's, and adds Cursor-style pills
+for child threads and background tasks above it.
 
-## Pills
+## Composer
+
+The prompt box becomes a rounded row in the style of Cursor and Zeron: the
+paperclip on the left, then the permission mode, model and reasoning level as
+plain text, and a round send button. The restyle selects BB's
+`data-promptbox-*` attributes, not its Tailwind classes.
+
+- **Growing.** Once the draft wraps or has an attachment, the text takes the
+  full width and the paperclip and controls move to a bottom row. It returns
+  to one row when the draft is empty. Attachments sit between the text and
+  the controls.
+- **Hidden:** the dictation button, the collapse button and **New thread in
+  this environment**. BB's Send options menu (Save draft, Send later, and any
+  plugin's send items) opens by right-clicking the send circle; its chevron
+  is hidden.
+  The circle is drawn with an inset box-shadow, because BB's composer forces
+  its buttons transparent with a layered `!important` utility. It dims while
+  the draft is empty, and shows a stop square while a turn runs.
+- **Prompt height.** UI Tweaks' One line and Two lines settings win: when
+  `data-bb-ui-prompt-height` is set, the composer drops its own 48px floor and
+  taller block padding, leaving the height to UI Tweaks. Without it, the
+  original Cursor-sized box is unchanged.
+- **Under the box:** the project and environment on the left, and the
+  context ring and percentage on the right.
+- **Surface.** The box and the pills are opaque, like Cursor's: the theme's
+  foreground at 6% over its background, a 1px outline at 8% (12% while the
+  box has focus), and no blur. The transcript fades out just above the box,
+  so none of it shows beside or below it.
+- **Touch screens.** Controls keep the 28px line instead of BB's 40-44px touch
+  sizes. The unfocused phone box (BB's compact mode) drops the paperclip's
+  gap, the placeholder stays on one line, and long model names truncate.
+
+The restyle is on whenever the plugin is. To go back to BB's own composer,
+turn the plugin off.
+
+It is a restyle, not a replacement composer, so it is not listed under
+**Settings → Appearance → Composer**. A replacement would have to redraw BB's
+whole editor and would stop picking up BB's composer fixes.
+
+## Agent pills
+
+On by default. The pills replace the full-width cards above the composer
+(child threads, background tasks, workflows, to-dos, the queue and the rest)
+with one row of small pills. Turn them off under **Settings → Plugins →
+Cursor Composer → Agent pills** to get BB's own cards back; the composer
+keeps its restyle either way. The setting is kept in this browser only.
 
 The Agents and Changes chips, and the Pull Requests and Subscriptions
 plugins' chips, share one Cursor tray style from `app.css` (`__tray-*`): a
@@ -56,14 +101,20 @@ status swaps for actions on hover, five rows then "More".
   Create PR commits first if needed, pushes the branch and runs
   `gh pr create --fill` against the environment's base branch, or returns the
   pull request already open for the branch. Progress and the result show
-  under the buttons. These run git and `gh` from the plugin's backend, so they
-  only work for environments on the BB server's own machine.
+  under the buttons. The Pull Requests plugin owns these actions: Cursor
+  Composer draws the buttons and calls its git actions, which run git and `gh`
+  from that plugin's backend, so they only work for environments on the BB
+  server's own machine. Without Pull Requests installed and enabled, the
+  buttons and message box are disabled and the bar reads "Needs Pull
+  Requests"; enabling or disabling it updates the bar without a reload.
 - **Apply locally.** A child thread in its own worktree gets a download
   button on hover in the Agents tray. It copies everything the worktree has
   against the parent's checkout (commits, uncommitted and untracked files,
   binaries) into the parent's checkout as uncommitted changes. It refuses
-  rather than half-applying when the patch doesn't apply cleanly. Plugins can't open another plugin's tab at a file, so the diff
-  starts at the top. BB's own changed-files
+  rather than half-applying when the patch doesn't apply cleanly. This is
+  also a Pull Requests git action: without that plugin the button is disabled
+  and its tooltip says "Needs Pull Requests". Plugins can't open another
+  plugin's tab at a file, so the diff starts at the top. BB's own changed-files
   segment only appears for worktree environments (segments get no environment
   for project checkouts), so this reads the same status from BB's git plugin
   by the thread's environment id, and BB's segment is hidden.
@@ -75,7 +126,8 @@ status swaps for actions on hover, five rows then "More".
 - **Parent thread.** BB's own segment is kept, but drawn as a pill on the
   same row.
 
-The pills for BB's own cards are hidden with CSS on their `aria-label`s:
+While Agent pills is on, BB's own cards are hidden with CSS on their
+`aria-label`s:
 Child threads, Background agents/commands/activity, Workflow(s), To-do list,
 Model fallback, Machine status, Prompt mode, Goal, and Queued messages
 (except while BB's inline editor is open). If a BB update renames them, the
@@ -85,48 +137,6 @@ an archived thread keeps BB's own Unarchive banner and another split pane is
 left alone. While an approval or question is pending, BB swaps in its short
 composer stack: the child-thread, plan and goal boxes are shown again and the
 pill row is absent.
-
-## Composer
-
-The prompt box becomes a rounded row in the style of Cursor and Zeron: the
-paperclip on the left, then the permission mode, model and reasoning level as
-plain text, and a round send button. The restyle selects BB's
-`data-promptbox-*` attributes, not its Tailwind classes.
-
-- **Growing.** Once the draft wraps or has an attachment, the text takes the
-  full width and the paperclip and controls move to a bottom row. It returns
-  to one row when the draft is empty. Attachments sit between the text and
-  the controls.
-- **Hidden:** the dictation button, the collapse button and **New thread in
-  this environment**. BB's Send options menu (Save draft, Send later, and any
-  plugin's send items) opens by right-clicking the send circle; its chevron
-  is hidden.
-  The circle is drawn with an inset box-shadow, because BB's composer forces
-  its buttons transparent with a layered `!important` utility. It dims while
-  the draft is empty, and shows a stop square while a turn runs.
-- **Prompt height.** UI Tweaks' One line and Two lines settings win: when
-  `data-bb-ui-prompt-height` is set, the composer drops its own 48px floor and
-  taller block padding, leaving the height to UI Tweaks. Without it, the
-  original Cursor-sized box is unchanged.
-- **Under the box:** the project and environment on the left, and the
-  context ring and percentage on the right.
-- **Glass.** The box and the pills share the theme's `--border` outline and a
-  translucent fill: `--background` at 60% in light themes and `--popover` at
-  45% in dark ones, with the same `blur(28px) saturate(160%)` as dark-theme
-  popovers. The opaque strip under the box is removed, and the transcript fades
-  out towards the bottom of the window behind it. A theme that hides the
-  transcript's top edge with `mask-image` blocks the blur, so the plugin swaps
-  that mask for an overlay of the same 40px fade.
-- **Touch screens.** Controls keep the 28px line instead of BB's 40-44px touch
-  sizes. The unfocused phone box (BB's compact mode) drops the paperclip's
-  gap, the placeholder stays on one line, and long model names truncate.
-
-Turn the restyle off under **Settings → Plugins → Agent Pills → Composer**.
-The pills stay either way.
-
-It is a restyle, not a replacement composer, so it is not listed under
-**Settings → Appearance → Composer**. A replacement would have to redraw BB's
-whole editor and would stop picking up BB's composer fixes.
 
 ## Requirements
 

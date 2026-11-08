@@ -111,6 +111,26 @@ Two ways to start a worker on a task:
 2. Fire and forget: `bb tasks dispatch <KEY> --preset "<preset name>"`. The
    worker reports back on the task, but you get no lifecycle notification.
 
+## Answering a blocked worker
+
+When a worker asks a question, you get `@thread:<id> needs help. Blocked on
+user question: ...`. The worker's turn is paused on that question, and
+`bb thread tell` doesn't answer it: the message waits in the worker's queue
+(`delivery: queued`, `waitingOn: interaction`) until someone answers the
+question, so the worker stays on Needs attention. Answer the question itself:
+
+```sh
+bb thread interactions list <thread id> --json
+bb thread interactions answer <interaction id> <thread id> --choice <question id>=<option value>
+bb thread interactions answer <interaction id> <thread id> --text <question id>="<free text>"
+```
+
+`list` gives the interaction id (`pint_...`), each question's `id` and its
+option `value`s. Once it's answered, the worker carries on and any queued
+`tell` goes in straight after it, so send extra guidance with `bb thread tell`
+after you answer. If the decision belongs to the user, ask them and leave the
+question open. Approvals have their own calls: `approve`, `deny` and `grant`.
+
 Attach every worker to its task, including spikes run from another project:
 the board only knows what is attached. Every brief says which task it serves,
 the acceptance criteria, and how the work lands:

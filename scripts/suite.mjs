@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const tasks = { build: ["build"], typecheck: ["typecheck"], test: ["test"], check: ["typecheck", "test", "build"], reload: [] };
 const timeouts = { build: 300, typecheck: 300, test: 300 };
 const shared = { id: "suite-shared", dir: "packages/suite-shared" };
+const tooling = { id: "suite-scripts", dir: "scripts", scripts: { test: "test" }, root: true };
 
 function usage(code) {
   console.log("Usage: npm run suite -- <build|typecheck|test|check|reload> [--changed | --all | <id>...] [--base <ref>]");
@@ -26,7 +27,7 @@ function workspaces() {
     const pkg = readJson(join(ws.dir, "package.json"));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return { ...ws, scripts: pkg.scripts ?? {}, usesShared: "@wy3z/bb-suite" in deps && ws.id !== shared.id };
-  });
+  }).concat(tooling);
 }
 
 function baseRef(explicit) {
@@ -66,14 +67,15 @@ function guarded(cmd, seconds) {
 
 function runStep(ws, step) {
   if (!ws.scripts[step]) return "skip";
-  const [bin, args] = guarded(["npm", "run", step, "-w", ws.dir], timeouts[step]);
+  const command = ws.root ? ["npm", "run", step] : ["npm", "run", step, "-w", ws.dir];
+  const [bin, args] = guarded(command, timeouts[step]);
   console.log(`\n== ${ws.id}: ${step}`);
   const result = spawnSync(bin, args, { cwd: root, stdio: "inherit" });
   return result.status === 0 ? "ok" : "FAIL";
 }
 
 function reloadPlugin(ws) {
-  if (ws.id === shared.id) return "skip";
+  if (ws.id === shared.id || ws.root) return "skip";
   let source;
   try {
     source = JSON.parse(execFileSync("bb", ["plugin", "source", ws.id, "--json"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));

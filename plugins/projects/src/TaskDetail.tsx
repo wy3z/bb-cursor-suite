@@ -12,6 +12,7 @@ import { PR_STATUS, prStatus, useAttachments, usePullRequestSummaries, useTaskPu
 import { CommitGlyph, Dot, PriorityGlyph, StatusGlyph, formatElapsed } from "./glyphs";
 import { AttachmentList, BehindHint, agentViews, useLightbox } from "./Chips";
 import { COLUMNS, COLUMN_LABEL, columnOf } from "./status";
+import { useOpenThread } from "./useOpenThread";
 
 const URL_RE = /https?:\/\/[^\s<>()"'`\]]+[^\s<>()"'`\].,;:!?]/g;
 
@@ -61,6 +62,7 @@ export function TaskDetail({
   onStatus: (task: Task, status: Status) => void;
 }) {
   const navigate = useBbNavigate();
+  const openThreadIn = useOpenThread();
   const sdk = useSdk();
   const threads = useTaskThreads(task.id, true);
   const pullRequests = useTaskPullRequests(task.id, true);
@@ -189,7 +191,7 @@ export function TaskDetail({
                 key={agent.link.threadId}
                 className="bbp-detail__row"
                 data-tone={agent.tone}
-                onClick={(event) => navigate.toThread(agent.link.threadId, event.ctrlKey || event.metaKey ? { split: true } : undefined)}
+                onClick={(event) => openThreadIn(agent.link.threadId, { split: event.ctrlKey || event.metaKey })}
               >
                 <Dot tone={agent.tone} />
                 <span className="bbp-detail__row-title">{agent.name}</span>

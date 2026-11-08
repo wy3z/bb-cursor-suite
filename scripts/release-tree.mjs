@@ -8,7 +8,12 @@ export const root = resolve(import.meta.dirname, "..");
 export const vendorDir = "vendor/bb-suite";
 
 export function git(args, options = {}) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "inherit"], ...options }).trim();
+  const out = execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "inherit"], ...options });
+  return out === null ? "" : out.trim();
+}
+
+export function gitRun(args, options = {}) {
+  execFileSync("git", args, { cwd: root, stdio: "inherit", ...options });
 }
 
 export function json(value) {
@@ -31,7 +36,7 @@ export function releaseTree(base, dir) {
       const [meta, path] = line.split("\t");
       const [mode, , object] = meta.split(" ");
       const rel = path.slice(sharedDir.length + 1);
-      if (!(rel.startsWith("src/") || rel === "tokens.css" || rel === "README.md" || rel === "LICENSE")) continue;
+      if (rel === "package.json" || rel.startsWith("test/")) continue;
       git(["update-index", "--add", "--cacheinfo", `${mode},${object},${dir}/${vendorDir}/${rel}`], { env });
     }
     const sharedPkg = JSON.parse(git(["show", `${base}:${sharedDir}/package.json`]));

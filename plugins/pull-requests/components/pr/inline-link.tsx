@@ -1,9 +1,6 @@
-// Pull request links in chat, after Cursor's composer markdown
-// (pull-request-link-content, agent-pr-status-icon and
-// pull-request-link-hover-card in workbench.glass.main.js): an ordinary
-// inline link led by a 13px lifecycle icon, labelled `#N` when the link text
-// is just the URL or number, with a hover card for the title, status, author
-// and repository.
+// Pull request links in chat: an ordinary inline link led by a 13px lifecycle
+// icon, labelled `#N` when the link text is just the URL or number, with a
+// hover card for the title, status, author and repository.
 //
 // BB renders message markdown itself, so plain links are decorated in place by
 // an app overlay that watches the message column; `::pull-request{url}` renders
@@ -30,7 +27,7 @@ export function pullRequestHref(href: string): { url: string; number: number } |
   return { url: `https://github.com/${match[1]}/${match[2]}/pull/${match[3]}`, number: Number(match[3]) };
 }
 
-/** Cursor's rule: the link text says nothing beyond the URL, so show `#N`. */
+/** The link text says nothing beyond the URL, so show `#N`. */
 function isBareLabel(text: string, pr: { url: string; number: number }): boolean {
   const value = text.trim();
   if (value === "" || value === String(pr.number) || value === `#${pr.number}`) return true;

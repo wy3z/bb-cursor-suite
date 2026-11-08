@@ -18,14 +18,9 @@
 }
 
 :root {
-  /* One surface for the composer and the pills, from the theme's own tokens:
-     BB's composer is bg-background + border-border. */
-  /* Translucent so the transcript shows through as it scrolls under the
-     composer; the blur keeps the draft readable over it. */
-  --bb-agent-pills-surface: var(--bbs-glass-surface);
-  --bb-agent-pills-blur: var(--bbs-glass-blur);
-  --bb-agent-pills-outline: var(--bbs-glass-outline);
-  --bb-agent-pills-surface-hover: var(--bbs-glass-surface-hover);
+  --bb-agent-pills-surface: var(--bbs-chip-surface);
+  --bb-agent-pills-outline: var(--bbs-chip-outline);
+  --bb-agent-pills-surface-hover: var(--bbs-chip-surface-hover);
 }
 
 .bb-agent-pills__pill {
@@ -369,9 +364,10 @@ section[aria-label="Thread context before sending"] > div:first-child {
   padding: 0 !important;
 }
 
-section[aria-label="Thread context before sending"]
-  > div:first-child
-  > :is(div, button)[data-bb-agent-pills-context-segment] {
+html[data-bb-agent-pills-pills]
+  section[aria-label="Thread context before sending"]
+    > div:first-child
+    > :is(div, button)[data-bb-agent-pills-context-segment] {
   display: inline-flex;
   align-items: center;
   gap: var(--bbs-gap-xs);
@@ -388,9 +384,10 @@ section[aria-label="Thread context before sending"]
   white-space: nowrap;
 }
 
-section[aria-label="Thread context before sending"]
-  > div:first-child
-  > :is(div, button)[data-bb-agent-pills-context-segment]
+html[data-bb-agent-pills-pills]
+  section[aria-label="Thread context before sending"]
+    > div:first-child
+    > :is(div, button)[data-bb-agent-pills-context-segment]
   :is(a, span) {
   min-width: 0;
   overflow: hidden;
@@ -398,17 +395,19 @@ section[aria-label="Thread context before sending"]
   text-decoration: none;
 }
 
-section[aria-label="Thread context before sending"]
-  > div:first-child
-  > :is(div, button)[data-bb-agent-pills-context-segment]
+html[data-bb-agent-pills-pills]
+  section[aria-label="Thread context before sending"]
+    > div:first-child
+    > :is(div, button)[data-bb-agent-pills-context-segment]
   [data-icon] {
   width: var(--bbs-icon);
   height: var(--bbs-icon);
 }
 
-section[aria-label="Thread context before sending"]
-  > div:first-child
-  > :is(div, button)[data-bb-agent-pills-context-segment]:hover {
+html[data-bb-agent-pills-pills]
+  section[aria-label="Thread context before sending"]
+    > div:first-child
+    > :is(div, button)[data-bb-agent-pills-context-segment]:hover {
   border-color: var(--bb-agent-pills-outline);
   background: var(--bb-agent-pills-surface-hover);
   color: var(--bbs-text-primary);
@@ -419,17 +418,20 @@ section[aria-label="Thread context before sending"]
 /* Every card the pills replace is hidden by its section label. The parent
    thread card and the changed-files segment stay: they are the composer's own
    context, not a status box. */
-section[aria-label="Child threads"],
-section[aria-label="Background agents"],
-section[aria-label="Background commands"],
-section[aria-label="Background activity"],
-section[aria-label="Workflow"],
-section[aria-label="Workflows"],
-section[aria-label="To-do list"],
-section[aria-label="Model fallback"],
-section[aria-label="Machine status"],
-section[aria-label="Prompt mode"],
-section[aria-label="Goal"] {
+html[data-bb-agent-pills-pills]
+  :is(
+    section[aria-label="Child threads"],
+    section[aria-label="Background agents"],
+    section[aria-label="Background commands"],
+    section[aria-label="Background activity"],
+    section[aria-label="Workflow"],
+    section[aria-label="Workflows"],
+    section[aria-label="To-do list"],
+    section[aria-label="Model fallback"],
+    section[aria-label="Machine status"],
+    section[aria-label="Prompt mode"],
+    section[aria-label="Goal"]
+  ) {
   display: none !important;
 }
 
@@ -438,7 +440,8 @@ section[aria-label="Goal"] {
    Hide the banner only in the thread pane that carries that pill: another
    split pane, or a pill row another plugin draws with these classes, must not
    remove it. */
-[data-thread-window][data-bb-agent-pills-has-thread-pill][data-bb-agent-pills-has-thread-pill]
+html[data-bb-agent-pills-pills]
+  [data-thread-window][data-bb-agent-pills-has-thread-pill][data-bb-agent-pills-has-thread-pill]
   section[aria-label="Thread history"] {
   display: none !important;
 }
@@ -446,13 +449,13 @@ section[aria-label="Goal"] {
 /* BB's plan and goal cards carry their own labels, but a relabel upstream
    would silently bring the card back; the dismiss buttons are the fallback
    anchor. */
-section:is(section[data-bb-agent-pills-has-status-card]) {
+html[data-bb-agent-pills-pills] section:is(section[data-bb-agent-pills-has-status-card]) {
   display: none !important;
 }
 
 /* Editing a queued message happens in BB's own inline editor, inside the
    "Queued messages" section; keep that one instance alive. */
-html:not([data-bb-agent-pills-show-queue])
+html[data-bb-agent-pills-pills]:not([data-bb-agent-pills-show-queue])
   section[aria-label="Queued messages"]:is(section):not([data-bb-agent-pills-has-queue-editor]) {
   display: none !important;
 }
@@ -460,7 +463,8 @@ html:not([data-bb-agent-pills-show-queue])
 /* A pending approval or question swaps the composer stack for a short one
    (child threads, plan, goal) and drops our pill row, so those boxes come
    back for as long as an interaction card sits in the composer. */
-div[data-app-composer]:is(div[data-bb-agent-pills-has-interaction])
+html[data-bb-agent-pills-pills]
+  div[data-app-composer]:is(div[data-bb-agent-pills-has-interaction])
   :is(
     section[aria-label="Child threads"],
     section[aria-label="Prompt mode"],
@@ -469,46 +473,7 @@ div[data-app-composer]:is(div[data-bb-agent-pills-has-interaction])
   display: revert !important;
 }
 
-/* ── Settings section ──────────────────────────────────────────────────── */
-
-.bb-agent-pills-settings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bbs-gap);
-}
-
-.bb-agent-pills-settings__row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--bbs-gap);
-  cursor: pointer;
-}
-
-.bb-agent-pills-settings__row input {
-  margin-top: 2px;
-  accent-color: var(--accent);
-}
-
-.bb-agent-pills-settings__copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bbs-gap-tight);
-  min-width: 0;
-}
-
-.bb-agent-pills-settings__title {
-  color: var(--bbs-text-primary);
-  font-size: var(--bbs-text-row);
-  font-weight: 500;
-}
-
-.bb-agent-pills-settings__hint {
-  color: var(--bbs-text-tertiary);
-  font-size: var(--bbs-text-body);
-  line-height: 1.45;
-}
-
-/* ── Composer restyle (gated by the settings toggle) ───────────────────── */
+/* ── Composer restyle ─────────────────────────────────────────────────── */
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
   position: relative;
@@ -615,8 +580,8 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox][data-bb-agent-p
   padding: 0 10px 0 0;
 }
 
-/* The placeholder sits on the same line as the submit button. Cursor says
-   "Do anything…"; keep BB's wording on the queued-message editor. */
+/* The placeholder sits on the same line as the submit button. Keep BB's
+   wording on the queued-message editor. */
 html[data-bb-agent-pills-composer="cursor"]
   [data-follow-up-composer]
   .ProseMirror
@@ -1033,59 +998,22 @@ html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] > div {
 }
 
 .bb-agent-pills__pill,
-section[aria-label="Thread context before sending"] > div:first-child > :is(div, button)[data-bb-agent-pills-context-segment] {
-  -webkit-backdrop-filter: var(--bb-agent-pills-blur);
-  backdrop-filter: var(--bb-agent-pills-blur);
+html[data-bb-agent-pills-pills] section[aria-label="Thread context before sending"] > div:first-child > :is(div, button)[data-bb-agent-pills-context-segment] {
   box-shadow: none !important;
 }
 
-/* Themes may pin the composer to a solid colour (e.g. html.dark
-   form[data-promptbox].bg-background); the translucent surface must win. */
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox],
 html[data-bb-agent-pills-composer="cursor"].dark form[data-promptbox].bg-background,
 html[data-bb-agent-pills-composer="cursor"]:not(.dark) form[data-promptbox].bg-background {
-  isolation: isolate;
-  background-color: transparent !important;
+  background-color: var(--bb-agent-pills-surface) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-
-html[data-bb-agent-pills-composer="cursor"] form[data-promptbox]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background-color: var(--bb-agent-pills-surface);
-  -webkit-backdrop-filter: var(--bb-agent-pills-blur);
-  backdrop-filter: var(--bb-agent-pills-blur);
-  pointer-events: none;
-}
-
 
 /* Themes may give the composer its own edge colour; keep it identical to the
    pills' outline. */
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
   border-color: var(--bb-agent-pills-outline) !important;
-}
-
-/* A mask-image on the transcript scroller (the theme's dark top fade) stops
-   Chromium's backdrop-filter from reaching the content behind the composer,
-   so the frosting barely blurs. Drop the mask and redraw the same 40px fade
-   as an overlay on the scroller's parent. */
-html[data-bb-agent-pills-composer="cursor"] [data-page-scroll-viewport] {
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
-}
-
-html[data-bb-agent-pills-composer="cursor"].dark [data-bb-agent-pills-has-scroll-frame]::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 40px;
-  background: linear-gradient(var(--background), transparent);
-  pointer-events: none;
-  z-index: 30;
 }
 
 html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] form[data-promptbox] {
@@ -1198,17 +1126,16 @@ html[data-bb-agent-pills-composer="cursor"]
 
 /* BB's own changed-files segment (shown for worktree environments) would
    double the pill above; its expanding file list does not suit a pill row. */
-section[aria-label="Thread context before sending"] [data-bb-plugin-root][data-bb-plugin="bb--git"],
-section[aria-label="Thread context before sending"] #thread-prompt-banner-git-body {
+html[data-bb-agent-pills-pills] section[aria-label="Thread context before sending"] [data-bb-plugin-root][data-bb-plugin="bb--git"],
+html[data-bb-agent-pills-pills] section[aria-label="Thread context before sending"] #thread-prompt-banner-git-body {
   display: none !important;
 }
 
-/* ── Cursor trays ──────────────────────────────────────────────────────
+/* ── Trays ─────────────────────────────────────────────────────────────
    Shared by the Agents and Changes trays here, and by the Pull Requests
    and Subscriptions plugins: a chip ("Working 2", "PRs 3", "Listening 1")
-   in the pill row opens a tray above it, after Cursor's agent-panel trays
-   (Tray.js, TrayRow.js, list-tray-more-row, tray-section-subheader).
-   Pages show 5 rows, then "More" adds 8. */
+   in the pill row opens a tray above it. Pages show 5 rows, then "More"
+   adds 8. */
 
 .bb-agent-pills__chip-count {
   color: var(--subtle-foreground, var(--muted-foreground));
@@ -1351,7 +1278,7 @@ button.bb-agent-pills__tray-row:disabled:hover {
   color: var(--bbs-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
-/* Cursor's inline description: muted, after the label, first to truncate. */
+/* Inline description: muted, after the label, first to truncate. */
 .bb-agent-pills__tray-description {
   flex: 0 1000 auto;
   min-width: 0;
@@ -1503,7 +1430,8 @@ button.bb-agent-pills__tray-row:disabled:hover {
   color: var(--warning-text);
 }
 
-[data-thread-window][data-bb-agent-pills-has-compact-pill][data-bb-agent-pills-has-compact-pill]
+html[data-bb-agent-pills-pills]
+  [data-thread-window][data-bb-agent-pills-has-compact-pill][data-bb-agent-pills-has-compact-pill]
   form[data-promptbox]
   :is(
     button[aria-pressed][aria-label^="Compact "][aria-label$=" tokens before sending"],
@@ -1723,7 +1651,7 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
   box-shadow: none !important;
 }
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox]:focus-within {
-  border-color: color-mix(in oklab, var(--foreground) 10%, var(--bb-agent-pills-outline));
+  border-color: var(--bbs-chip-outline-focus);
   box-shadow: none !important;
 }
 html[data-bb-agent-pills-composer="cursor"]

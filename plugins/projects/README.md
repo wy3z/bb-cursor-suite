@@ -20,6 +20,9 @@ live cards, and a project lead workflow.
   Draft, Merged, Closed; several PRs collapse into a stack with a menu), a
   sub-task progress pill with a menu, an attachments chip with an image viewer,
   and the commit that landed the work when it went straight to main.
+  Clicking a card or agent chip opens the agent as a tab of the project's
+  lead thread, so the lead's side panel and the board stay put; Ctrl or
+  Cmd-click opens a split instead.
 - **Derived status**: each card also works out what its evidence says, with
   Cursor's rules (merged PRs mean Done, a running agent means In Progress, idle
   agents with an open PR mean For Review, parents roll up from sub-tasks) plus
@@ -34,8 +37,9 @@ live cards, and a project lead workflow.
   Requests is not installed.
 - **Card menu**: delegate to any Tasks preset, Apply locally (the worker's
   worktree into the project checkout), Create PR, Open in Tasks. Apply and
-  Create PR call the Agent Pills plugin's git actions, so that plugin must be
-  installed.
+  Create PR are git actions owned by the Pull Requests plugin. Without it
+  installed and enabled they stay in the menu, disabled and marked "Needs Pull
+  Requests", and they come back as soon as it is enabled, without a reload.
 - **Board icon**: each board has its own icon, stored by this plugin and set
   from the icon in the board header or **Set icon…** in the board menu (the
   **⋯** button), or with `bb projects icon`. The picker is the suite's port of
@@ -51,7 +55,8 @@ live cards, and a project lead workflow.
   `projects` skill teaches it to plan, delegate as child threads attached to
   tasks, keep the board true and write status updates.
 - **Pinned lead instructions**: the lead thread gets a short block with the
-  status rules and the PR landing rule appended to its instructions, so they
+  status rules, the PR landing rule and how to answer a worker blocked on a
+  question appended to its instructions, so they
   survive compaction. BB applies it when the provider session is next built
   (thread start, resume or restart), never mid-session.
 - **Loop**: behind the loop button in the board header. A

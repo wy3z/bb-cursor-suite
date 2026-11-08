@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-agent-pills",
   "version": "1.0.0",
-  "description": "Compact Cursor-style pills for child threads and background tasks above the composer.",
+  "description": "A Cursor-style composer for BB, with optional pills for child threads and background tasks above it.",
   "author": {
     "name": "WYEZ",
     "url": "https://github.com/wy3z"
@@ -15,6 +15,7 @@
   "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/agent-pills#readme",
   "type": "module",
   "files": [
+    "PLUGIN_OVERVIEW.md",
     "README.md",
     "app.css",
     "app.tsx",
@@ -24,15 +25,16 @@
   ],
   "scripts": {
     "build": "bb plugin build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src"
   },
   "engines": {
     "bb": ">=0.49",
     "bbPluginSdk": ">=0.6.132"
   },
   "bb": {
-    "name": "Agent Pills",
-    "description": "Cursor-style pills for child threads and background tasks, plus a Cursor-looking composer.",
+    "name": "Cursor Composer",
+    "description": "A Cursor-style composer for BB, with optional pills for child threads and background tasks above it.",
     "branding": {
       "icon": "MessageCircle"
     },

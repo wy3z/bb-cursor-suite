@@ -1,14 +1,14 @@
 import type { IconName } from "@/components/ui/icon";
 
 /**
- * The project-icon catalog: the 48 glyphs Cursor offers as project identity,
- * plus the popular ones T3 Code's picker offers, each mapped to the nearest
- * name in this plugin's icon registry. They are one flat grid, not themed
- * groups, because the set is short enough to read at a glance.
+ * The project-icon catalog: the 48 glyphs offered as project identity, plus
+ * the popular ones T3 Code's picker offers, each mapped to the nearest name
+ * in this plugin's icon registry. They are one flat grid, not themed groups,
+ * because the set is short enough to read at a glance.
  *
- * Cursor's own picker lists its whole icon font, chrome included, which is why
- * this stays a short list of identities instead: nothing here can be mistaken
- * for a sidebar affordance, a VCS mark or a status badge.
+ * This stays a short list of identities rather than a whole icon font with
+ * its chrome, so nothing here can be mistaken for a sidebar affordance, a
+ * VCS mark or a status badge.
  *
  * Where a Cursor or T3 Code name has no like-named equivalent here:
  *   chip -> Chip, file-text -> FileText, files -> FileStack, book-open -> BookOpen,

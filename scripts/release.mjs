@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { installCheck } from "./install-check.mjs";
-import { git, json, releaseTree, root } from "./release-tree.mjs";
+import { git, gitRun, json, releaseTree, root } from "./release-tree.mjs";
 import { checkVersions, compareVersions, parseVersion } from "./versions.mjs";
 
 const legacy = {
@@ -154,7 +154,7 @@ if (pushLegacy) {
 
 const pushCommands = pushes.map(([remote, refspec]) => ["git", "push", remote, refspec]);
 if (flags.has("--push")) {
-  for (const [, ...args] of pushCommands) git(args, { stdio: "inherit" });
+  for (const [remote, refspec] of pushes) gitRun(["push", remote, refspec]);
 } else {
   console.log("\nNothing pushed. To publish:");
   for (const cmd of pushCommands) console.log(`  ${cmd.join(" ")}`);

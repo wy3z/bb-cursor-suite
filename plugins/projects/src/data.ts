@@ -6,6 +6,7 @@ import {
   useSdk,
 } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
+import { usePluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import {
   GIT_PLUGIN,
   PULL_REQUESTS_PLUGIN,
@@ -294,18 +295,20 @@ const pullRequestsContract = defineRpcContract({
 });
 
 export function usePullRequestSummaries(urls: readonly string[]): ReadonlyMap<string, PullRequestSummary> {
+  const available = usePluginAvailability(PULL_REQUESTS_PLUGIN) === "available";
   const query = experimental_useRpcQuery({
     pluginId: PULL_REQUESTS_PLUGIN,
     contract: pullRequestsContract,
     method: "summaries",
     input: { urls: urls.slice(0, 20), refresh: false },
-    enabled: urls.length > 0,
+    enabled: available && urls.length > 0,
   });
   return useMemo(() => {
     const map = new Map<string, PullRequestSummary>();
+    if (!available) return map;
     for (const item of query.data?.items ?? []) if (item.summary.ok) map.set(item.url, item.summary.value);
     return map;
-  }, [query.data]);
+  }, [available, query.data]);
 }
 
 export { PR_STATUS, prStatus, type PrStatus } from "./pr-status";

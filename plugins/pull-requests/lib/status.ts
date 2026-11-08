@@ -1,9 +1,9 @@
-// Cursor's two pull request status models.
+// Two pull request status models.
 //
-// - Lifecycle (pr-lifecycle-presentation.js): open, draft, merged, closed.
-//   Used by links in messages, their hover cards, and tab icons.
-// - Tray status (project-pr-groups.js, Sz_): what the composer tray shows per
-//   row, from state, draft, mergeability, CI and review.
+// - Lifecycle: open, draft, merged, closed. Used by links in messages, their
+//   hover cards, and tab icons.
+// - Tray status: what the composer tray shows per row, from state, draft,
+//   mergeability, CI and review.
 import type { IconName } from "@/components/ui/icon";
 import type { PullRequestSummary } from "../server";
 
@@ -25,7 +25,7 @@ export const LIFECYCLE: Record<Lifecycle, { icon: IconName; label: string }> = {
 
 export type TrayStatus = "merged" | "closed" | "draft" | "conflict" | "ci-failing" | "ready-to-merge" | "needs-review";
 
-/** Cursor's order: lifecycle, then conflicts, CI, and whether it can merge. */
+/** Order: lifecycle, then conflicts, CI, and whether it can merge. */
 export function trayStatus(summary: PullRequestSummary): TrayStatus {
   const state = lifecycle(summary);
   if (state === "merged" || state === "closed" || state === "draft") return state;

@@ -33,8 +33,8 @@
     },
     {
       "id": "agent-pills",
-      "displayName": "Agent Pills",
-      "description": "Cursor-style pills for child threads and background tasks, plus a Cursor-looking composer.",
+      "displayName": "Cursor Composer",
+      "description": "A Cursor-style composer for BB, with optional pills for child threads and background tasks above it.",
       "icon": {
         "url": "./icons/agent-pills.svg"
       },
