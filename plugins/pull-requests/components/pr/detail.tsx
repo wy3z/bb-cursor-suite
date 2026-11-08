@@ -35,6 +35,8 @@ import {
 } from "@/lib/model";
 import { availableHandoffs, HANDOFFS, handoffPrompt } from "@/lib/handoff";
 import { useSubscribeToggle } from "./listening";
+import { mergeAction, PrimaryActionButton, type PrimaryAction } from "./primary-action";
+import { mergeConfirmText, type MergeMethod } from "@/lib/merge-method";
 import type { DiffFile, PullRequestCommit, PullRequestError, RepositoryChoice, rpcContract } from "../../server";
 import { RepoIcon } from "@/components/project-icons/RepoIcon";
 import { Avatar, DiffStats, EmptyAction, EmptyState, ERROR_COPY, Segmented, useNow } from "./common";
@@ -200,16 +202,6 @@ function TitleEditor({ title, onRename }: { title: string; onRename: (title: str
     </button>
   );
 }
-
-type MergeMethod = "merge" | "squash" | "rebase";
-
-const MERGE_METHODS: { method: MergeMethod; label: string }[] = [
-  { method: "squash", label: "Squash and merge" },
-  { method: "merge", label: "Create a merge commit" },
-  { method: "rebase", label: "Rebase and merge" },
-];
-
-type PrimaryAction = { key: string; label: string; busyLabel: string; disabled?: boolean; title?: string; run: () => void };
 
 function Commits({ url }: { url: string }) {
   const rpc = useRpc<typeof rpcContract>();
@@ -420,7 +412,7 @@ export function DetailPage({
 
   const merge = (method: MergeMethod) => {
     if (!detail) return;
-    if (!window.confirm(`Merge #${number} into ${detail.baseRefName}? This happens on GitHub right away.`)) return;
+    if (!window.confirm(mergeConfirmText(method, number, detail.baseRefName))) return;
     void mutate("merge", () => rpc.call("pr_merge", { url, method }), "Merged");
   };
   const setState = (next: "close" | "reopen") => {
@@ -433,14 +425,7 @@ export function DetailPage({
     : isOpen && detail.isDraft
       ? { key: "ready", label: "Mark as ready", busyLabel: "Marking…", run: () => void mutate("ready", () => rpc.call("pr_ready", { url }), "Marked as ready") }
       : isOpen
-        ? {
-            key: "merge",
-            label: "Merge pull request",
-            busyLabel: "Merging…",
-            disabled: conflicting,
-            title: conflicting ? "This branch has conflicts that must be resolved" : undefined,
-            run: () => merge("squash"),
-          }
+        ? mergeAction(detail.mergeSettings, merge, conflicting ? "This branch has conflicts that must be resolved" : undefined)
         : lifecycleState === "CLOSED"
           ? { key: "reopen", label: "Reopen", busyLabel: "Reopening…", run: () => setState("reopen") }
           : null;
@@ -527,14 +512,6 @@ export function DetailPage({
               {detail && isOpen ? (
                 <>
                   <DropdownMenuSeparator />
-                  {!detail.isDraft
-                    ? MERGE_METHODS.map((option) => (
-                        <DropdownMenuItem key={option.method} disabled={busy !== null || conflicting} onSelect={() => merge(option.method)}>
-                          <Icon name="GitMerge" className="size-3.5" />
-                          {option.label}
-                        </DropdownMenuItem>
-                      ))
-                    : null}
                   <DropdownMenuItem disabled={busy !== null} onSelect={() => setState("close")}>
                     <Icon name="CircleX" className="size-3.5" />
                     Close
@@ -543,13 +520,7 @@ export function DetailPage({
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          {primary ? (
-            <span className="shrink-0" title={primary.title}>
-              <Button size="sm" className="h-8 text-xs" disabled={busy !== null || primary.disabled} onClick={primary.run}>
-                {busy === primary.key ? primary.busyLabel : primary.label}
-              </Button>
-            </span>
-          ) : null}
+          {primary ? <PrimaryActionButton action={primary} busy={busy} /> : null}
         </div>
 
         <div className="mt-2">

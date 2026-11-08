@@ -43,6 +43,7 @@ import {
 import { hostContract } from "./lib/host-contract";
 import { createDiscovery } from "./lib/discovery";
 import { readMergeRequest, type MergeRequestDetailResult } from "./lib/providers/gitlab";
+import { MERGE_SETTINGS_QUERY, mergeSettingsFrom, type MergeSettings } from "./lib/merge-method";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -472,6 +473,7 @@ async function fetchReviewThreads(
 
 async function fetchDetail(rawUrl: string): Promise<PullRequestDetail> {
   const { url, owner, name, number } = validatedPullRequestUrl(rawUrl);
+  const settings = fetchMergeSettings(owner, name);
   const value = await ghJson(["pr", "view", url, "--json", DETAIL_FIELDS]);
   const checksReported = Array.isArray(value.statusCheckRollup);
   let checks: PullRequestCheck[] = (value.statusCheckRollup ?? []).filter(Boolean).map(toCheck);
@@ -546,8 +548,18 @@ async function fetchDetail(rawUrl: string): Promise<PullRequestDetail> {
       .map((r: any) => toComment(r, viewer)),
     reviewThreads,
     files,
+    mergeSettings: await settings,
     fetchedAt: new Date().toISOString(),
   };
+}
+
+async function fetchMergeSettings(owner: string, name: string): Promise<MergeSettings | null> {
+  try {
+    const value = await graphql(MERGE_SETTINGS_QUERY, { owner, name });
+    return value.errors?.length ? null : mergeSettingsFrom(value.data?.repository);
+  } catch {
+    return null;
+  }
 }
 
 export interface DiffFile {
