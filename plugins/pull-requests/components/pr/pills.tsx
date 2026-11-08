@@ -20,6 +20,7 @@ import {
   type PluginMessageDirectiveProps,
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
+import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import { Icon } from "@/components/ui/icon";
 import { isDone, lifecycle, TRAY_STATUS, trayStatus, type Lifecycle } from "@/lib/status";
 import type { PullRequestSummary, rpcContract } from "../../server";
@@ -481,6 +482,7 @@ export function LinkedPullRequestsSegment({ threadId, environment }: Experimenta
   useEffect(() => {
     if (items.length === 0) setOpen(false);
   }, [items.length]);
+  useMenuKeyboard(rootRef, open, () => setOpen(false));
 
   if (items.length === 0) return null;
 

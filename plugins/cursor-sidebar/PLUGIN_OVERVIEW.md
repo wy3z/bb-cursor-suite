@@ -30,9 +30,9 @@ A warning mark on the menu button means a view change has not reached the server
 
 A row can show its project icon, a status glyph and metadata. When a chat has child chats that are working, the age at the end of the row becomes a small accent pill with their count. The pill disappears when nothing below it is running. Every row shares one left edge with no indent or tree lines: icons sit in one 14px column and titles start in the next. Child chats sit under their parent with a small corner arrow before the age, and the pull request and provider marks sit there too. The header and footer icons share that column, and a truncated title fades out as far before the cloud mark as the cloud mark sits before the time.
 
-## Compact navigation
+## Navigation
 
-The plugin also registers `cursor-sidebar/compact`, an optional navigation surface. It replaces the navigation rows with a header: back, forward and New thread on the left, and a menu of every navigation destination on the right. BB's own back and forward buttons are hidden while it is active, and the header drops its own buttons when the sidebar is too narrow. Choose Compact under Settings → Appearance.
+The plugin also adds two sidebar navigation layouts, Compact and Cursor, and BB switches to the first one a plugin adds unless you have picked one yourself. So after install the sidebar uses Compact instead of BB's Rail or Top list, and a note above the thread list says so until you dismiss it. Compact puts Search in the header and every other destination behind a Plugins button in the footer; Cursor lists the destinations as rows. To go back to BB's own navigation, pick Rail or Top list under Settings → Appearance → Navigation.
 
 ## Mobile
 

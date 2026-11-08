@@ -8,6 +8,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExperimentalThreadContextSegmentProps } from "@get-bb/plugin-sdk/app";
+import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import { SHOW_QUEUE_ATTRIBUTE } from "./channels";
 import { useActivity, type Activity, type PillGroup } from "./pill-data";
 import { usePillActions } from "./pills/actions";
@@ -62,6 +63,7 @@ export function AgentPillsSummary({ threadId }: ExperimentalThreadContextSegment
   const hasAgents = agentItems.length > 0;
   const agentsOpen = open === "subagents" && hasAgents;
   const anyOpen = openTrack !== null || agentsOpen;
+  useMenuKeyboard(rootRef, anyOpen ? open : null, () => setOpen(null));
 
   // Close on a click outside or Escape, like a menu.
   useEffect(() => {

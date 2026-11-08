@@ -11,7 +11,8 @@ Small, configurable interface improvements for BB.
   and the right panel open and close instantly instead of sliding.
 
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger
-  chat prose, and semibold bold text. Other sizes and weights stay put.
+  chat prose, semibold bold text, and quieter page-header and side-panel
+  icons. Other sizes and weights stay put.
 
 - **Hide Steer labels in threads** (off by default): removes the Steer tag
   shown on messages that steered a running agent, including pending and

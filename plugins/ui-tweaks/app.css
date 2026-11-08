@@ -149,23 +149,23 @@ html[data-bb-ui-hide-steer-labels="true"]
   display: none !important;
 }
 
-:is([data-testid="app-page-header-content-row"], [data-testid="thread-secondary-panel-top-chrome"], [data-testid="app-layout-content-shell"]) {
+:where(html[data-bb-ui-clearer-hierarchy="true"]) :is([data-testid="app-page-header-content-row"], [data-testid="thread-secondary-panel-top-chrome"], [data-testid="app-layout-content-shell"]) {
   --bbs-chrome-icon: color-mix(in srgb, oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h) 60%, transparent);
   --bbs-chrome-icon-active: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
 }
-[data-testid="app-page-header-content-row"] button > :is(svg, [data-icon-root]),
-[data-testid="thread-secondary-panel-top-chrome"] button :is(svg, [data-icon-root]),
-[data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"] > :is(svg, [data-icon-root]) {
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="app-page-header-content-row"] button > :is(svg, [data-icon-root]),
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="thread-secondary-panel-top-chrome"] button :is(svg, [data-icon-root]),
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"] > :is(svg, [data-icon-root]) {
   width: var(--bbs-icon, 14px);
   height: var(--bbs-icon, 14px);
 }
-[data-testid="app-page-header-content-row"] button:has(> :is(svg, [data-icon-root])):not(:has(> :not(svg, [data-icon-root], img))),
-[data-testid="thread-secondary-panel-top-chrome"] button:has(:is(svg, [data-icon-root])):not(:has(> :not(svg, [data-icon-root], img, span))),
-[data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"] {
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="app-page-header-content-row"] button:has(> :is(svg, [data-icon-root])):not(:has(> :not(svg, [data-icon-root], img))),
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="thread-secondary-panel-top-chrome"] button:has(:is(svg, [data-icon-root])):not(:has(> :not(svg, [data-icon-root], img, span))),
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"] {
   color: var(--bbs-chrome-icon);
 }
-:is([data-testid="app-page-header-content-row"], [data-testid="thread-secondary-panel-top-chrome"]) button:has(:is(svg, [data-icon-root])):is(:hover, :focus-visible, [data-state="open"], [data-state="active"], [aria-selected="true"], [aria-pressed="true"]),
-[data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"]:is(:hover, :focus-visible) {
+:where(html[data-bb-ui-clearer-hierarchy="true"]) :is([data-testid="app-page-header-content-row"], [data-testid="thread-secondary-panel-top-chrome"]) button:has(:is(svg, [data-icon-root])):is(:hover, :focus-visible, [data-state="open"], [data-state="active"], [aria-selected="true"], [aria-pressed="true"]),
+:where(html[data-bb-ui-clearer-hierarchy="true"]) [data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"]:is(:hover, :focus-visible) {
   color: var(--bbs-chrome-icon-active);
 }
 

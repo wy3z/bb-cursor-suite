@@ -1,14 +1,17 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { gitBinary, missingToolMessage } from "@wy3z/bb-suite/git";
 import type { Commit } from "./reconcile";
 
 const FIELD = "\x1f";
 const RECORD = "\x1e";
 
 function git(cwd: string, args: string[]): Promise<string> {
+  const executable = gitBinary();
+  if (executable === null) return Promise.reject(new Error(missingToolMessage("git")));
   return new Promise((resolve, reject) => {
-    execFile("git", ["-C", cwd, ...args], { timeout: 10_000, maxBuffer: 8 * 1024 * 1024, encoding: "utf8" }, (error, stdout) => {
+    execFile(executable, ["-C", cwd, ...args], { timeout: 10_000, maxBuffer: 8 * 1024 * 1024, encoding: "utf8" }, (error, stdout) => {
       if (error) reject(error);
       else resolve(stdout);
     });

@@ -1007,7 +1007,7 @@ function InterfaceSettings() {
       />
       <SettingsToggleRow
         label="Clearer hierarchy"
-        description="Bolder thread titles, slightly larger thread prose and semibold bold text. Other sizes and weights stay put. On by default."
+        description="Bolder thread titles, slightly larger thread prose, semibold bold text and quieter page-header and side-panel icons. Other sizes and weights stay put. On by default."
         checked={preferences.clearerHierarchy}
         onCheckedChange={(checked) => update({ clearerHierarchy: checked })}
       />

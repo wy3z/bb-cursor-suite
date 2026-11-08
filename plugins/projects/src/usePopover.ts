@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 
 export function usePopover<T extends HTMLElement = HTMLDivElement>() {
   const [open, setOpen] = useState(false);
@@ -21,5 +22,6 @@ export function usePopover<T extends HTMLElement = HTMLDivElement>() {
       document.removeEventListener("keydown", escape, true);
     };
   }, [open]);
+  useMenuKeyboard(ref, open, () => setOpen(false));
   return { open, setOpen, ref };
 }

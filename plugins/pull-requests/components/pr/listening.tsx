@@ -10,6 +10,7 @@ import {
   type ExperimentalThreadContextSegmentProps,
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
+import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import { Icon } from "@/components/ui/icon";
 import type { rpcContract, SubscriptionView } from "../../server";
 import { prTabParams } from "./board";
@@ -104,6 +105,8 @@ export function ListeningSegment({ threadId }: ExperimentalThreadContextSegmentP
       document.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
+
+  useMenuKeyboard(root, open, () => setOpen(false));
 
   if (!items.length) return null;
   const count = items.length;
