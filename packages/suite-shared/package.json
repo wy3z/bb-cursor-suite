@@ -1,0 +1,29 @@
+{
+  "name": "@wy3z/bb-suite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared contracts, time formatting, design tokens and the sandbox machine-backend helper for the wy3z BB plugin suite.",
+  "exports": {
+    "./time": "./src/time.ts",
+    "./contracts": "./src/contracts.ts",
+    "./change-requests": "./src/change-requests.ts",
+    "./machine-backend": "./src/machine-backend.ts",
+    "./machine-backend/server": "./src/machine-backend-server.ts",
+    "./tokens.css": "./tokens.css"
+  },
+  "peerDependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "^0.6.132",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/react": "^19.0.0",
+    "better-sqlite3": "^12.0.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "react": "^19.0.0",
+    "typescript": "^5.9.3",
+    "zod": "^4.6.7"
+  }
+}
