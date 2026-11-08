@@ -3,12 +3,14 @@
 // Compiled by `bb plugin build` into dist/app.js + dist/app.css. React and
 // @get-bb/plugin-sdk/app are provided by the BB app at load time.
 import "@wy3z/bb-suite/tokens.css";
+import "@wy3z/bb-suite/settings.css";
 import "./app.css";
 import { useEffect, useState } from "react";
 import {
   definePluginApp,
   experimental_THREAD_CONTEXT_SEGMENT_GROUPS,
 } from "@get-bb/plugin-sdk/app";
+import { DEVICE_ONLY, SettingsCard, SettingsToggleRow } from "@wy3z/bb-suite/settings";
 import { AgentPillsSummary } from "./src/PillRow";
 import { ChangesPill, useChanges } from "./src/ChangesPill";
 import { useActivity } from "./src/pill-data";
@@ -72,27 +74,17 @@ function ComposerSettings() {
   }, []);
 
   return (
-    <div className="bb-agent-pills-settings">
-      <label className="bb-agent-pills-settings__row">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => {
-            writeComposerRestyle(event.currentTarget.checked);
-            setEnabled(event.currentTarget.checked);
-          }}
-        />
-        <span className="bb-agent-pills-settings__copy">
-          <span className="bb-agent-pills-settings__title">
-            Cursor-style composer
-          </span>
-          <span className="bb-agent-pills-settings__hint">
-            Rounds the prompt box, moves the execution controls onto one row and
-            turns the send button into a round arrow. Pills stay on either way.
-          </span>
-        </span>
-      </label>
-    </div>
+    <SettingsCard>
+      <SettingsToggleRow
+        label="Cursor-style composer"
+        description={`Rounds the prompt box, puts the run controls on one row and makes Send a round arrow. On by default. ${DEVICE_ONLY}`}
+        checked={enabled}
+        onCheckedChange={(next) => {
+          writeComposerRestyle(next);
+          setEnabled(next);
+        }}
+      />
+    </SettingsCard>
   );
 }
 
