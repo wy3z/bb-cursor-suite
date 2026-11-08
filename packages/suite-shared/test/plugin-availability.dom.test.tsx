@@ -26,7 +26,7 @@ for (const [name, value] of Object.entries(globals)) {
 process.env.RTL_SKIP_AUTO_CLEANUP = "true";
 const { act, cleanup } = await import("@testing-library/react");
 const { renderSlot } = await import("@get-bb/plugin-sdk/testing/app");
-const { pluginAvailability, usePluginAvailability } = await import("../src/plugin-availability");
+const { LIST_TIMEOUT_MS, pluginAvailability, usePluginAvailability } = await import("../src/plugin-availability");
 
 afterAll(() => {
   cleanup();
@@ -40,14 +40,16 @@ afterAll(() => {
 type Listing = { id: string; enabled: boolean; status: string };
 type Callback = (event: Record<string, unknown>) => void;
 
-function fakeHost(initial: Listing[] | Error) {
+function fakeHost(initial: Listing[] | Error | "hang") {
   const state = { plugins: initial, listCalls: 0, callbacks: new Map<string, Set<Callback>>() };
   const sdk = {
     plugins: {
       list: async () => {
         state.listCalls++;
-        if (state.plugins instanceof Error) throw state.plugins;
-        return { plugins: state.plugins };
+        const plugins = state.plugins;
+        if (plugins === "hang") return new Promise<never>(() => undefined);
+        if (plugins instanceof Error) throw plugins;
+        return { plugins };
       },
     },
     subscribe: ({ event, callback }: { event: string; callback: Callback }) => {
@@ -157,6 +159,41 @@ describe("usePluginAvailability", () => {
     view.unmount();
     expect(host.state.callbacks.get("system:changed")?.size ?? 0).toBe(0);
     expect(host.state.callbacks.get("realtime:connection")?.size ?? 0).toBe(0);
+  });
+
+  it("keeps the last list that loaded when a later refresh fails", async () => {
+    const host = fakeHost([{ id: "pull-requests", enabled: false, status: "disabled" }]);
+    const view = renderSlot({ component: Probe }, { pluginId: "pull-requests" }, { sdk: host.sdk as never });
+    await settle();
+    expect(view.getByTestId("pull-requests").textContent).toBe("unavailable");
+    host.state.plugins = new Error("server restarting");
+    await host.emit("realtime:connection", { state: "connected", reconnected: true, reconnectDelayMs: null });
+    expect(host.state.listCalls).toBe(2);
+    expect(view.getByTestId("pull-requests").textContent).toBe("unavailable");
+    view.unmount();
+  });
+
+  it("falls back to available when the first list never answers", async () => {
+    const host = fakeHost("hang");
+    const realSetTimeout = globalThis.setTimeout;
+    const timers: { callback: () => void; ms: number }[] = [];
+    globalThis.setTimeout = ((callback: () => void, ms?: number) => {
+      timers.push({ callback, ms: ms ?? 0 });
+      return 0;
+    }) as unknown as typeof setTimeout;
+    let view: ReturnType<typeof renderSlot>;
+    try {
+      view = renderSlot({ component: Probe }, { pluginId: "pull-requests" }, { sdk: host.sdk as never });
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+    }
+    await settle();
+    expect(view.getByTestId("pull-requests").textContent).toBe("unknown");
+    const timeout = timers.find((timer) => timer.ms === LIST_TIMEOUT_MS);
+    expect(timeout).toBeDefined();
+    await act(async () => timeout!.callback());
+    expect(view.getByTestId("pull-requests").textContent).toBe("available");
+    view.unmount();
   });
 
   it("falls back to available when the plugin list can't be read", async () => {

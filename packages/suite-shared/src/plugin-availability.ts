@@ -1,22 +1,10 @@
 import { useSyncExternalStore } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
+import { pluginAvailability, type PluginAvailability, type PluginListing } from "./plugin-status";
 
-export type PluginAvailability = "unknown" | "available" | "unavailable";
+export { NEEDS_PULL_REQUESTS, pluginAvailability, type PluginAvailability, type PluginListing } from "./plugin-status";
 
-export interface PluginListing {
-  readonly id: string;
-  readonly enabled: boolean;
-  readonly status: string;
-}
-
-export const NEEDS_PULL_REQUESTS = "Needs Pull Requests";
-
-const LIVE_STATUSES: ReadonlySet<string> = new Set(["running", "degraded"]);
-
-export function pluginAvailability(plugins: readonly PluginListing[], pluginId: string): PluginAvailability {
-  const plugin = plugins.find((entry) => entry.id === pluginId);
-  return plugin !== undefined && plugin.enabled && LIVE_STATUSES.has(plugin.status) ? "available" : "unavailable";
-}
+export const LIST_TIMEOUT_MS = 10_000;
 
 type Sdk = ReturnType<typeof useSdk>;
 
@@ -34,18 +22,24 @@ function createStore(sdk: Sdk): AvailabilityStore {
   let detach: (() => void) | null = null;
 
   const notify = () => listeners.forEach((listener) => listener());
+  const giveUp = (current: number) => {
+    if (current !== generation || listings !== null) return;
+    listings = "failed";
+    notify();
+  };
   const refresh = () => {
     const current = ++generation;
+    const timer = setTimeout(() => giveUp(current), LIST_TIMEOUT_MS);
     sdk.plugins.list().then(
       (result) => {
+        clearTimeout(timer);
         if (current !== generation) return;
         listings = result.plugins.map(({ id, enabled, status }) => ({ id, enabled, status }));
         notify();
       },
       () => {
-        if (current !== generation) return;
-        listings = "failed";
-        notify();
+        clearTimeout(timer);
+        giveUp(current);
       },
     );
   };
