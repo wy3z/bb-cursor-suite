@@ -47,12 +47,13 @@ export function ThreadLeadStatus({
           ? "bg-[color:var(--bbs-done-color)]"
           : thread.isUnread
             ? "bg-muted-foreground/65"
-            : "bg-muted-foreground/30";
+            : null;
   return (
     <span
       role="img"
       aria-label={label ?? (thread.isUnread ? "Unread" : "Idle")}
-      className={cn("size-2 shrink-0 rounded-full", tone)}
+      data-seen={tone === null ? "" : undefined}
+      className={cn("cs-status-dot shrink-0 rounded-full", tone)}
     />
   );
 }
@@ -61,9 +62,7 @@ export function ThreadLeadStatus({
 export function ThreadAge({ thread, now }: { thread: PluginSidebarThread; now: number }) {
   return (
     <span
-      className={cn(
-        "tabular-nums text-xs text-sidebar-foreground/45",
-      )}
+      className="cs-age tabular-nums text-xs"
     >
       {relativeTimeLabel(thread.updatedAt, now)}
     </span>
