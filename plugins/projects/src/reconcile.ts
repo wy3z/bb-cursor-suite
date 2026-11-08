@@ -5,12 +5,15 @@ import { COLUMN_LABEL, columnOf, isComplete, type Column } from "./status";
 export const REVIEW_STALE_MS = 48 * 60 * 60_000;
 const ASK_RE = /^[\s*_>#-]*needs\s+[\p{L}][\p{L}\p{N}_.-]*\s*[:：]/iu;
 const STATUS_CHANGE_RE = /^status changed/i;
+const HOLDING_RE = /^[\s*_>]*holding\s*[:：][\s*_]*\S/i;
+const AGENT_AUTHOR_RE = /^agent \((thr_[A-Za-z0-9_-]+)\)$/;
 
 export interface CommentSignal {
   kind: "user" | "agent" | "system";
   body: string;
   createdAt: string;
   threadId?: string | null;
+  authorName?: string;
 }
 
 export type SignalBook = Record<string, { fp: string; changedAt: string }>;
@@ -86,12 +89,17 @@ export function fingerprint(signals: {
 }
 
 export function lastDecision(comments: readonly CommentSignal[], leadThreadId: string | null | undefined): string | null {
+  const byLeadOrPerson = (thread: string | null) => thread === null || (!!leadThreadId && thread === leadThreadId);
   let latest: string | null = null;
   for (const comment of comments) {
-    const decision =
-      (comment.kind === "system" && STATUS_CHANGE_RE.test(comment.body.trim())) ||
-      comment.kind === "user" ||
-      (comment.kind === "agent" && !!leadThreadId && comment.threadId === leadThreadId);
+    let decision = false;
+    if (comment.kind === "system") {
+      const agent = AGENT_AUTHOR_RE.exec(comment.authorName?.trim() ?? "");
+      decision = STATUS_CHANGE_RE.test(comment.body.trim()) && byLeadOrPerson(agent ? agent[1]! : null);
+    } else {
+      const thread = comment.kind === "user" ? null : (comment.threadId ?? AGENT_AUTHOR_RE.exec(comment.authorName?.trim() ?? "")?.[1] ?? "unknown");
+      decision = HOLDING_RE.test(comment.body) && byLeadOrPerson(thread);
+    }
     if (decision && (!latest || Date.parse(comment.createdAt) > Date.parse(latest))) latest = comment.createdAt;
   }
   return latest;

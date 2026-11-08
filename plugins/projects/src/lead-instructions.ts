@@ -10,7 +10,7 @@ export function leadInstructions(prefix: string): string {
     "- Parents follow their sub-tasks. Write the status in the same turn as the evidence: a completion notice, a merge, a confirmation in chat.",
     "- Attach every worker to its task, and put the task key in branch names and commit subjects.",
     "",
-    "The board flags cards behind their evidence: PRs all merged (Done), a commit naming the key on the default branch (Done), an agent running (In Progress), agents idle with an open PR (For Review), sub-tasks rolling up, and 4 idle hours (Queued). A status you set, or a comment from you or the user, holds until that evidence changes.",
+    'The board flags cards behind their evidence: PRs all merged (Done), a commit naming the key on the default branch (Done), an agent running (In Progress), agents idle with an open PR (For Review), sub-tasks rolling up, and 4 idle hours (Queued). A status you or the user set, or a comment starting "Holding: <reason>", holds the card until that evidence changes; routine comments don\'t, so still move the card.',
     "",
     `How work lands (who merges, how, and with whose go) is project policy: read \`bb projects notes ${prefix}\` at the start of a session and follow it.`,
     `Run \`bb projects reconcile ${prefix}\` before a status update, and \`bb projects status ${prefix}\` before ending a turn that changed work. The plugin never writes Done for you.`,

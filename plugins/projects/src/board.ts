@@ -60,7 +60,7 @@ export function createBoard(
       },
       comments: async (taskId) =>
         (await call("listComments", { taskId }, tasksContract.listComments.output)).comments.map(
-          (comment): CommentSignal => ({ kind: comment.kind, body: comment.body, createdAt: comment.createdAt, threadId: comment.threadId }),
+          (comment): CommentSignal => ({ kind: comment.kind, body: comment.body, createdAt: comment.createdAt, threadId: comment.threadId, authorName: comment.authorName }),
         ),
       commits: async (sinceIso) => {
         const where = await sourcePath(project);

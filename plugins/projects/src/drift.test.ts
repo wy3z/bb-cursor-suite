@@ -106,7 +106,7 @@ describe("driftPrompt", () => {
     expect(text).toContain("- BCS-48 In Progress → Done: PR #3 merged");
     expect(text).toContain("- BCS-28 In Progress → Queued: nothing running for 5h");
     expect(text).toContain("bb projects reconcile BCS --apply");
-    expect(text).toContain("holds it until the evidence changes");
+    expect(text).toContain('comment "Holding: <why>" on the card: that holds it until the evidence changes. Other comments don\'t.');
     expect(driftPrompt("BCS", [drift("BCS-48", "done", false)])).not.toContain("--apply");
   });
 });

@@ -47,6 +47,7 @@ describe("pinned lead instructions", () => {
     expect(block).toContain("Needs <user>:");
     expect(block).toContain("bb projects notes PIXEL");
     expect(block).not.toMatch(/gh pr merge|squash|never merge/i);
+    expect(block).toContain('"Holding: <reason>"');
     expect(fake.instructions("thr_other")).toBeNull();
     await fake.run(["lead", "PIXEL", "--thread", "thr_lead2"]);
     await settle();
@@ -90,7 +91,7 @@ describe("bb projects reconcile", () => {
 });
 
 describe("lead decisions", () => {
-  it("hold a drift after the lead comments, until the evidence changes", async () => {
+  it("hold a drift only after a Holding comment, until the evidence changes", async () => {
     const fake = boot();
     fake.addThread("thr_lead1");
     await fake.run(["lead", "PIXEL"], "thr_lead1");
@@ -98,8 +99,13 @@ describe("lead decisions", () => {
     seed(fake);
     expect((await fake.run(["reconcile", "PIXEL", "--json"])).json().drifts.map((drift: { key: string }) => drift.key)).toContain("PIXEL-1");
 
+    setSystemTime(at("2026-11-10T10:04:00.000Z"));
+    fake.comments.set("task_pixel_1", [{ id: "c0", kind: "agent", authorName: "agent (thr_lead1)", body: "PR #3 merged and checked", createdAt: new Date().toISOString(), threadId: "thr_lead1" }]);
+    setSystemTime(at("2026-11-10T10:04:30.000Z"));
+    expect((await fake.run(["reconcile", "PIXEL", "--json"])).json().drifts.map((drift: { key: string }) => drift.key)).toContain("PIXEL-1");
+
     setSystemTime(at("2026-11-10T10:05:00.000Z"));
-    fake.comments.set("task_pixel_1", [{ id: "c1", kind: "agent", authorName: "lead", body: "Not done: PR #3 was only the first half", createdAt: new Date().toISOString(), threadId: "thr_lead1" }]);
+    fake.comments.get("task_pixel_1")!.push({ id: "c1", kind: "agent", authorName: "agent (thr_lead1)", body: "Holding: PR #3 was only the first half", createdAt: new Date().toISOString(), threadId: "thr_lead1" });
     setSystemTime(at("2026-11-10T10:06:00.000Z"));
     const held = (await fake.run(["reconcile", "PIXEL", "--json"])).json();
     expect(held.drifts.map((drift: { key: string }) => drift.key)).not.toContain("PIXEL-1");

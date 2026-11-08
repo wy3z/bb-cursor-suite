@@ -52,7 +52,7 @@ export function driftPrompt(prefix: string, drifts: readonly Drift[]): string {
     `${drifts.length} card${drifts.length === 1 ? "" : "s"} on the ${prefix} board disagree${drifts.length === 1 ? "s" : ""} with the evidence:`,
     ...drifts.map((drift) => `- ${describeDrift(drift)}`),
     "",
-    "Check each one and write the status now. If the stored status is right, say why in a comment on the card: that holds it until the evidence changes. Done is yours to write after you check the evidence.",
+    `Check each one and write the status now. If the stored status is right, comment "Holding: <why>" on the card: that holds it until the evidence changes. Other comments don't. Done is yours to write after you check the evidence.`,
     applicable ? `\`bb projects reconcile ${prefix} --apply\` applies the roll-up and idle moves; the rest are yours to write.` : "",
     "Don't notify the user unless something needs them.",
   ]

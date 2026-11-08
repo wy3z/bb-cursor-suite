@@ -187,9 +187,11 @@ the sub-task roll-ups and idle demotions to Queued; Done, For Review and In
 Progress are yours to write, after you check the evidence.
 
 When the evidence is wrong (a commit mentions the key in passing, say), leave
-the status and comment on the card why. A status you set, or a comment from you
-or the user, holds the card until its evidence changes: a new PR state, a new
-commit, an agent starting or stopping, a sub-task moving. Held cards drop out of
+the status and comment `Holding: <why>` on the card. That comment, or a status
+you or the user set, holds the card until its evidence changes: a new PR state,
+a new commit, an agent starting or stopping, a sub-task moving. Ordinary
+comments ("PR #12 opened, tests pass") don't hold anything, so a card you forgot
+to move stays flagged. Status changes by workers don't hold either. Held cards drop out of
 "behind" and drift pings, and reconcile lists them separately. Idle demotion
 isn't held: a comment counts as activity and restarts its four hours.
 

@@ -49,8 +49,8 @@ live cards, and a project lead workflow.
   scheduled board sweep (off, 1h to 8h, weekdays 08:00-19:00 by default),
   drift pings (off by default: the lead hears only when cards stay behind
   their evidence for ten minutes, at most one ping per project an hour and
-  once per drift every two hours; a status or comment from the lead or user
-  holds a card until its evidence changes),
+  once per drift every two hours; a status set by the lead or user, or a
+  "Holding: <reason>" comment, holds a card until its evidence changes),
   following every PR the lead's workers link, the project's memory notes, and
   the last messages from the outer loop.
 - **Composer pill and side-panel tab**: in any thread of a BB project linked to
