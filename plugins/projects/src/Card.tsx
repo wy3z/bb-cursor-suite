@@ -1,5 +1,5 @@
 import { useEffect, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { experimental_Icon as Icon, useBbNavigate, useSdk } from "@get-bb/plugin-sdk/app";
+import { experimental_Icon as Icon, useSdk } from "@get-bb/plugin-sdk/app";
 import {
   PULL_REQUESTS_PLUGIN,
   TASKS_PLUGIN,
@@ -15,6 +15,7 @@ import { useChangeStats, usePullRequestSummaries, useTaskPullRequests, useTaskTh
 import { Dot, PriorityGlyph, StatusGlyph } from "./glyphs";
 import { openInTasks } from "./TaskDetail";
 import { usePopover } from "./usePopover";
+import { useOpenThread } from "./useOpenThread";
 import { deriveStatus, type Derived, type Landing } from "./derive";
 import { AgentChips, AttachmentsChip, BehindHint, CommitChip, PullRequestChips, SubtaskPill, agentViews } from "./Chips";
 
@@ -98,7 +99,7 @@ export function TaskCard({
   onDragStart?: (event: DragEvent, task: Task) => void;
   onDragEnd?: () => void;
 }) {
-  const navigate = useBbNavigate();
+  const openThreadIn = useOpenThread();
   const sdk = useSdk();
   const taskThreads = useTaskThreads(task.id, task.status !== "backlog" || activeThreads.length > 0);
   const links = taskThreads.length > 0 ? taskThreads : activeThreads;
@@ -128,7 +129,7 @@ export function TaskCard({
   const primary = worker.input ?? worker.working ?? worker.latest;
   const primaryThreadId = primary?.link.threadId ?? null;
   const openThread = (split: boolean) => {
-    if (primaryThreadId) navigate.toThread(primaryThreadId, split ? { split: true } : undefined);
+    if (primaryThreadId) openThreadIn(primaryThreadId, { split });
   };
   const openPrimary = (split: boolean) => (primaryThreadId ? openThread(split) : openTask());
 
