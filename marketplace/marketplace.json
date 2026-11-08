@@ -155,7 +155,7 @@
         "git": {
           "url": "https://github.com/wy3z/bb-cursor-suite.git",
           "subdir": "plugins/ui-tweaks",
-          "range": "^0.31.0",
+          "range": "^0.30.1",
           "tagPrefix": "ui-tweaks/"
         }
       }

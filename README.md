@@ -29,7 +29,7 @@ bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugi
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.0 --plugin filetree --tag-prefix filetree/
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin projects --tag-prefix projects/
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin pull-requests --tag-prefix pull-requests/
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.31.0 --plugin ui-tweaks --tag-prefix ui-tweaks/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plugin ui-tweaks --tag-prefix ui-tweaks/
 ```
 
 Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range keep updating from the root-level `vX.Y.Z` tags on the `legacy/cursor-sidebar` branch. UI Tweaks keeps publishing to `wy3z/bb-plugin-ui-tweaks`.
