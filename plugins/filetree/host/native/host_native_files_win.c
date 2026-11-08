@@ -822,20 +822,47 @@ static int compare_env(const void *left, const void *right) {
   return result - CSTR_EQUAL;
 }
 
-static bool is_git_env_pair(const wchar_t *pair) { return _wcsnicmp(pair, L"GIT_", 4) == 0; }
+static bool is_git_env_pair(const wchar_t *pair) {
+  return _wcsnicmp(pair, L"GIT_", 4) == 0 || _wcsnicmp(pair, L"HOME=", 5) == 0 ||
+         _wcsnicmp(pair, L"XDG_CONFIG_HOME=", 16) == 0;
+}
 
-static wchar_t *build_environment(wchar_t **input, size_t count) {
+static wchar_t *nowhere_pair(const wchar_t *name, const wchar_t *git) {
+  static const wchar_t suffix[] = L"\\nonexistent";
+  size_t name_length = wcslen(name);
+  size_t git_length = wcslen(git);
+  size_t suffix_length = wcslen(suffix);
+  wchar_t *pair = malloc((name_length + git_length + suffix_length + 1) * sizeof(wchar_t));
+  if (pair == NULL) return NULL;
+  memcpy(pair, name, name_length * sizeof(wchar_t));
+  memcpy(pair + name_length, git, git_length * sizeof(wchar_t));
+  memcpy(pair + name_length + git_length, suffix, (suffix_length + 1) * sizeof(wchar_t));
+  return pair;
+}
+
+static wchar_t *build_environment(wchar_t **input, size_t count, const wchar_t *git) {
   static const wchar_t *fixed[] = {
-      L"GIT_CONFIG=/dev/null",
       L"GIT_CONFIG_GLOBAL=/dev/null",
       L"GIT_CONFIG_SYSTEM=/dev/null",
       L"GIT_CONFIG_NOSYSTEM=1",
+      L"GIT_OPTIONAL_LOCKS=0",
+      L"GIT_NO_LAZY_FETCH=1",
+      L"GIT_ALLOW_PROTOCOL=none",
   };
   size_t fixed_count = sizeof(fixed) / sizeof(fixed[0]);
-  const wchar_t **entries = calloc(count + fixed_count + 1, sizeof(wchar_t *));
-  if (entries == NULL) return NULL;
+  wchar_t *home = nowhere_pair(L"HOME=", git);
+  wchar_t *xdg = nowhere_pair(L"XDG_CONFIG_HOME=", git);
+  const wchar_t **entries = calloc(count + fixed_count + 3, sizeof(wchar_t *));
+  if (home == NULL || xdg == NULL || entries == NULL) {
+    free(home);
+    free(xdg);
+    free((void *)entries);
+    return NULL;
+  }
   size_t used = 0;
   for (size_t index = 0; index < fixed_count; index += 1) entries[used++] = fixed[index];
+  entries[used++] = home;
+  entries[used++] = xdg;
   for (size_t index = 0; index < count; index += 1) {
     if (input[index] == NULL || input[index][0] == L'\0' || is_git_env_pair(input[index])) {
       continue;
@@ -847,6 +874,8 @@ static wchar_t *build_environment(wchar_t **input, size_t count) {
   for (size_t index = 0; index < used; index += 1) total += wcslen(entries[index]) + 1;
   wchar_t *block = malloc((total + 1) * sizeof(wchar_t));
   if (block == NULL) {
+    free(home);
+    free(xdg);
     free((void *)entries);
     return NULL;
   }
@@ -859,6 +888,8 @@ static wchar_t *build_environment(wchar_t **input, size_t count) {
   }
   if (offset == 0) block[offset++] = L'\0';
   block[offset] = L'\0';
+  free(home);
+  free(xdg);
   free((void *)entries);
   return block;
 }
@@ -1331,7 +1362,7 @@ static napi_value GitStatusAt(napi_env env, napi_callback_info info) {
       return NULL;
     }
   }
-  request->environment = build_environment(environment, env_count);
+  request->environment = build_environment(environment, env_count, request->file);
   free_wide_array(environment, env_count);
   if (request->environment == NULL) {
     free_git_request(request);

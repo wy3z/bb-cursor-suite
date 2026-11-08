@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { NativeFileHostError } from "./errors.js";
-import { resolveTrustedGit, scrubbedGitEnv } from "./git-env.js";
+import { resolveTrustedGit, safeGitArgs, scrubbedGitEnv } from "./git-env.js";
 export interface SpawnGitResult {
   code: number;
   stderr: Buffer;
@@ -17,10 +17,11 @@ export async function spawnGitAtPath(
   options: SpawnGitOptions,
 ): Promise<SpawnGitResult> {
   return await new Promise<SpawnGitResult>((resolve, reject) => {
-    const child = spawn(resolveTrustedGit(), args, {
+    const git = resolveTrustedGit();
+    const child = spawn(git, safeGitArgs(args, git), {
       cwd,
       detached: true,
-      env: scrubbedGitEnv(),
+      env: scrubbedGitEnv(process.env, process.platform, git),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });

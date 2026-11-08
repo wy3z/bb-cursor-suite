@@ -10,6 +10,7 @@ on:
       - plugins/filetree/generated/native-assets.ts
       - plugins/filetree/scripts/native-assets.mjs
       - .github/workflows/files-native.yml
+      - package-lock.json
   pull_request:
     paths:
       - plugins/filetree/host/**
@@ -18,6 +19,7 @@ on:
       - plugins/filetree/generated/native-assets.ts
       - plugins/filetree/scripts/native-assets.mjs
       - .github/workflows/files-native.yml
+      - package-lock.json
   workflow_dispatch:
 
 permissions:
@@ -52,12 +54,12 @@ jobs:
       - name: Build the addon
         working-directory: plugins/filetree
         run: node scripts/native-assets.mjs --native
-      - name: Test the embedded addon
-        working-directory: plugins/filetree
-        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts host/native-addon.test.ts
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: plugins/filetree/prebuilds/${{ matrix.platform }}.node
+      - name: Test the embedded addon
+        working-directory: plugins/filetree
+        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts host/git-safety.test.ts host/native-addon.test.ts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: files-prebuild-${{ matrix.platform }}
@@ -93,12 +95,12 @@ jobs:
       - name: Build the addon
         working-directory: plugins/filetree
         run: node scripts/native-assets.mjs --native
-      - name: Test the embedded addon
-        working-directory: plugins/filetree
-        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts host/native-addon.test.ts
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: plugins/filetree/prebuilds/${{ matrix.platform }}.node
+      - name: Test the embedded addon
+        working-directory: plugins/filetree
+        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts host/git-safety.test.ts host/native-addon.test.ts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: files-prebuild-${{ matrix.platform }}

@@ -492,15 +492,20 @@ static void free_git_request(GitRequest *request) {
 }
 
 static int is_git_env_pair(const char *pair) {
-  return strncmp(pair, "GIT_", 4) == 0;
+  return strncmp(pair, "GIT_", 4) == 0 || strncmp(pair, "HOME=", 5) == 0 ||
+         strncmp(pair, "XDG_CONFIG_HOME=", 16) == 0;
 }
 
 static char **scrub_git_env(char **input, int inputc, int *outc) {
   static const char *fixed[] = {
-      "GIT_CONFIG=/dev/null",
       "GIT_CONFIG_GLOBAL=/dev/null",
       "GIT_CONFIG_SYSTEM=/dev/null",
       "GIT_CONFIG_NOSYSTEM=1",
+      "GIT_OPTIONAL_LOCKS=0",
+      "GIT_NO_LAZY_FETCH=1",
+      "GIT_ALLOW_PROTOCOL=none",
+      "HOME=/dev/null",
+      "XDG_CONFIG_HOME=/dev/null",
   };
   int fixed_count = (int)(sizeof(fixed) / sizeof(fixed[0]));
   int kept = fixed_count;

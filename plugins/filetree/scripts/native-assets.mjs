@@ -130,7 +130,107 @@ function stale(assets, source) {
   return { missing, outdated };
 }
 
+function git(args) {
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+const commitPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+export function attestedCommits(results) {
+  if (!Array.isArray(results)) return [];
+  const commits = new Set();
+  for (const result of results) {
+    const digest =
+      result?.verificationResult?.signature?.certificate?.sourceRepositoryDigest;
+    if (typeof digest === "string" && commitPattern.test(digest)) commits.add(digest);
+  }
+  return [...commits];
+}
+
+export function buildInputs() {
+  const prefix = git(["rev-parse", "--show-prefix"]);
+  return [
+    ".github/workflows/files-native.yml",
+    `${prefix}scripts/native-assets.mjs`,
+    `${prefix}host/native`,
+    "package-lock.json",
+  ];
+}
+
+function buildInputsFromGitHub(commit, inputs) {
+  const [owner, name] = repository.split("/");
+  const variables = inputs.map((_, index) => `$e${index}: String!`).join(", ");
+  const fields = inputs
+    .map((_, index) => `e${index}: object(expression: $e${index}) { oid }`)
+    .join(" ");
+  const looked = spawnSync(
+    "gh",
+    [
+      "api",
+      "graphql",
+      "-f",
+      `owner=${owner}`,
+      "-f",
+      `name=${name}`,
+      ...inputs.flatMap((input, index) => ["-f", `e${index}=${commit}:${input}`]),
+      "-f",
+      `query=query($owner: String!, $name: String!, ${variables}) { repository(owner: $owner, name: $name) { ${fields} } }`,
+    ],
+    { encoding: "utf8" },
+  );
+  if (looked.status !== 0) return null;
+  let found;
+  try {
+    found = JSON.parse(looked.stdout)?.data?.repository;
+  } catch {
+    return null;
+  }
+  const oids = inputs.map((_, index) => found?.[`e${index}`]?.oid);
+  return oids.every((oid) => typeof oid === "string" && commitPattern.test(oid))
+    ? oids
+    : null;
+}
+
+export function buildInputsAt(commit, inputs = buildInputs()) {
+  try {
+    git(["cat-file", "-e", `${commit}^{commit}`]);
+  } catch {
+    return buildInputsFromGitHub(commit, inputs);
+  }
+  try {
+    return inputs.map((input) =>
+      git(["rev-parse", "--verify", "--quiet", `${commit}:${input}`]),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function differingInputs(inputs, head, attested) {
+  if (attested === null) return inputs;
+  return inputs.filter((_, index) => attested[index] !== head[index]);
+}
+
+export function matchingAttestation(results, inputs, head, inputsAt = buildInputsAt) {
+  const commits = attestedCommits(results);
+  const mismatches = [];
+  for (const commit of commits) {
+    const differing = differingInputs(inputs, head, inputsAt(commit, inputs));
+    if (differing.length === 0) return { commit, commits, mismatches };
+    mismatches.push({ commit, differing });
+  }
+  return { commit: null, commits, mismatches };
+}
+
 async function verifyCommitted(source) {
+  const inputs = buildInputs();
+  const head = buildInputsAt("HEAD", inputs);
+  if (head === null)
+    throw new Error(`HEAD is missing a native build input: ${inputs.join(", ")}`);
   const committed = await readCommitted();
   const prebuilt = await readPrebuilds();
   const scratch = await mkdtemp(join(tmpdir(), "files-native-verify-"));
@@ -160,8 +260,12 @@ async function verifyCommitted(source) {
           "--signer-workflow",
           `${repository}/.github/workflows/files-native.yml`,
           "--deny-self-hosted-runners",
+          "--limit",
+          "200",
+          "--format",
+          "json",
         ],
-        { encoding: "utf8" },
+        { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
       );
       if (verified.status !== 0) {
         failures.push(
@@ -169,7 +273,29 @@ async function verifyCommitted(source) {
         );
         continue;
       }
-      console.log(`${platform}: ${asset.sha256} attested by files-native.yml`);
+      let results;
+      try {
+        results = JSON.parse(verified.stdout);
+      } catch {
+        failures.push(`${platform}: gh attestation verify returned unreadable JSON`);
+        continue;
+      }
+      const { commit, commits, mismatches } = matchingAttestation(
+        results,
+        inputs,
+        head,
+      );
+      if (commit === null) {
+        failures.push(
+          commits.length === 0
+            ? `${platform}: ${asset.sha256} has no attestation naming its source commit`
+            : `${platform}: ${asset.sha256} is only attested from commits whose build inputs differ from HEAD's: ${mismatches.map(({ commit: value, differing }) => `${value.slice(0, 12)} (${differing.join(", ")})`).join("; ")}`,
+        );
+        continue;
+      }
+      console.log(
+        `${platform}: ${asset.sha256} attested by files-native.yml at ${commit.slice(0, 12)}, whose build inputs match HEAD`,
+      );
       if (
         reproduciblePlatforms.includes(platform) &&
         asset.source === source &&
