@@ -216,12 +216,6 @@ function coerceAgeFilter(raw: unknown): ViewAgeFilter[] {
   return [...new Set(valid)];
 }
 
-/**
- * `null` is "all machines"; an array selects a subset and an empty array is
- * "none". Only machine group keys count: values saved by the old
- * per-environment filter are ignored, so a list that kept none of them falls
- * back to all instead of hiding threads.
- */
 export function coerceEnvironmentFilter(raw: unknown): string[] | null {
   if (raw === null || raw === undefined) return null;
   if (!Array.isArray(raw)) return null;
@@ -348,7 +342,6 @@ function ordinaryStatusRank(thread: PluginSidebarThread): number {
   return THREAD_STATUS_RANK[resolveThreadStatus(threadStatusFacts(thread))];
 }
 
-/** One Environment filter choice: a machine group key and its label. */
 export interface EnvironmentIdentity {
   id: string;
   label: string;
@@ -428,6 +421,14 @@ function familyHostOf(thread: PluginSidebarThread): FamilyHost | null {
   return id === null ? null : { id, name: thread.host?.name?.trim() || null };
 }
 
+function rootHostOf(
+  byId: ReadonlyMap<string, PluginSidebarThread>,
+  root: string,
+  member: PluginSidebarThread,
+): FamilyHost | null {
+  return familyHostOf(byId.get(root) ?? member);
+}
+
 const MACHINE_GROUP_PREFIX = "machine:";
 export const LOCAL_MACHINE_GROUP_KEY = `${MACHINE_GROUP_PREFIX}local`;
 export const CLOUD_MACHINE_GROUP_KEY = `${MACHINE_GROUP_PREFIX}cloud`;
@@ -475,6 +476,7 @@ function familyAggregates(
 ): { rootOf: Map<string, string>; aggregates: Map<string, FamilyAggregate> } {
   const rootOf = new Map<string, string>();
   const aggregates = new Map<string, FamilyAggregate>();
+  const byId = new Map(threads.map((thread) => [thread.id, thread]));
   let firstIndex = 0;
   for (const thread of threads) {
     const root = familyRootId(facts.parentOf, thread.id);
@@ -483,7 +485,7 @@ function familyAggregates(
     if (aggregate === undefined) {
       aggregate = {
         status: facts.statusOf(thread),
-        host: familyHostOf(thread),
+        host: rootHostOf(byId, root, thread),
         latestUpdatedAt: thread.updatedAt,
         firstIndex: firstIndex++,
       };
@@ -494,7 +496,6 @@ function familyAggregates(
     if (THREAD_STATUS_RANK[status] < THREAD_STATUS_RANK[aggregate.status]) {
       aggregate.status = status;
     }
-    if (aggregate.host === null) aggregate.host = familyHostOf(thread);
   }
   return { rootOf, aggregates };
 }
@@ -572,36 +573,21 @@ export interface MachineFacts {
   familyFacts?: OrdinaryFamilyFacts | undefined;
 }
 
-/**
- * Each thread's machine group, judged by its family root's machine exactly as
- * the Environment grouping does, so a filter keeps what a heading shows.
- */
 function familyMachineGroups(
   threads: readonly PluginSidebarThread[],
   facts: MachineFacts,
 ): (thread: PluginSidebarThread) => { key: string; label: string } {
   const parentOf = homeDisplayParentOf(threads);
   const byId = new Map(threads.map((thread) => [thread.id, thread]));
-  const rootOf = (thread: PluginSidebarThread) =>
-    facts.familyFacts?.rootOf.get(thread.id) ?? familyRootId(parentOf, thread.id);
-  const hostOfRoot = new Map<string, FamilyHost | null>();
-  for (const thread of threads) {
-    const root = rootOf(thread);
-    if (hostOfRoot.get(root)) continue;
-    const rootThread = byId.get(root);
-    hostOfRoot.set(
-      root,
-      facts.familyFacts?.aggregateOf.get(root)?.host ??
-        (rootThread ? familyHostOf(rootThread) : null) ??
-        familyHostOf(thread),
-    );
-  }
-  return (thread) =>
-    machineGroupOf(
-      hostOfRoot.get(rootOf(thread)) ?? familyHostOf(thread),
+  return (thread) => {
+    const root = facts.familyFacts?.rootOf.get(thread.id) ?? familyRootId(parentOf, thread.id);
+    const aggregate = facts.familyFacts?.aggregateOf.get(root);
+    return machineGroupOf(
+      aggregate !== undefined ? aggregate.host : rootHostOf(byId, root, thread),
       facts.primaryHostId ?? null,
       facts.cloudHostIds ?? null,
     );
+  };
 }
 
 /**
@@ -991,8 +977,7 @@ export function ordinaryFamilyGroupKeys(
  * rows are partitioned by the caller and never reach here. A whole family
  * shares one group so grouping never splits an ancestry: the family's newest
  * member decides the Updated bucket, its strongest resolved status decides the
- * Status group, and its root's machine decides the Environment group: Local,
- * one group per other machine, and one Cloud group for every cloud machine.
+ * Status group, and its root's machine decides the Environment group.
  *
  * Family facts come from `facts.members` (the home's complete threads), not the
  * rendered rows, so folding or limiting a family never changes its group.
@@ -1092,11 +1077,6 @@ export function flattenOrdinaryFamilies(
   return chunks.flat();
 }
 
-/**
- * The Environment filter's choices, matching the grouping: Local, one entry per
- * other non-cloud machine by name, then Cloud. Only machines with a loaded
- * ordinary conversation are listed.
- */
 export function environmentFilterOptions(
   threads: readonly PluginSidebarThread[],
   facts: MachineFacts = {},

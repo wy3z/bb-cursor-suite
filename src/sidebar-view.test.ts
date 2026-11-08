@@ -14,6 +14,7 @@ import {
   machineGroupIcon,
   machineGroupOf,
   ordinaryFamilyFacts,
+  ordinaryFamilyGroupKeys,
   ordinaryThreadStatus,
 } from "./sidebar-view";
 
@@ -201,4 +202,46 @@ test("saved per-environment filter values are ignored instead of hiding threads"
   const migrated = coerceSidebarView({ ...DEFAULT_SIDEBAR_VIEW, environmentFilter: ["name:arch"] });
   assert.equal(migrated.environmentFilter, null);
   assert.equal(filterOrdinaryThreads(filterMembers(), migrated, { now: 100, bypass: () => false }).length, 6);
+});
+
+function familyKeys(members: PluginSidebarThread[]) {
+  const parentOf = (id: string) => members.find((entry) => entry.id === id)?.parentThreadId ?? null;
+  const familyFacts = ordinaryFamilyFacts(members, { parentOf, statusOf: ordinaryThreadStatus });
+  const facts = { now: 100, parentOf, statusOf: ordinaryThreadStatus, familyFacts, primaryHostId: LOCAL.id, cloudHostIds: CLOUD };
+  return {
+    keys: Object.fromEntries(ordinaryFamilyGroupKeys(members, { ...DEFAULT_SIDEBAR_VIEW, groupBy: "environment" }, facts)),
+    options: environmentFilterOptions(members, facts).map((option) => option.id),
+    cloudOnly: filterOrdinaryThreads(members, { ...DEFAULT_SIDEBAR_VIEW, environmentFilter: ["machine:cloud"] }, { ...facts, bypass: () => false }).map((entry) => entry.id),
+  };
+}
+
+test("a family's machine comes from its root even when a child is listed first", () => {
+  const result = familyKeys([
+    thread("child", "p", 50, { host: LOCAL, parentThreadId: "root" }),
+    thread("root", "p", 10, { host: SANDBOX_A }),
+  ]);
+  assert.deepEqual(result.keys, { child: "machine:cloud", root: "machine:cloud" });
+  assert.deepEqual(result.options, ["machine:cloud"]);
+  assert.deepEqual(result.cloudOnly, ["child", "root"]);
+});
+
+test("mixed hosts in one family follow the root", () => {
+  const result = familyKeys([
+    thread("root", "p", 10, { host: BOX }),
+    thread("cloud-child", "p", 30, { host: SANDBOX_A, parentThreadId: "root" }),
+    thread("local-child", "p", 20, { host: LOCAL, parentThreadId: "root" }),
+  ]);
+  assert.deepEqual(result.keys, { root: "machine:host:host_box", "cloud-child": "machine:host:host_box", "local-child": "machine:host:host_box" });
+  assert.deepEqual(result.options, ["machine:host:host_box"]);
+  assert.deepEqual(result.cloudOnly, []);
+});
+
+test("a hostless root keeps its family Local even with a cloud child", () => {
+  const result = familyKeys([
+    thread("cloud-child", "p", 30, { host: SANDBOX_A, parentThreadId: "root" }),
+    thread("root", "p", 10),
+  ]);
+  assert.deepEqual(result.keys, { "cloud-child": "machine:local", root: "machine:local" });
+  assert.deepEqual(result.options, ["machine:local"]);
+  assert.deepEqual(result.cloudOnly, []);
 });

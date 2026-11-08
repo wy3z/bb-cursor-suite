@@ -17,7 +17,7 @@ import {
   THREAD_ORDER_CHANNEL,
   THREAD_SECTIONS_CHANNEL,
 } from "./channels";
-import { cloudHostIdsOf, sameHostIds } from "./cloud-hosts";
+import { createCloudHostWatcher } from "./cloud-hosts";
 import { registerIconCli } from "./icon-cli";
 import { coerceSidebarView } from "./sidebar-view";
 
@@ -393,33 +393,17 @@ export default function plugin(bb: BbPluginApi) {
     }));
   };
 
-  const readCloudHostIds = async (): Promise<string[]> =>
-    cloudHostIdsOf(await bb.sdk.hosts.list({ includeCreating: true }));
-  let knownCloudHostIds: string[] | null = null;
-  let cloudHostsTimer: ReturnType<typeof setTimeout> | null = null;
-  const refreshCloudHosts = async (): Promise<void> => {
-    try {
-      const hostIds = await readCloudHostIds();
-      if (knownCloudHostIds !== null && sameHostIds(knownCloudHostIds, hostIds)) return;
-      knownCloudHostIds = hostIds;
-      bb.realtime.publish(CLOUD_HOSTS_CHANNEL, {});
-    } catch {
-      knownCloudHostIds = null;
-    }
-  };
+  const cloudHosts = createCloudHostWatcher({
+    list: (signal) => bb.sdk.hosts.list({ includeCreating: true, signal }),
+    publish: () => bb.realtime.publish(CLOUD_HOSTS_CHANNEL, {}),
+  });
   const unsubscribeHosts = bb.sdk.subscribe({
     event: "host:changed",
-    callback: () => {
-      if (cloudHostsTimer !== null) clearTimeout(cloudHostsTimer);
-      cloudHostsTimer = setTimeout(() => {
-        cloudHostsTimer = null;
-        void refreshCloudHosts();
-      }, 250);
-    },
+    callback: () => cloudHosts.notify(),
   });
   bb.onDispose(() => {
     unsubscribeHosts();
-    if (cloudHostsTimer !== null) clearTimeout(cloudHostsTimer);
+    cloudHosts.dispose();
   });
 
   bb.rpc.register(cursorSidebarRpcContract, {
@@ -481,9 +465,7 @@ export default function plugin(bb: BbPluginApi) {
       return { hostId: config.primaryHostId };
     },
     async cloudHosts() {
-      const hostIds = await readCloudHostIds();
-      knownCloudHostIds = hostIds;
-      return { hostIds };
+      return { hostIds: await cloudHosts.read() };
     },
     async deleteNativeProject({ projectId }) {
       await bb.sdk.projects.delete({ projectId });

@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cloudHostIdsOf, isCloudHost, rowHostDisplay, rowHostLabel, sameHostIds } from "./cloud-hosts";
+import {
+  cloudHostIdsOf,
+  createCloudHostsLoader,
+  createCloudHostWatcher,
+  isCloudHost,
+  rowHostDisplay,
+  rowHostLabel,
+  sameHostIds,
+  type CloudHostFacts,
+} from "./cloud-hosts";
 
 test("a provider sandbox is cloud", () => {
   assert.equal(isCloudHost({ id: "host_83ufksdhp3", type: "ephemeral", machineProviderId: "modal-sandbox" }), true);
@@ -12,6 +21,10 @@ test("a persistent provider machine is cloud", () => {
 
 test("the local host is not cloud", () => {
   assert.equal(isCloudHost({ id: "host_5qqwqc9eye", type: "persistent", machineProviderId: null }), false);
+});
+
+test("an ephemeral host is cloud even with the manual provider", () => {
+  assert.equal(isCloudHost({ id: "e", type: "ephemeral", machineProviderId: "manual" }), true);
 });
 
 test("a manually enrolled machine is not cloud", () => {
@@ -103,4 +116,134 @@ test("the Machine option only controls host text", () => {
   assert.deepEqual(rowHostDisplay(label, true), { cloudName: null, hostText: "Host: box" });
   assert.deepEqual(rowHostDisplay(label, false), { cloudName: null, hostText: null });
   assert.deepEqual(rowHostDisplay(null, true), { cloudName: null, hostText: null });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sandboxHost = (id: string): CloudHostFacts => ({ id, type: "ephemeral", machineProviderId: "modal-sandbox" });
+
+test("loader clears to null when a refresh fails after a success", async () => {
+  const applied: Array<string[] | null> = [];
+  let fail = false;
+  const load = createCloudHostsLoader(
+    async () => {
+      if (fail) throw new Error("offline");
+      return ["host_a"];
+    },
+    (ids) => applied.push(ids === null ? null : [...ids]),
+  );
+  await load();
+  fail = true;
+  await load();
+  assert.deepEqual(applied, [["host_a"], null]);
+});
+
+test("loader drops a stale in-flight response", async () => {
+  const slow = deferred<readonly string[]>();
+  const fast = deferred<readonly string[]>();
+  const queue = [slow, fast];
+  const applied: Array<string[] | null> = [];
+  const load = createCloudHostsLoader(
+    () => queue.shift()!.promise,
+    (ids) => applied.push(ids === null ? null : [...ids]),
+  );
+  const first = load();
+  const second = load();
+  fast.reject(new Error("offline"));
+  await second;
+  slow.resolve(["host_a"]);
+  await first;
+  assert.deepEqual(applied, [null]);
+});
+
+test("an RPC read between a host change and the debounced refresh still notifies", async () => {
+  let hosts: CloudHostFacts[] = [sandboxHost("host_a")];
+  let published = 0;
+  const watcher = createCloudHostWatcher({
+    list: async () => hosts,
+    publish: () => published++,
+    debounceMs: 5,
+  });
+  watcher.notify();
+  await sleep(20);
+  assert.equal(published, 1);
+  assert.deepEqual(await watcher.read(), ["host_a"]);
+  hosts = [sandboxHost("host_b")];
+  watcher.notify();
+  assert.deepEqual(await watcher.read(), ["host_b"]);
+  await sleep(20);
+  assert.equal(published, 2);
+  watcher.notify();
+  await sleep(20);
+  assert.equal(published, 2);
+  watcher.dispose();
+});
+
+test("a burst of host changes publishes once", async () => {
+  let published = 0;
+  const watcher = createCloudHostWatcher({
+    list: async () => [sandboxHost("host_a")],
+    publish: () => published++,
+    debounceMs: 5,
+  });
+  watcher.notify();
+  watcher.notify();
+  watcher.notify();
+  await sleep(20);
+  assert.equal(published, 1);
+  watcher.dispose();
+});
+
+test("an older refresh never publishes over a newer one", async () => {
+  const first = deferred<readonly CloudHostFacts[]>();
+  const second = deferred<readonly CloudHostFacts[]>();
+  const queue = [first, second];
+  let published = 0;
+  const watcher = createCloudHostWatcher({
+    list: () => queue.shift()!.promise,
+    publish: () => published++,
+    debounceMs: 1,
+  });
+  watcher.notify();
+  await sleep(10);
+  watcher.notify();
+  await sleep(10);
+  second.resolve([sandboxHost("host_b")]);
+  await sleep(5);
+  first.resolve([sandboxHost("host_a")]);
+  await sleep(5);
+  assert.equal(published, 1);
+  watcher.dispose();
+});
+
+test("disposal during an outstanding host list never publishes and aborts the read", async () => {
+  const pending = deferred<readonly CloudHostFacts[]>();
+  let signal: AbortSignal | null = null;
+  let published = 0;
+  const watcher = createCloudHostWatcher({
+    list: (listSignal) => {
+      signal = listSignal;
+      return pending.promise;
+    },
+    publish: () => published++,
+    debounceMs: 1,
+  });
+  watcher.notify();
+  await sleep(10);
+  watcher.dispose();
+  assert.equal(signal!.aborted, true);
+  pending.resolve([sandboxHost("host_a")]);
+  await sleep(5);
+  watcher.notify();
+  await sleep(10);
+  assert.equal(published, 0);
 });

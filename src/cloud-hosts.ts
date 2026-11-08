@@ -8,8 +8,7 @@ export interface CloudHostFacts {
 
 export function isCloudHost(host: CloudHostFacts): boolean {
   const provider = host.machineProviderId?.trim() || null;
-  if (provider !== null) return provider !== MANUAL_MACHINE_PROVIDER_ID;
-  return host.type === "ephemeral";
+  return host.type === "ephemeral" || (provider !== null && provider !== MANUAL_MACHINE_PROVIDER_ID);
 }
 
 export function cloudHostIdsOf(hosts: readonly CloudHostFacts[]): string[] {
@@ -50,4 +49,73 @@ export function rowHostDisplay(
 ): { cloudName: string | null; hostText: string | null } {
   if (label?.kind === "cloud") return { cloudName: label.name, hostText: null };
   return { cloudName: null, hostText: showHostText && label?.kind === "text" ? label.text : null };
+}
+
+export function createCloudHostsLoader(
+  fetchIds: () => Promise<readonly string[]>,
+  apply: (hostIds: ReadonlySet<string> | null) => void,
+): () => Promise<void> {
+  let latest = 0;
+  return async () => {
+    const request = ++latest;
+    let next: ReadonlySet<string> | null;
+    try {
+      next = new Set(await fetchIds());
+    } catch {
+      next = null;
+    }
+    if (request === latest) apply(next);
+  };
+}
+
+export function createCloudHostWatcher({
+  list,
+  publish,
+  debounceMs = 250,
+}: {
+  list: (signal: AbortSignal) => Promise<readonly CloudHostFacts[]>;
+  publish: () => void;
+  debounceMs?: number;
+}): { read: () => Promise<string[]>; notify: () => void; dispose: () => void } {
+  const controller = new AbortController();
+  let notified: string[] | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let generation = 0;
+  let disposed = false;
+
+  const refresh = async (): Promise<void> => {
+    const mine = ++generation;
+    let hostIds: string[] | null;
+    try {
+      hostIds = cloudHostIdsOf(await list(controller.signal));
+    } catch {
+      hostIds = null;
+    }
+    if (disposed || mine !== generation) return;
+    if (hostIds === null) {
+      notified = null;
+      return;
+    }
+    if (notified !== null && sameHostIds(notified, hostIds)) return;
+    notified = hostIds;
+    publish();
+  };
+
+  return {
+    read: async () => cloudHostIdsOf(await list(controller.signal)),
+    notify: () => {
+      if (disposed) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void refresh();
+      }, debounceMs);
+    },
+    dispose: () => {
+      disposed = true;
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+      controller.abort();
+    },
+  };
 }
