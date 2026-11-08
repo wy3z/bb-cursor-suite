@@ -7,7 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const ROW_CLASS =
-  "group/nav flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pl-3 pr-2 min-h-7 max-md:pointer-coarse:min-h-11 text-sm cursor-pointer outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+  "cs-row group/nav flex w-full min-w-0 items-center rounded-md py-1 min-h-7 max-md:pointer-coarse:min-h-11 text-sm cursor-pointer outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
 
 const IDLE_CLASS = "text-sidebar-foreground/95 hover:bg-sidebar-accent/60";
 const ACTIVE_CLASS = "bg-sidebar-accent text-sidebar-accent-foreground";
@@ -30,7 +30,7 @@ export function CursorNavigation() {
   return (
     <div
       data-cursor-navigation=""
-      className="relative shrink-0 space-y-0.5 px-1.5 pb-1 pt-2"
+      className="cs-row-inset relative shrink-0 space-y-0.5 pb-1 pt-2"
     >
       {items.map((item) => {
         const isActive = item.id === state.activeItemId;
@@ -54,11 +54,11 @@ export function CursorNavigation() {
             <SidebarNavigationIcon
               icon={item.icon}
               className={cn(
-                "size-4 shrink-0",
+                "cs-nav-icon shrink-0",
                 isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
               )}
             />
-            <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+            <span className="cs-row-text min-w-0 flex-1 truncate text-left">{item.label}</span>
             {shortcut === null ? null : (
               <span className="shrink-0 text-[length:var(--bbs-text-meta,11px)] text-subtle-foreground">
                 {shortcut.label}
@@ -79,10 +79,10 @@ export function CursorNavigation() {
       >
         <Icon
           name="SlidersHorizontal"
-          className="size-4 shrink-0 text-muted-foreground"
+          className="cs-nav-icon shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-        <span className="min-w-0 flex-1 truncate text-left">Customize</span>
+        <span className="cs-row-text min-w-0 flex-1 truncate text-left">Customize</span>
       </button>
     </div>
   );

@@ -76,7 +76,7 @@ export function ProjectStatusGlyph({
         <ProjectIconMark
           icon={icon ?? null}
           fallback={fallback}
-          className="size-4"
+          className="size-3.5"
           mutedClassName="text-[color:var(--bbs-text-secondary)]"
         />
       )}

@@ -46,6 +46,13 @@ small accent pill with their count. The pill disappears as soon as nothing
 under it is running; it is the only static mark a parent row gets for its
 children.
 
+Every row shares one left edge, the way Cursor lays out its sidebar: icons and
+status glyphs sit in one 14px column and titles start in the next one, whether
+the row is a navigation item, a project, a chat or a child chat. Child chats sit
+right under their parent with no indent and no tree lines, and carry a small
+corner arrow before the age instead. The pull request mark and provider mark sit
+there too, so they never push a title to the right.
+
 ## The view menu
 
 | Control | What it changes |
@@ -157,9 +164,8 @@ Letting go of a lifted row without moving opens its menu, and that menu holds
 Expand children or Collapse children for a chat that has any. A lifted drag
 drops where you leave it: a folder heading files the chat, the middle of another
 chat in the same project nests it, and a project heading between two others
-reorders the projects. Hovering the middle half of a chat to nest shows an
-elbow into a child slot and a **Make child** label, so a nest never reads as a
-reorder line.
+reorders the projects. Hovering the middle half of a chat to nest outlines it
+and shows a **Make child** label, so a nest never reads as a reorder line.
 
 The pin and archive icons stay hidden on touch. Nothing reveals them without
 hover, and the 44px targets a phone needs do not fit in a row, so a swipe or
