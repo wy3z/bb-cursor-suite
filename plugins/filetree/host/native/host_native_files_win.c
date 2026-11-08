@@ -826,10 +826,12 @@ static bool is_git_env_pair(const wchar_t *pair) { return _wcsnicmp(pair, L"GIT_
 
 static wchar_t *build_environment(wchar_t **input, size_t count) {
   static const wchar_t *fixed[] = {
-      L"GIT_CONFIG=/dev/null",
       L"GIT_CONFIG_GLOBAL=/dev/null",
       L"GIT_CONFIG_SYSTEM=/dev/null",
       L"GIT_CONFIG_NOSYSTEM=1",
+      L"GIT_OPTIONAL_LOCKS=0",
+      L"GIT_NO_LAZY_FETCH=1",
+      L"GIT_ALLOW_PROTOCOL=none",
   };
   size_t fixed_count = sizeof(fixed) / sizeof(fixed[0]);
   const wchar_t **entries = calloc(count + fixed_count + 1, sizeof(wchar_t *));

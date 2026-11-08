@@ -72,6 +72,73 @@ export function resolveTrustedGit(
   }
   throw new Error("git executable was not found in the trusted path");
 }
+export const GIT_SAFETY_ENV: Readonly<Record<string, string>> = {
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_NO_LAZY_FETCH: "1",
+  GIT_ALLOW_PROTOCOL: "none",
+};
+export const GIT_SAFETY_ARGS: readonly string[] = [
+  "--no-optional-locks",
+  "--no-pager",
+  "-c",
+  "core.fsmonitor=",
+  "-c",
+  "core.useBuiltinFSMonitor=false",
+  "-c",
+  "core.untrackedCache=false",
+  "-c",
+  "core.hooksPath=/dev/null",
+  "-c",
+  "credential.helper=",
+  "-c",
+  "diff.external=",
+  "-c",
+  "submodule.recurse=false",
+];
+export function safeGitArgs(args: readonly string[]): string[] {
+  return [...GIT_SAFETY_ARGS, ...args];
+}
+export const GIT_DRIVER_QUERY: readonly string[] = [
+  "config",
+  "--null",
+  "--name-only",
+  "--get-regexp",
+  "^(filter|diff|merge)\\.",
+];
+const DRIVER_COMMANDS: Readonly<Record<string, readonly string[]>> = {
+  filter: ["clean=", "smudge=", "process=", "required=false"],
+  diff: ["textconv=", "command="],
+  merge: ["driver="],
+};
+const DRIVER_LIMIT = 64;
+const DRIVER_ARGS_LIMIT = 16384;
+export function gitDriverOverrides(output: string): string[] | null {
+  const drivers = new Set<string>();
+  for (const name of output.split("\0")) {
+    if (name.length === 0) continue;
+    const first = name.indexOf(".");
+    const last = name.lastIndexOf(".");
+    if (first <= 0 || last <= first) continue;
+    const section = name.slice(0, first);
+    const subsection = name.slice(first + 1, last);
+    if (!(section in DRIVER_COMMANDS)) continue;
+    if (/[=\n]/u.test(subsection)) return null;
+    drivers.add(`${section}.${subsection}`);
+  }
+  if (drivers.size > DRIVER_LIMIT) return null;
+  const args: string[] = [];
+  for (const driver of [...drivers].sort()) {
+    const section = driver.slice(0, driver.indexOf("."));
+    for (const setting of DRIVER_COMMANDS[section] ?? [])
+      args.push("-c", `${driver}.${setting}`);
+  }
+  if (args.reduce((total, arg) => total + arg.length + 1, 0) > DRIVER_ARGS_LIMIT)
+    return null;
+  return args;
+}
 export function scrubbedGitEnv(
   source: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
@@ -88,10 +155,7 @@ export function scrubbedGitEnv(
   env.PATH = windows
     ? windowsTrustedPath(resolveWindowsGit(source), source)
     : TRUSTED_GIT_PATH;
-  env.GIT_CONFIG = "/dev/null";
-  env.GIT_CONFIG_GLOBAL = "/dev/null";
-  env.GIT_CONFIG_SYSTEM = "/dev/null";
-  env.GIT_CONFIG_NOSYSTEM = "1";
+  Object.assign(env, GIT_SAFETY_ENV);
   return env;
 }
 export function scrubbedGitEnvPairs(

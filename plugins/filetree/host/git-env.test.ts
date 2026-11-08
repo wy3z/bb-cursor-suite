@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  GIT_SAFETY_ARGS,
+  gitDriverOverrides,
   resolveTrustedGit,
+  safeGitArgs,
   scrubbedGitEnv,
   TRUSTED_GIT_PATH,
   windowsGitCandidates,
@@ -20,10 +23,13 @@ describe("git spawn environment", () => {
     expect(env.GIT_DIR).toBeUndefined();
     expect(env.GIT_WORK_TREE).toBeUndefined();
     expect(env.GIT_COMMON_DIR).toBeUndefined();
-    expect(env.GIT_CONFIG).toBe("/dev/null");
+    expect(env.GIT_CONFIG).toBeUndefined();
     expect(env.GIT_CONFIG_GLOBAL).toBe("/dev/null");
     expect(env.GIT_CONFIG_SYSTEM).toBe("/dev/null");
     expect(env.GIT_CONFIG_NOSYSTEM).toBe("1");
+    expect(env.GIT_OPTIONAL_LOCKS).toBe("0");
+    expect(env.GIT_NO_LAZY_FETCH).toBe("1");
+    expect(env.GIT_ALLOW_PROTOCOL).toBe("none");
     expect(env.PATH).toBe(TRUSTED_GIT_PATH);
     expect(env.HOME).toBe("/home/test");
     if (process.platform !== "win32")
@@ -65,5 +71,59 @@ describe("git spawn environment", () => {
       "C:\\Users\\test\\AppData\\Local\\Programs\\Git\\cmd\\git.exe",
     ]);
     expect(windowsGitCandidates({ ProgramFiles: "relative\\dir" })).toEqual([]);
+  });
+  it("puts the safety options before every Git command", () => {
+    expect(safeGitArgs(["rev-parse", "--show-prefix"])).toEqual([
+      ...GIT_SAFETY_ARGS,
+      "rev-parse",
+      "--show-prefix",
+    ]);
+    expect(GIT_SAFETY_ARGS.slice(0, 2)).toEqual(["--no-optional-locks", "--no-pager"]);
+    expect(GIT_SAFETY_ARGS).toContain("core.fsmonitor=");
+  });
+  it("switches off every filter, diff and merge driver the repository defines", () => {
+    const output = [
+      "filter.lfs.clean",
+      "filter.lfs.process",
+      "filter.My Driver.v2.smudge",
+      "diff.evil.textconv",
+      "diff.external",
+      "diff.renames",
+      "merge.ours.driver",
+      "core.fsmonitor",
+      "",
+    ].join("\0");
+    expect(gitDriverOverrides(output)).toEqual([
+      "-c",
+      "diff.evil.textconv=",
+      "-c",
+      "diff.evil.command=",
+      "-c",
+      "filter.My Driver.v2.clean=",
+      "-c",
+      "filter.My Driver.v2.smudge=",
+      "-c",
+      "filter.My Driver.v2.process=",
+      "-c",
+      "filter.My Driver.v2.required=false",
+      "-c",
+      "filter.lfs.clean=",
+      "-c",
+      "filter.lfs.smudge=",
+      "-c",
+      "filter.lfs.process=",
+      "-c",
+      "filter.lfs.required=false",
+      "-c",
+      "merge.ours.driver=",
+    ]);
+    expect(gitDriverOverrides("")).toEqual([]);
+  });
+  it("refuses driver names a -c override can't express", () => {
+    expect(gitDriverOverrides("filter.a=b.clean\0")).toBeNull();
+    expect(gitDriverOverrides("filter.a\nb.clean\0")).toBeNull();
+    const many = Array.from({ length: 65 }, (_, index) => `filter.d${index}.clean`);
+    expect(gitDriverOverrides(many.join("\0"))).toBeNull();
+    expect(gitDriverOverrides(`filter.${"x".repeat(5000)}.clean\0`)).toBeNull();
   });
 });

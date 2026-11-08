@@ -20,28 +20,16 @@ import {
   type OpenatPrimitive,
 } from "./confinement.js";
 import { NativeFileHostError, remapFilesystemError } from "./errors.js";
+import { GIT_DRIVER_QUERY, gitDriverOverrides } from "./git-env.js";
 import {
   hostPathFlavor,
   isWindowsDriveHostPath,
 } from "../contracts/host-path.js";
 export { NativeFileHostError, type NativeFileHostErrorCode } from "./errors.js";
 const GIT_OUTPUT_LIMIT = 16 * 1024 * 1024;
+const GIT_CONFIG_OUTPUT_LIMIT = 1024 * 1024;
 const GIT_TIMEOUT_MS = 15000;
 const GIT_STATUS_ARGS = [
-  "-c",
-  "core.fsmonitor=",
-  "-c",
-  "core.useBuiltinFSMonitor=false",
-  "-c",
-  "core.untrackedCache=false",
-  "-c",
-  "core.hooksPath=/dev/null",
-  "-c",
-  "credential.helper=",
-  "-c",
-  "diff.external=",
-  "-c",
-  "submodule.recurse=false",
   "-c",
   "status.relativePaths=true",
   "status",
@@ -529,9 +517,32 @@ export class NativeFileHostService {
     try {
       await this.hooks.afterOpen?.("git", "");
       this.throwIfCancelled(controller.signal);
+      const drivers = await binding.primitive.gitStatusAt(
+        binding.rootFd,
+        [...GIT_DRIVER_QUERY],
+        {
+          maxBytes: GIT_CONFIG_OUTPUT_LIMIT,
+          signal: controller.signal,
+          timeoutMs: GIT_TIMEOUT_MS,
+        },
+      );
+      if (drivers.code !== 0 && drivers.code !== 1) {
+        const reason = drivers.stderr.toString("utf8").slice(0, 1000);
+        return {
+          kind: "unavailable",
+          reason: reason || "Git configuration could not be read",
+        };
+      }
+      const overrides = gitDriverOverrides(drivers.stdout.toString("utf8"));
+      if (overrides === null)
+        return {
+          kind: "unavailable",
+          reason:
+            "Git status is off for this repository because its Git config defines filter, diff or merge commands Files can't switch off.",
+        };
       const result = await binding.primitive.gitStatusAt(
         binding.rootFd,
-        GIT_STATUS_ARGS,
+        [...overrides, ...GIT_STATUS_ARGS],
         {
           maxBytes: GIT_OUTPUT_LIMIT,
           signal: controller.signal,

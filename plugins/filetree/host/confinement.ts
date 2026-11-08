@@ -4,7 +4,11 @@ import { open, opendir, realpath, type FileHandle } from "node:fs/promises";
 import { win32 } from "node:path";
 import { NativeFileHostError, remapFilesystemError } from "./errors.js";
 import { loadNativeFilesAddon, type NativeFilesAddon } from "./native-addon.js";
-import { resolveTrustedGit, scrubbedGitEnvPairs } from "./git-env.js";
+import {
+  resolveTrustedGit,
+  safeGitArgs,
+  scrubbedGitEnvPairs,
+} from "./git-env.js";
 import { spawnGitAtPath, type SpawnGitResult } from "./spawn-git.js";
 const O_CLOEXEC =
   (
@@ -276,7 +280,7 @@ export function createNativeOpenatPrimitive(
       const started = addon.gitStatusAt(
         dirfd,
         resolveTrustedGit(),
-        args,
+        safeGitArgs(args),
         options.timeoutMs,
         options.maxBytes,
         scrubbedGitEnvPairs(),

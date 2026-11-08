@@ -497,10 +497,12 @@ static int is_git_env_pair(const char *pair) {
 
 static char **scrub_git_env(char **input, int inputc, int *outc) {
   static const char *fixed[] = {
-      "GIT_CONFIG=/dev/null",
       "GIT_CONFIG_GLOBAL=/dev/null",
       "GIT_CONFIG_SYSTEM=/dev/null",
       "GIT_CONFIG_NOSYSTEM=1",
+      "GIT_OPTIONAL_LOCKS=0",
+      "GIT_NO_LAZY_FETCH=1",
+      "GIT_ALLOW_PROTOCOL=none",
   };
   int fixed_count = (int)(sizeof(fixed) / sizeof(fixed[0]));
   int kept = fixed_count;
