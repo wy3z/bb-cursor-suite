@@ -6,17 +6,39 @@ import {
   useBbNavigate,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { STATUSES, TASKS_PLUGIN, tasksContract, type Preset, type PullRequest, type Status, type Task } from "./contracts";
-import { renderTitle, type CardContext } from "./Card";
-import { useTaskPullRequests, useTaskThreads } from "./data";
-import { Dot, PriorityGlyph, STATUS_LABEL, StatusGlyph, formatElapsed } from "./glyphs";
+import { TASKS_PLUGIN, tasksContract, type Preset, type Status, type Task } from "./contracts";
+import { renderTitle, useDerived, type CardContext } from "./Card";
+import { PR_STATUS, prStatus, useAttachments, usePullRequestSummaries, useTaskPullRequests, useTaskThreads } from "./data";
+import { CommitGlyph, Dot, PriorityGlyph, StatusGlyph, formatElapsed } from "./glyphs";
+import { AttachmentList, BehindHint, agentViews, useLightbox } from "./Chips";
+import { COLUMNS, COLUMN_LABEL, columnOf } from "./status";
 
-const PR_ICON: Record<PullRequest["state"], string> = {
-  open: "GitPullRequest",
-  draft: "GitPullRequestDraft",
-  merged: "GitMerge",
-  closed: "GitPullRequestClosed",
-};
+const URL_RE = /https?:\/\/[^\s<>()"'`\]]+[^\s<>()"'`\].,;:!?]/g;
+
+export function linksIn(texts: readonly string[], exclude: ReadonlySet<string>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const text of texts) {
+    for (const match of text.matchAll(URL_RE)) {
+      const url = match[0];
+      if (seen.has(url) || exclude.has(url) || url.includes("/api/v1/plugins/tasks/http/attachments/")) continue;
+      seen.add(url);
+      out.push(url);
+    }
+  }
+  return out;
+}
+
+function linkLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const pr = /^\/([^/]+)\/([^/]+)\/(pull|issues|commit)\/([^/]+)/.exec(parsed.pathname);
+    if (parsed.hostname === "github.com" && pr) return `${pr[2]} ${pr[3] === "commit" ? pr[4]!.slice(0, 7) : `#${pr[4]}`}`;
+    return `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+  } catch {
+    return url;
+  }
+}
 
 export function openInTasks(key: string) {
   window.history.pushState(window.history.state, "", `/plugins/tasks/tasks/task/${encodeURIComponent(key)}`);
@@ -42,6 +64,14 @@ export function TaskDetail({
   const sdk = useSdk();
   const threads = useTaskThreads(task.id, true);
   const pullRequests = useTaskPullRequests(task.id, true);
+  const summaries = usePullRequestSummaries(pullRequests.filter((pr) => pr.state === "open").map((pr) => pr.url));
+  const attachments = useAttachments(task.id, true);
+  const lightbox = useLightbox(attachments.filter((attachment) => attachment.isImage));
+  const derived = useDerived(task, threads, pullRequests, ctx);
+  const agents = agentViews(threads, ctx.threads, ctx.now);
+  const subtasks = ctx.children.get(task.id) ?? [];
+  const parent = task.parentTaskId ? ctx.tasksById.get(task.parentTaskId) ?? null : null;
+  const landing = ctx.evidence.get(task.id)?.landing ?? null;
   const comments = experimental_useRpcQuery({
     pluginId: TASKS_PLUGIN,
     contract: tasksContract,
@@ -52,6 +82,10 @@ export function TaskDetail({
   const [note, setNote] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const labels = task.labelIds.map((id) => ctx.labels.get(id)).filter((label) => label !== undefined);
   const recent = (comments.data?.comments ?? []).slice(-5).reverse();
+  const links = linksIn(
+    [task.description, ...(comments.data?.comments ?? []).map((comment) => comment.body)],
+    new Set([...pullRequests.map((pr) => pr.url), ...(landing?.url ? [landing.url] : [])]),
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -107,20 +141,30 @@ export function TaskDetail({
       <div className="bbp-detail__props">
         <label className="bbp-detail__status">
           <StatusGlyph status={task.status} />
-          <select value={task.status} aria-label="Status" onChange={(event) => onStatus(task, event.currentTarget.value as Status)}>
-            {STATUSES.map((status) => (
+          <select value={columnOf(task.status)} aria-label="Status" onChange={(event) => onStatus(task, event.currentTarget.value as Status)}>
+            {COLUMNS.map((status) => (
               <option key={status} value={status}>
-                {STATUS_LABEL[status]}
+                {COLUMN_LABEL[status]}
               </option>
             ))}
           </select>
         </label>
+        {parent ? (
+          <button type="button" className="bbp-parent-mark" title={parent.title} onClick={() => ctx.onOpen?.(parent)}>
+            <Icon name="CornerDownRight" />
+            Sub-task of {parent.key}
+          </button>
+        ) : null}
         {labels.map((label) => (
           <span className="bbp-label" key={label!.id} style={{ ["--bbp-label" as string]: label!.color }}>
             {label!.name}
           </span>
         ))}
       </div>
+
+      {derived ? (
+        <BehindHint derived={derived} stored={task.status} compact={false} onApply={ctx.onApply ? () => ctx.onApply!(task, derived.status) : undefined} />
+      ) : null}
 
       <div className="bbp-detail__body">
         <section className="bbp-detail__section">
@@ -135,38 +179,90 @@ export function TaskDetail({
 
         <section className="bbp-detail__section">
           <h3>Agents</h3>
-          {threads.length === 0 ? (
+          {agents.length === 0 ? (
             <p className="bbp-detail__muted">No agent has worked on this yet.</p>
           ) : (
-            threads.map((link) => {
-              const info = ctx.threads.get(link.threadId);
-              const tone = info?.needsInput ? "input" : info?.working || link.liveStatus === "working" ? "working" : link.liveStatus === "failed" ? "failed" : "idle";
-              return (
-                <button
-                  type="button"
-                  key={link.threadId}
-                  className="bbp-detail__row"
-                  onClick={(event) => navigate.toThread(link.threadId, event.ctrlKey || event.metaKey ? { split: true } : undefined)}
-                >
-                  <Dot tone={tone} />
-                  <span className="bbp-detail__row-title">{info?.title ?? link.title}</span>
-                  <span className="bbp-detail__row-meta">
-                    {link.presetName} · {formatElapsed(link.attachedAt, ctx.now)}
-                  </span>
-                </button>
-              );
-            })
+            agents.map((agent) => (
+              <button
+                type="button"
+                key={agent.link.threadId}
+                className="bbp-detail__row"
+                data-tone={agent.tone}
+                onClick={(event) => navigate.toThread(agent.link.threadId, event.ctrlKey || event.metaKey ? { split: true } : undefined)}
+              >
+                <Dot tone={agent.tone} />
+                <span className="bbp-detail__row-title">{agent.name}</span>
+                <span className="bbp-detail__row-meta">
+                  {agent.link.presetName} · {agent.age}
+                </span>
+              </button>
+            ))
           )}
         </section>
 
-        {pullRequests.length > 0 ? (
+        {subtasks.length > 0 ? (
+          <section className="bbp-detail__section">
+            <h3>
+              Sub-tasks{" "}
+              <span className="bbp-detail__count">
+                {subtasks.filter((child) => child.status === "done" || child.status === "canceled").length}/{subtasks.length}
+              </span>
+            </h3>
+            {subtasks.map((child) => (
+              <button type="button" key={child.id} className="bbp-detail__row" onClick={() => ctx.onOpen?.(child)}>
+                <StatusGlyph status={child.status} />
+                <span className="bbp-card__key">{child.key}</span>
+                <span className="bbp-detail__row-title">{child.title}</span>
+              </button>
+            ))}
+          </section>
+        ) : null}
+
+        {pullRequests.length > 0 || landing ? (
           <section className="bbp-detail__section">
             <h3>Pull requests</h3>
-            {pullRequests.map((pr) => (
-              <a key={pr.url} className="bbp-detail__row" href={pr.url} target="_blank" rel="noreferrer" data-pr={pr.state}>
-                <Icon name={PR_ICON[pr.state]} />
-                <span className="bbp-detail__row-title">{pr.title}</span>
-                <span className="bbp-detail__row-meta">#{pr.number}</span>
+            {pullRequests.map((pr) => {
+              const status = prStatus(pr, summaries.get(pr.url));
+              const summary = summaries.get(pr.url);
+              const checks = summary && summary.ci.totalCount > 0 ? `${summary.ci.totalCount} check${summary.ci.totalCount === 1 ? "" : "s"} ${summary.ci.state}` : null;
+              return (
+                <a key={pr.url} className="bbp-detail__row" href={pr.url} target="_blank" rel="noreferrer" data-pr={pr.state} data-pr-status={status}>
+                  <Icon name={PR_STATUS[status].icon} />
+                  <span className="bbp-detail__row-title">{pr.title}</span>
+                  <span className="bbp-detail__row-meta">
+                    #{pr.number} · {PR_STATUS[status].label}
+                    {checks ? ` · ${checks}` : ""}
+                  </span>
+                </a>
+              );
+            })}
+            {landing ? (
+              <a className="bbp-detail__row" href={landing.url ?? undefined} target="_blank" rel="noreferrer" data-commit="">
+                <CommitGlyph />
+                <span className="bbp-detail__row-title">{landing.subject}</span>
+                <span className="bbp-detail__row-meta">
+                  {landing.sha.slice(0, 7)} on {landing.ref} · {formatElapsed(landing.at, ctx.now)}
+                </span>
+              </a>
+            ) : null}
+          </section>
+        ) : null}
+
+        {attachments.length > 0 ? (
+          <section className="bbp-detail__section">
+            <h3>Attachments</h3>
+            <AttachmentList attachments={attachments} onImage={lightbox.open} />
+            {lightbox.element}
+          </section>
+        ) : null}
+
+        {links.length > 0 ? (
+          <section className="bbp-detail__section">
+            <h3>Links</h3>
+            {links.slice(0, 12).map((url) => (
+              <a key={url} className="bbp-detail__row" href={url} target="_blank" rel="noreferrer" title={url}>
+                <Icon name="Link" />
+                <span className="bbp-detail__row-title">{linkLabel(url)}</span>
               </a>
             ))}
           </section>

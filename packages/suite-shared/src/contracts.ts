@@ -241,6 +241,7 @@ const metaSchema = z.object({
   sweepWorkingHours: z.boolean(),
   sweepLastAt: z.string().nullable(),
   followPrs: z.boolean(),
+  driftPings: z.boolean(),
 });
 export type ProjectMeta = z.infer<typeof metaSchema>;
 
@@ -260,6 +261,29 @@ const inboxItemSchema = z.object({
 export type InboxItem = z.infer<typeof inboxItemSchema>;
 
 const projectIdSchema = z.string().trim().min(1).max(100);
+
+const COLUMN_VALUES = ["in_review", "in_progress", "todo", "done", "canceled"] as const;
+
+const landingSchema = z.object({ sha: z.string(), subject: z.string(), at: z.string(), ref: z.string(), url: z.string().nullable() });
+
+const reconcileSchema = z.object({
+  checkedAt: z.string(),
+  drifts: z.array(
+    z.object({
+      taskId: z.string(),
+      key: z.string(),
+      title: z.string(),
+      stored: z.enum(STATUSES),
+      suggested: z.enum(COLUMN_VALUES),
+      rule: z.string(),
+      reason: z.string(),
+      applicable: z.boolean(),
+    }),
+  ),
+  flags: z.array(z.object({ taskId: z.string(), key: z.string(), title: z.string(), kind: z.string(), text: z.string() })),
+  evidence: z.array(z.object({ taskId: z.string(), lastActivityAt: z.string().nullable(), landing: landingSchema.nullable() })),
+});
+export type ReconcileView = z.infer<typeof reconcileSchema>;
 
 export const projectsContract = defineRpcContract({
   getMeta: {
@@ -286,6 +310,7 @@ export const projectsContract = defineRpcContract({
       sweepMinutes: z.number().int().min(30).max(1440).nullable().optional(),
       sweepWorkingHours: z.boolean().optional(),
       followPrs: z.boolean().optional(),
+      driftPings: z.boolean().optional(),
     }),
     output: metaSchema,
   },
@@ -302,5 +327,10 @@ export const projectsContract = defineRpcContract({
     tags: (input: { projectId: string }) => [`inbox:${input.projectId}`],
     input: z.object({ projectId: projectIdSchema }),
     output: z.object({ items: z.array(inboxItemSchema) }),
+  },
+  reconcile: {
+    tags: (input: { projectId: string }) => [`reconcile:${input.projectId}`],
+    input: z.object({ projectId: projectIdSchema }),
+    output: reconcileSchema,
   },
 });

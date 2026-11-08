@@ -11,6 +11,24 @@ type Thread = {
   hasPendingInteraction: boolean;
 };
 
+export type FakeTask = {
+  id: string;
+  projectId: string;
+  key: string;
+  title: string;
+  description: string;
+  status: "backlog" | "todo" | "in_progress" | "in_review" | "done" | "canceled";
+  priority: "none";
+  parentTaskId: string | null;
+  position: number;
+  labelIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+type FakeThreadLink = { threadId: string; presetName: string; title: string; liveStatus: "starting" | "working" | "idle" | "completed" | "failed"; attachedAt: string; updatedAt: string };
+type FakePr = { url: string; number: number; title: string; state: "open" | "draft" | "merged" | "closed"; updatedAt: string; threadIds: string[] };
+type FakeComment = { id: string; kind: "user" | "agent" | "system"; authorName: string; body: string; createdAt: string; threadId: string | null };
+
 type Cli = { run(argv: string[], ctx: { threadId?: string }): Promise<{ exitCode: number; stdout?: string; stderr?: string }> };
 
 export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; settings?: Record<string, unknown> } = {}) {
@@ -25,6 +43,32 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
   const faults = { listProjects: 0, threadsList: 0, send: 0, kvSetDelayMs: 0 };
   const settings = { wakeEnabled: false, wakeHeaderName: "", wakeRemindMinutes: 60, ...opts.settings };
   let cli: Cli | null = null;
+  let instructions: ((ctx: { threadId: string; projectId: string }) => string | null) | null = null;
+  const tasks = new Map<string, FakeTask>();
+  const taskThreads = new Map<string, FakeThreadLink[]>();
+  const taskPrs = new Map<string, FakePr[]>();
+  const comments = new Map<string, FakeComment[]>();
+  const updates: { taskId: string; status: string }[] = [];
+  const addTask = (task: Partial<FakeTask> & { key: string }) => {
+    const id = task.id ?? `task_${task.key.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+    const full: FakeTask = {
+      id,
+      projectId: "proj_pixel",
+      title: task.key,
+      description: "",
+      status: "todo",
+      priority: "none",
+      parentTaskId: null,
+      position: tasks.size,
+      labelIds: [],
+      createdAt: "2026-11-01T09:00:00.000Z",
+      updatedAt: "2026-11-01T09:00:00.000Z",
+      ...task,
+      id,
+    };
+    tasks.set(id, full);
+    return full;
+  };
   let rpc: Record<string, (input: unknown) => Promise<unknown>> = {};
 
   const addThread = (id: string, patch: Partial<Thread> = {}) =>
@@ -52,6 +96,11 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     },
     settings: { define: () => ({ get: async () => ({ ...settings }), experimental_set: async () => ({}), onChange: () => undefined }) },
     realtime: { publish: () => undefined },
+    agents: {
+      contributeInstructions: (provider: (ctx: { threadId: string; projectId: string }) => string | null) => {
+        instructions = provider;
+      },
+    },
     rpc: {
       experimental_invalidate: () => undefined,
       register: (_contract: unknown, handlers: typeof rpc) => {
@@ -74,8 +123,18 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
             }
             return { projects: [{ id: "proj_pixel", name: "Pixel", prefix: "PIXEL", color: "blue", linkedBbProjectId: null }, { id: "proj_other", name: "Other", prefix: "OTHER", color: "red", linkedBbProjectId: null }] };
           }
-          if (pluginId === "tasks" && method === "listAllTasks") return { tasks: [] };
+          if (pluginId === "tasks" && method === "listAllTasks") return { tasks: [...tasks.values()].filter((task) => task.projectId === input.projectId).map((task) => structuredClone(task)) };
           if (pluginId === "tasks" && method === "listTaskCardMeta") return { cards: [] };
+          if (pluginId === "tasks" && method === "listTaskThreads") return { taskThreads: taskThreads.get(String(input.taskId)) ?? [] };
+          if (pluginId === "tasks" && method === "listTaskPullRequests") return { pullRequests: taskPrs.get(String(input.taskId)) ?? [], unavailableThreadIds: [] };
+          if (pluginId === "tasks" && method === "listComments") return { comments: comments.get(String(input.taskId)) ?? [] };
+          if (pluginId === "tasks" && method === "updateTask") {
+            const task = tasks.get(String(input.taskId));
+            if (!task) return { ok: false, error: { message: "no such task" } };
+            updates.push({ taskId: task.id, status: String(input.status) });
+            task.status = input.status as FakeTask["status"];
+            return { ok: true, task: structuredClone(task) };
+          }
           if (pluginId === "pull-requests" && method === "linked_list") return { urls: linked.get(String(input.threadId)) ?? [] };
           if (pluginId === "pull-requests" && method === "subscribe") {
             subscribed.push({ threadId: String(input.threadId), urls: input.urls as string[] });
@@ -84,6 +143,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
           throw new Error(`no fake for ${pluginId}.${method}`);
         },
       },
+      projects: { list: async () => [] },
       threads: {
         list: async (args: { threadIds?: string[]; parentThreadId?: string }) => {
           if (faults.threadsList > 0) {
@@ -136,5 +196,27 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     return { ...result, json: () => JSON.parse(result.stdout ?? "null") };
   }
 
-  return { bb, db, kv, threads, sent, subscribed, linked, services, logs, faults, settings, addThread, run, rpc: () => rpc };
+  return {
+    bb,
+    db,
+    kv,
+    threads,
+    sent,
+    subscribed,
+    linked,
+    services,
+    logs,
+    faults,
+    settings,
+    addThread,
+    run,
+    rpc: () => rpc,
+    instructions: (threadId: string) => instructions?.({ threadId, projectId: "proj_any" }) ?? null,
+    tasks,
+    taskThreads,
+    taskPrs,
+    comments,
+    updates,
+    addTask,
+  };
 }

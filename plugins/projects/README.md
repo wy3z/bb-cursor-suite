@@ -7,13 +7,26 @@ live cards, and a project lead workflow.
 ## What you get
 
 - **Projects page** (sidebar navigation): Board and List views of a tracker
-  project. Columns follow Cursor: Backlog, Queued, In Progress, For Review,
-  Done, with Canceled behind the eye toggle. Drag cards between and within
-  columns. Filter by title or key.
-- **Live cards**: key, labels, priority, the title (inline `code` rendered),
-  the attached agent's state (a flat blue dot and "Working · preset · 12m",
-  "Needs input", "Worked · 2 agents"), the agent worktree's changes (+A −D,
-  click to open the agent in a split), and its pull requests with status icons.
+  project. Statuses follow Cursor, in Cursor's order: For Review, In Progress,
+  Queued, Done, Canceled (hidden by default; the filter menu shows it). Tasks'
+  Backlog and Todo both show as Queued, and dropping a card on Queued writes
+  `todo`. Sub-tasks are shown: as their own cards with a parent marker, nested
+  under their parent in the List view. Drag cards between and within columns.
+  Filter by title or key.
+- **Live cards**: key, labels, priority, the title (inline `code` rendered), a
+  chip for every attached agent with its live or idle time, the agent
+  worktree's changes (+A −D, click to open the agent in a split), PR chips with
+  review and CI state (Ready, Waiting for Reviewers, CI Failing, Conflicts,
+  Draft, Merged, Closed; several PRs collapse into a stack with a menu), a
+  sub-task progress pill with a menu, an attachments chip with an image viewer,
+  and the commit that landed the work when it went straight to main.
+- **Derived status**: each card also works out what its evidence says, with
+  Cursor's rules (merged PRs mean Done, a running agent means In Progress, idle
+  agents with an open PR mean For Review, parents roll up from sub-tasks) plus
+  a commit naming the task on the default branch (Done) and four idle hours on
+  an In Progress card (Queued). When that disagrees with the stored status the
+  card shows a "behind" hint, with Apply for moves other than Done; the header
+  shows "N behind". The board never writes Done itself.
   With Pull Requests installed, a PR chip opens the pull request in BB: the
   thread's side panel when the board is in one, otherwise the full-page view.
   Ctrl, Cmd, Shift or middle-click opens GitHub, as does any click when Pull
@@ -27,8 +40,14 @@ live cards, and a project lead workflow.
 - **Project lead**: a thread recorded as the lead (`bb projects lead`). The
   `projects` skill teaches it to plan, delegate as child threads attached to
   tasks, keep the board true and write status updates.
+- **Pinned lead instructions**: the lead thread gets a short block with the
+  status rules and the PR landing rule appended to its instructions, so they
+  survive compaction. BB applies it when the provider session is next built
+  (thread start, resume or restart), never mid-session.
 - **Loop**: behind the loop button in the board header. A
   scheduled board sweep (off, 1h to 8h, weekdays 08:00-19:00 by default),
+  drift pings (off by default: the lead hears only when cards stay behind
+  their evidence for ten minutes, at most once per drift every two hours),
   following every PR the lead's workers link, the project's memory notes, and
   the last messages from the outer loop.
 - **Composer pill and side-panel tab**: in any thread of a BB project linked to
@@ -50,7 +69,9 @@ bb projects requests PIXEL        # requests and whether each reached the lead; 
 bb projects retry PIXEL req_...   # retry a failed or held request now
 bb projects notify                # webhook wake-up state; --test sends one now
 bb projects notes PIXEL           # project memory; --append "line", --set "all"
-bb projects loop PIXEL            # triggers; --sweep 2h|off, --any-hours, --follow-prs on|off
+bb projects loop PIXEL            # triggers; --sweep 2h|off, --any-hours, --drift on|off, --follow-prs on|off
+bb projects reconcile PIXEL       # cards behind their evidence, with moves; --apply makes the non-Done ones
+bb projects queue-backlog PIXEL   # one-time Backlog -> Queued (todo) move; lists unless --apply
 ```
 
 ## Outer loop and inner loop

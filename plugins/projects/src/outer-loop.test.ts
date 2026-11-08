@@ -10,6 +10,7 @@ const base: ProjectMeta = {
   sweepWorkingHours: true,
   sweepLastAt: null,
   followPrs: false,
+  driftPings: false,
 };
 
 const tuesday = (hour: number, minute = 0) => new Date(2026, 10, 10, hour, minute);

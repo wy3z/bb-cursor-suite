@@ -3,16 +3,11 @@ import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb
 import { META_CHANGED, projectsContract, type ProjectMeta } from "./src/meta";
 import { createLoop } from "./src/outer-loop";
 import { createMessaging } from "./src/messaging";
-import { STATUSES, TASKS_PLUGIN, tasksContract, type Project, type Status, type Task } from "./src/contracts";
-
-const STATUS_WORD: Record<Status, string> = {
-  backlog: "Backlog",
-  todo: "Queued",
-  in_progress: "In progress",
-  in_review: "For review",
-  done: "Done",
-  canceled: "Canceled",
-};
+import { TASKS_PLUGIN, tasksContract, type Project, type Task } from "./src/contracts";
+import { COLUMNS, COLUMN_LABEL, columnOf } from "./src/status";
+import { createBoard } from "./src/board";
+import { describeDrift } from "./src/reconcile";
+import { leadInstructions } from "./src/lead-instructions";
 
 export default function plugin(bb: BbPluginApi) {
   const key = (projectId: string) => `meta:${projectId}`;
@@ -27,7 +22,22 @@ export default function plugin(bb: BbPluginApi) {
       sweepWorkingHours: stored?.sweepWorkingHours ?? true,
       sweepLastAt: stored?.sweepLastAt ?? null,
       followPrs: stored?.followPrs ?? false,
+      driftPings: stored?.driftPings ?? false,
     };
+  }
+
+  const leadPrefixes = new Map<string, string>();
+
+  bb.agents.contributeInstructions(({ threadId }) => {
+    const prefix = leadPrefixes.get(threadId);
+    return prefix ? leadInstructions(prefix) : null;
+  });
+
+  async function rememberLead(projectId: string, before: string | null, after: string | null) {
+    if (before && leadPrefixes.get(before) !== undefined) leadPrefixes.delete(before);
+    if (!after) return;
+    const project = (await projects().catch(() => [] as Project[])).find((item) => item.id === projectId);
+    if (project) leadPrefixes.set(after, project.prefix);
   }
 
   async function quietLead(threadId: string): Promise<void> {
@@ -65,7 +75,10 @@ export default function plugin(bb: BbPluginApi) {
     const next = { ...before, ...change };
     await bb.storage.kv.set(key(projectId), next);
     if (change.leadThreadId) void quietLead(change.leadThreadId);
-    if ("leadThreadId" in change && change.leadThreadId !== before.leadThreadId) messaging.leadChanged(projectId);
+    if ("leadThreadId" in change && change.leadThreadId !== before.leadThreadId) {
+      messaging.leadChanged(projectId);
+      await rememberLead(projectId, before.leadThreadId, next.leadThreadId);
+    }
     bb.realtime.publish(META_CHANGED, { projectId });
     bb.rpc.experimental_invalidate(["leads", `meta:${projectId}`]);
     return next;
@@ -96,7 +109,7 @@ export default function plugin(bb: BbPluginApi) {
       input: { projectId },
       outputSchema: tasksContract.listAllTasks.output,
     });
-    return result.tasks.filter((task) => task.parentTaskId === null);
+    return result.tasks;
   }
 
   async function activeThreads(projectId: string) {
@@ -112,7 +125,9 @@ export default function plugin(bb: BbPluginApi) {
   void (async () => {
     for (const storageKey of await bb.storage.kv.list("meta:")) {
       const stored = await bb.storage.kv.get<ProjectMeta>(storageKey);
-      if (stored?.leadThreadId) await quietLead(stored.leadThreadId);
+      if (!stored?.leadThreadId) continue;
+      await rememberLead(storageKey.slice("meta:".length), null, stored.leadThreadId);
+      await quietLead(stored.leadThreadId);
     }
   })().catch(() => undefined);
 
@@ -128,6 +143,7 @@ export default function plugin(bb: BbPluginApi) {
 
   const loop = createLoop(bb, { leads: leadsWithMeta, writeMeta });
   const messaging = createMessaging(bb, { resolveProject, projects, readMeta });
+  const board = createBoard(bb, { leads: leadsWithMeta, projects, leadStatus: loop.leadStatus, deliver: loop.deliver });
 
   function parseEvery(raw: string): number | null {
     if (/^(off|none|0)$/i.test(raw)) return null;
@@ -143,6 +159,7 @@ export default function plugin(bb: BbPluginApi) {
     return [
       `Sweep: ${every}${meta.sweepMinutes !== null && meta.sweepWorkingHours ? " (weekdays 08:00-19:00)" : ""}${meta.sweepLastAt ? `, last ${meta.sweepLastAt}` : ""}`,
       `Follow PRs: ${meta.followPrs ? "on" : "off"}`,
+      `Drift pings: ${meta.driftPings ? `on${meta.sweepWorkingHours ? " (weekdays 08:00-19:00)" : ""}` : "off"}`,
     ];
   }
 
@@ -164,6 +181,11 @@ export default function plugin(bb: BbPluginApi) {
     getNotes: ({ projectId }) => loop.readNotes(projectId),
     setNotes: ({ projectId, text }) => loop.writeNotes(projectId, text),
     listInbox: async ({ projectId }) => ({ items: messaging.inboxItems(projectId) }),
+    reconcile: async ({ projectId }) => {
+      const project = (await projects()).find((item) => item.id === projectId);
+      if (!project) return { checkedAt: new Date().toISOString(), drifts: [], flags: [], evidence: [] };
+      return board.reconcile(project);
+    },
   });
 
   const json = { type: "boolean", description: "Emit JSON" } as const;
@@ -180,16 +202,22 @@ export default function plugin(bb: BbPluginApi) {
           async run(input) {
             const project = await resolveProject(input.positionals.project);
             const [tasks, active, meta] = await Promise.all([tasksOf(project.id), activeThreads(project.id), readMeta(project.id)]);
-            const counts = Object.fromEntries(STATUSES.map((status) => [status, tasks.filter((task) => task.status === status).length]));
+            const counts = Object.fromEntries(COLUMNS.map((column) => [column, tasks.filter((task) => columnOf(task.status) === column).length]));
+            const keyOf = new Map(tasks.map((task) => [task.id, task.key]));
             const inFlight = tasks
               .filter((task) => task.status === "in_progress" || task.status === "in_review" || active.has(task.id))
               .map((task) => ({
                 key: task.key,
                 title: task.title,
-                status: task.status,
+                status: columnOf(task.status),
+                parent: task.parentTaskId ? (keyOf.get(task.parentTaskId) ?? null) : null,
                 agents: (active.get(task.id) ?? []).map((thread) => ({ threadId: thread.threadId, preset: thread.presetName, status: thread.liveStatus })),
               }));
             const needsYou = tasks.filter((task) => task.status === "in_review").map((task) => ({ key: task.key, title: task.title }));
+            const behind = await board.reconcile(project).then(
+              (result) => result.drifts,
+              () => null,
+            );
             const leadStatus = meta.leadThreadId ? await loop.leadStatus(meta.leadThreadId).catch(() => "unknown" as const) : null;
             const requests = messaging.mailbox.requestCounts(project.id);
             const repliesPending = messaging.mailbox.pendingCounts()[project.prefix] ?? 0;
@@ -205,7 +233,8 @@ export default function plugin(bb: BbPluginApi) {
                     counts,
                     inFlight,
                     needsYou,
-                    loop: { sweepMinutes: meta.sweepMinutes, sweepWorkingHours: meta.sweepWorkingHours, sweepLastAt: meta.sweepLastAt, followPrs: meta.followPrs },
+                    behind: behind?.length ?? null,
+                    loop: { sweepMinutes: meta.sweepMinutes, sweepWorkingHours: meta.sweepWorkingHours, sweepLastAt: meta.sweepLastAt, followPrs: meta.followPrs, driftPings: meta.driftPings },
                     messages: {
                       requestsWaiting: requests.pending + requests.delivering + requests.held,
                       requestsHeld: requests.held,
@@ -222,12 +251,13 @@ export default function plugin(bb: BbPluginApi) {
               ...(leadStatus === "missing" || leadStatus === "archived" ? [`Lead: ${meta.leadThreadId} is ${leadStatus}`] : []),
               ...(requests.held ? [`${requests.held} outer-loop request${requests.held === 1 ? "" : "s"} waiting for a lead`] : []),
               ...(requests.failed ? [`${requests.failed} outer-loop request${requests.failed === 1 ? "" : "s"} failed; see bb projects requests ${project.prefix}`] : []),
-              STATUSES.filter((status) => counts[status]! > 0).map((status) => `${STATUS_WORD[status]} ${counts[status]}`).join(" · "),
+              COLUMNS.filter((column) => counts[column]! > 0).map((column) => `${COLUMN_LABEL[column]} ${counts[column]}`).join(" · "),
+              ...(behind?.length ? [`Behind: ${behind.length} card${behind.length === 1 ? "" : "s"} disagree with the evidence; run bb projects reconcile ${project.prefix}`] : []),
               "",
               inFlight.length === 0 ? "Nothing in progress or for review." : "In flight:",
               ...inFlight.map(
                 (task) =>
-                  `- ${task.key} [${STATUS_WORD[task.status]}] ${task.title}${task.agents.length ? ` (${task.agents.map((agent) => `${agent.preset}: ${agent.status}`).join(", ")})` : ""}`,
+                  `- ${task.key} [${COLUMN_LABEL[task.status]}] ${task.title}${task.parent ? ` (sub-task of ${task.parent})` : ""}${task.agents.length ? ` (${task.agents.map((agent) => `${agent.preset}: ${agent.status}`).join(", ")})` : ""}`,
               ),
             ];
             return { exitCode: 0, stdout: lines.join("\n") + "\n" };
@@ -281,6 +311,7 @@ export default function plugin(bb: BbPluginApi) {
             "any-hours": { type: "boolean", description: "Sweep around the clock, not only weekdays 08:00-19:00" },
             "working-hours": { type: "boolean", description: "Sweep only weekdays 08:00-19:00 (the default)" },
             "follow-prs": { type: "string", description: "on or off: subscribe the lead to every PR linked to its worker threads" },
+            drift: { type: "string", description: "on or off: ping the lead only when cards disagree with their evidence (see reconcile)" },
             json,
           },
           async run(input) {
@@ -294,8 +325,77 @@ export default function plugin(bb: BbPluginApi) {
               if (!/^(on|off)$/i.test(follow)) throw new PluginCliError("Use --follow-prs on or --follow-prs off.");
               change.followPrs = /^on$/i.test(follow);
             }
+            const drift = input.options.drift;
+            if (drift !== undefined) {
+              if (!/^(on|off)$/i.test(drift)) throw new PluginCliError("Use --drift on or --drift off.");
+              change.driftPings = /^on$/i.test(drift);
+            }
             const meta = Object.keys(change).length ? await writeMeta(project.id, change) : await readMeta(project.id);
             return { exitCode: 0, stdout: input.options.json ? JSON.stringify(meta) + "\n" : describeLoop(meta).join("\n") + "\n" };
+          },
+        }),
+        reconcile: cliCommand({
+          summary: "List cards whose stored status disagrees with the evidence (PRs, agents, commits, sub-tasks, idle time), with the suggested move",
+          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          options: {
+            apply: { type: "boolean", description: "Apply the suggested moves, except Done and Canceled, which stay yours to write" },
+            json,
+          },
+          async run(input) {
+            const project = await resolveProject(input.positionals.project);
+            const result = await board.reconcile(project, true);
+            const applied = input.options.apply ? await board.apply(project, result) : null;
+            if (input.options.json) return { exitCode: applied?.failed.length ? 1 : 0, stdout: JSON.stringify({ project: project.prefix, ...result, applied }) + "\n" };
+            const lines: string[] = [];
+            if (result.drifts.length === 0) lines.push(`${project.prefix}: every card matches its evidence.`);
+            else {
+              lines.push(`${project.prefix}: ${result.drifts.length} card${result.drifts.length === 1 ? "" : "s"} behind the evidence:`);
+              for (const drift of result.drifts) {
+                const tag = applied?.moved.includes(drift.key) ? " [applied]" : drift.applicable ? "" : " [yours to write]";
+                lines.push(`- ${describeDrift(drift)}${tag}`);
+              }
+            }
+            if (result.flags.length) {
+              lines.push("", "Also check:");
+              for (const flag of result.flags) lines.push(`- ${flag.key} ${flag.title}: ${flag.text}`);
+            }
+            if (applied?.failed.length) {
+              lines.push("", "Failed to apply:");
+              for (const failure of applied.failed) lines.push(`- ${failure.key}: ${failure.error}`);
+            }
+            if (!applied && result.drifts.some((drift) => drift.applicable)) lines.push("", `Run with --apply to make the moves that aren't Done.`);
+            return { exitCode: applied?.failed.length ? 1 : 0, stdout: lines.join("\n") + "\n" };
+          },
+        }),
+        "queue-backlog": cliCommand({
+          summary: "One-time move of every Backlog card to Queued (todo), since the board shows both as Queued; lists them unless --apply",
+          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          options: { apply: { type: "boolean", description: "Move them now" }, json },
+          async run(input) {
+            const project = await resolveProject(input.positionals.project);
+            const backlog = (await tasksOf(project.id)).filter((task) => task.status === "backlog");
+            const moved: string[] = [];
+            const failed: { key: string; error: string }[] = [];
+            if (input.options.apply) {
+              for (const task of backlog) {
+                const outcome = await bb.sdk.plugins
+                  .callRpc({ pluginId: TASKS_PLUGIN, method: "updateTask", input: { taskId: task.id, status: "todo" }, outputSchema: tasksContract.updateTask.output })
+                  .catch((cause: unknown) => ({ ok: false as const, error: { message: cause instanceof Error ? cause.message : String(cause) } }));
+                if (outcome.ok) moved.push(task.key);
+                else failed.push({ key: task.key, error: outcome.error.message });
+              }
+              board.invalidate(project.id);
+            }
+            if (input.options.json) {
+              return { exitCode: failed.length ? 1 : 0, stdout: JSON.stringify({ project: project.prefix, backlog: backlog.map((task) => task.key), moved, failed }) + "\n" };
+            }
+            const lines =
+              backlog.length === 0
+                ? [`${project.prefix} has no Backlog cards.`]
+                : input.options.apply
+                  ? [`Moved ${moved.length} of ${backlog.length} Backlog cards to Queued.`, ...failed.map((failure) => `- ${failure.key}: ${failure.error}`)]
+                  : [`${backlog.length} Backlog card${backlog.length === 1 ? "" : "s"} would move to Queued:`, ...backlog.map((task) => `- ${task.key} ${task.title}`), "", "Run with --apply to move them."];
+            return { exitCode: failed.length ? 1 : 0, stdout: lines.join("\n") + "\n" };
           },
         }),
         lead: cliCommand({

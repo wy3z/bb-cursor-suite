@@ -178,5 +178,5 @@ export function createLoop(bb: BbPluginApi, deps: LoopDeps) {
     },
   });
 
-  return { readNotes, writeNotes, leadStatus };
+  return { readNotes, writeNotes, leadStatus, deliver };
 }

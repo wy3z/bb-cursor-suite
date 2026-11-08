@@ -3,7 +3,7 @@ import { experimental_Icon as Icon, experimental_useRpcQuery, useRpc } from "@ge
 import { shortAgo } from "@wy3z/bb-suite/time";
 import { NOTES_MAX, SWEEP_CHOICES, projectsContract, type ProjectMeta } from "./meta";
 
-type LoopChange = { sweepMinutes?: number | null; sweepWorkingHours?: boolean; followPrs?: boolean };
+type LoopChange = { sweepMinutes?: number | null; sweepWorkingHours?: boolean; followPrs?: boolean; driftPings?: boolean };
 
 function sweepLabel(minutes: number | null): string {
   if (minutes === null) return "Off";
@@ -12,6 +12,7 @@ function sweepLabel(minutes: number | null): string {
 
 function summary(meta: ProjectMeta, inbox: number): string {
   const parts = [meta.sweepMinutes === null ? "No sweep" : `Sweep ${sweepLabel(meta.sweepMinutes).toLowerCase()}`];
+  if (meta.driftPings) parts.push("drift pings");
   if (meta.followPrs) parts.push("follows PRs");
   if (inbox) parts.push(`${inbox} from outer loop`);
   return parts.join(" · ");
@@ -107,7 +108,11 @@ export function LoopCard({
               ) : null}
             </select>
           </div>
-          {meta.sweepMinutes !== null ? (
+          <label className="bbp-loop__row bbp-loop__check">
+            <input type="checkbox" checked={meta.driftPings} onChange={(event) => void onChange({ driftPings: event.currentTarget.checked })} />
+            <span>Ping the lead when cards fall behind their evidence</span>
+          </label>
+          {meta.sweepMinutes !== null || meta.driftPings ? (
             <label className="bbp-loop__row bbp-loop__check">
               <input type="checkbox" checked={meta.sweepWorkingHours} onChange={(event) => void onChange({ sweepWorkingHours: event.currentTarget.checked })} />
               <span>Weekdays 08:00–19:00 only</span>
