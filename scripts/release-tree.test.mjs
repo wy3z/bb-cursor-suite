@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, gitRun } from "./release-tree.mjs";
+import { git, gitRun, releaseTree } from "./release-tree.mjs";
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), "suite-release-push-"));
@@ -33,6 +33,16 @@ test("git returns an empty string when stdout is inherited", (t) => {
 test("git still trims piped output", (t) => {
   const dir = repository(t);
   assert.equal(git(["rev-parse", "--is-inside-work-tree"], { cwd: dir }), "true");
+});
+
+test("releaseTree vendors every suite-shared asset", () => {
+  const { tree, vendored } = releaseTree(git(["rev-parse", "HEAD"]), "plugins/cursor-sidebar");
+  assert.equal(vendored, true);
+  const files = git(["ls-tree", "-r", "--name-only", tree]).split("\n");
+  for (const asset of ["project-icon.css", "tokens.css", "LICENSE", "README.md", "THIRD-PARTY-NOTICES.md"]) {
+    assert.ok(files.includes(`plugins/cursor-sidebar/vendor/bb-suite/${asset}`), `missing ${asset}`);
+  }
+  assert.ok(files.includes("plugins/cursor-sidebar/vendor/bb-suite/src/project-icon.ts"));
 });
 
 test("gitRun pushes every ref it is given", (t) => {

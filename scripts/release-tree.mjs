@@ -36,7 +36,7 @@ export function releaseTree(base, dir) {
       const [meta, path] = line.split("\t");
       const [mode, , object] = meta.split(" ");
       const rel = path.slice(sharedDir.length + 1);
-      if (!(rel.startsWith("src/") || rel === "tokens.css" || rel === "README.md" || rel === "LICENSE")) continue;
+      if (rel === "package.json" || rel.startsWith("test/")) continue;
       git(["update-index", "--add", "--cacheinfo", `${mode},${object},${dir}/${vendorDir}/${rel}`], { env });
     }
     const sharedPkg = JSON.parse(git(["show", `${base}:${sharedDir}/package.json`]));
