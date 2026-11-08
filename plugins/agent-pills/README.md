@@ -101,12 +101,12 @@ status swaps for actions on hover, five rows then "More".
   Create PR commits first if needed, pushes the branch and runs
   `gh pr create --fill` against the environment's base branch, or returns the
   pull request already open for the branch. Progress and the result show
-  under the buttons. The Pull Requests plugin owns these actions: Agent Pills
-  draws the buttons and calls its git actions, which run git and `gh` from
-  that plugin's backend, so they only work for environments on the BB server's
-  own machine. Without Pull Requests installed and enabled, the buttons and
-  message box are disabled and the bar reads "Needs Pull Requests"; enabling
-  or disabling it updates the bar without a reload.
+  under the buttons. The Pull Requests plugin owns these actions: Cursor
+  Composer draws the buttons and calls its git actions, which run git and `gh`
+  from that plugin's backend, so they only work for environments on the BB
+  server's own machine. Without Pull Requests installed and enabled, the
+  buttons and message box are disabled and the bar reads "Needs Pull
+  Requests"; enabling or disabling it updates the bar without a reload.
 - **Apply locally.** A child thread in its own worktree gets a download
   button on hover in the Agents tray. It copies everything the worktree has
   against the parent's checkout (commits, uncommitted and untracked files,
