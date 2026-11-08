@@ -1518,7 +1518,13 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
           }}
         />
       ) : null}
-      <div className="cs-managers shrink-0 px-1.5 pt-2">
+      <div
+        ref={listRef}
+        data-fade-more={listHasMore ? "true" : undefined}
+        onKeyDown={handleListKeyDown}
+        className="cs-scroll relative min-h-0 flex-1 overflow-y-auto px-1.5 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+      <div className="cs-managers pt-2">
                 <GroupHeading
                   label="Projects"
                   open={!topGroupCollapsed.ids.has("projects-boards")}
@@ -1620,14 +1626,6 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
                   </div>
                 </Drawer>
               </div>
-
-
-      <div
-        ref={listRef}
-        data-fade-more={listHasMore ? "true" : undefined}
-        onKeyDown={handleListKeyDown}
-        className="relative min-h-0 flex-1 overflow-y-auto px-1.5 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
 
         <p aria-live="polite" className="sr-only">
           {announcement}
