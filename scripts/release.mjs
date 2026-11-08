@@ -1,11 +1,9 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { installCheck } from "./install-check.mjs";
+import { git, json, releaseTree, root } from "./release-tree.mjs";
+import { checkVersions, compareVersions, parseVersion } from "./versions.mjs";
 
-const root = resolve(import.meta.dirname, "..");
-const sharedDir = "packages/suite-shared";
-const vendorDir = "vendor/bb-suite";
 const legacy = {
   "cursor-sidebar": { branch: "legacy/cursor-sidebar", remote: "origin", remoteBranch: "legacy/cursor-sidebar" },
   "ui-tweaks": { branch: "legacy/ui-tweaks", remote: "ui-tweaks-mirror", remoteBranch: "main" },
@@ -16,8 +14,29 @@ function usage(code) {
   process.exit(code);
 }
 
-function git(args, options = {}) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "inherit"], ...options }).trim();
+function remoteVersions(remote, pattern, prefix) {
+  let out;
+  try {
+    out = git(["ls-remote", "--tags", remote, pattern]);
+  } catch {
+    console.error(`Could not list tags on ${remote}; refusing to release without checking what is published.`);
+    process.exit(1);
+  }
+  const versions = new Set();
+  for (const line of out.split("\n").filter(Boolean)) {
+    const ref = line.split("\t")[1].replace(/\^\{\}$/, "");
+    const name = ref.slice("refs/tags/".length);
+    if (name.startsWith(prefix) && parseVersion(name.slice(prefix.length))) versions.add(name.slice(prefix.length));
+  }
+  return [...versions];
+}
+
+function refuseIfPublished(remote, pattern, prefix, label) {
+  const newer = remoteVersions(remote, pattern, prefix).filter((published) => compareVersions(parseVersion(published), parseVersion(version)) >= 0);
+  if (newer.length) {
+    console.error(`${label} on ${remote} already has ${newer.map((v) => `${prefix}${v}`).join(", ")}; ${version} must be higher than every published version.`);
+    process.exit(1);
+  }
 }
 
 function refExists(ref) {
@@ -27,14 +46,6 @@ function refExists(ref) {
   } catch {
     return false;
   }
-}
-
-function blob(text) {
-  return git(["hash-object", "-w", "--stdin"], { input: text });
-}
-
-function json(value) {
-  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 const argv = process.argv.slice(2);
@@ -60,52 +71,63 @@ if (git(["status", "--porcelain"])) {
   console.error("Working tree is not clean.");
   process.exit(1);
 }
+const problems = checkVersions(root, { [id]: version });
+if (problems.length) {
+  console.error(`Refusing to release ${id} v${version}; versions and ranges are inconsistent:`);
+  for (const problem of problems) console.error(`  ${problem}`);
+  process.exit(1);
+}
 const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
 if (branch !== "main") console.warn(`Releasing from ${branch}, not main.`);
 
 const pkgPath = join(root, dir, "package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+if (compareVersions(parseVersion(version), parseVersion(pkg.version)) < 0) {
+  console.error(`Refusing to downgrade ${id} from ${pkg.version} to ${version}.`);
+  process.exit(1);
+}
+refuseIfPublished("origin", `refs/tags/${id}/v*`, `${id}/v`, `${id}`);
+const stream = legacy[id];
+const pushLegacy = Boolean(stream) && !flags.has("--no-legacy");
+if (pushLegacy) refuseIfPublished(stream.remote, "refs/tags/v*", "v", `The ${id} legacy stream`);
+
+const startHead = git(["rev-parse", "HEAD"]);
+let bumped = false;
 if (pkg.version !== version) {
   pkg.version = version;
   writeFileSync(pkgPath, json(pkg));
-  git(["add", join(dir, "package.json")]);
+  const lockPath = join(root, "package-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  if (lock.packages?.[dir]) {
+    lock.packages[dir].version = version;
+    writeFileSync(lockPath, json(lock));
+  }
+  git(["add", join(dir, "package.json"), "package-lock.json"]);
   git(["commit", "-q", "-m", `Release ${id} v${version}`]);
+  bumped = true;
 }
 const base = git(["rev-parse", "HEAD"]);
 
-let release = base;
-if (pkg.dependencies?.["@wy3z/bb-suite"]) {
-  const scratch = mkdtempSync(join(tmpdir(), "suite-release-"));
-  const env = { ...process.env, GIT_INDEX_FILE: join(scratch, "index") };
-  try {
-    git(["read-tree", base], { env });
-    const files = git(["ls-tree", "-r", base, "--", sharedDir]).split("\n").filter(Boolean);
-    for (const line of files) {
-      const [meta, path] = line.split("\t");
-      const [mode, , object] = meta.split(" ");
-      const rel = path.slice(sharedDir.length + 1);
-      if (!(rel.startsWith("src/") || rel === "tokens.css" || rel === "README.md" || rel === "LICENSE")) continue;
-      git(["update-index", "--add", "--cacheinfo", `${mode},${object},${dir}/${vendorDir}/${rel}`], { env });
+const built = releaseTree(base, dir);
+const release = built.vendored
+  ? git(["commit-tree", built.tree, "-p", base, "-m", `Release ${id} v${version} with @wy3z/bb-suite vendored\n\nSource: ${base}`])
+  : base;
+const layouts = pushLegacy ? [false, true] : [false];
+for (const layout of layouts) {
+  if (!installCheck({ id, dir, tree: built.tree, legacy: layout }).ok) {
+    if (bumped) {
+      git(["reset", "-q", "--keep", startHead]);
+      console.error(`Dropped the local version bump commit; ${branch} is back at ${startHead.slice(0, 12)}.`);
     }
-    const sharedPkg = JSON.parse(git(["show", `${base}:${sharedDir}/package.json`]));
-    delete sharedPkg.devDependencies;
-    delete sharedPkg.scripts;
-    git(["update-index", "--add", "--cacheinfo", `100644,${blob(json(sharedPkg))},${dir}/${vendorDir}/package.json`], { env });
-    const vendored = { ...pkg, dependencies: { ...pkg.dependencies, "@wy3z/bb-suite": `file:./${vendorDir}` } };
-    if (Array.isArray(vendored.files) && !vendored.files.includes("vendor")) vendored.files = [...vendored.files, "vendor"];
-    git(["update-index", "--add", "--cacheinfo", `100644,${blob(json(vendored))},${dir}/package.json`], { env });
-    const tree = git(["write-tree"], { env });
-    release = git(["commit-tree", tree, "-p", base, "-m", `Release ${id} v${version} with @wy3z/bb-suite vendored\n\nSource: ${base}`]);
-  } finally {
-    rmSync(scratch, { recursive: true, force: true });
+    console.error(`Refusing to tag ${tag}: the release layout does not install.`);
+    process.exit(1);
   }
 }
 git(["tag", "-a", tag, release, "-m", `${id} v${version}`]);
 const pushes = [["origin", `refs/heads/${branch}`], ["origin", `refs/tags/${tag}`]];
 console.log(`Tagged ${tag} at ${release.slice(0, 12)}${release === base ? "" : ` (vendored, source ${base.slice(0, 12)})`}`);
 
-const stream = legacy[id];
-if (stream && !flags.has("--no-legacy")) {
+if (pushLegacy) {
   const legacyTag = `v${version}`;
   if (stream.remote !== "origin" && refExists(`refs/tags/${legacyTag}`)) {
     console.error(`Tag ${legacyTag} exists locally; it would clash with the ${stream.remote} stream.`);

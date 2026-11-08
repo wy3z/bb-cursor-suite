@@ -27,12 +27,14 @@ Or install one plugin straight from Git. Each plugin has its own tags, `<id>/vX.
 
 ```sh
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.4 --plugin cursor-sidebar --tag-prefix cursor-sidebar/
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin agent-pills --tag-prefix agent-pills/
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.0 --plugin filetree --tag-prefix filetree/
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin projects --tag-prefix projects/
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin pull-requests --tag-prefix pull-requests/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin agent-pills --tag-prefix agent-pills/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin filetree --tag-prefix filetree/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin projects --tag-prefix projects/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin pull-requests --tag-prefix pull-requests/
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plugin ui-tweaks --tag-prefix ui-tweaks/
 ```
+
+Agent Pills, Files, Projects and Pull Requests are on 1.x. Cursor Sidebar stays on 0.3.x and UI Tweaks on 0.30.x, so the installs already out there keep getting updates: moving them to a new range means a reinstall, which deletes their settings.
 
 Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range keep updating from the root-level `vX.Y.Z` tags on the `legacy/cursor-sidebar` branch. UI Tweaks keeps publishing to `wy3z/bb-plugin-ui-tweaks`.
 
@@ -59,6 +61,18 @@ npm run release -- <plugin-id> <x.y.z>
 ```
 
 The script bumps the plugin's version on the current branch, writes a release commit with `packages/suite-shared` vendored into `plugins/<id>/vendor/bb-suite` when the plugin uses it, and tags that commit `<id>/vX.Y.Z`. For `cursor-sidebar` and `ui-tweaks` it also adds the root-level legacy commit and tag. Nothing is pushed unless you pass `--push`; otherwise it prints the push commands. Never move a published tag.
+
+Before it changes anything, the script runs `npm run versions` with the new version and refuses to release when:
+
+- Agent Pills, Files, Projects or Pull Requests would drop below 1.0.0.
+- Cursor Sidebar or UI Tweaks would leave its legacy stream (`^0.3.2`, `^0.30.0`). Ending a stream on purpose means removing it from `legacyStreams` in `scripts/versions.mjs`.
+- The range in `marketplace/marketplace.json` would never offer the new version, or an install or marketplace line in this README or any plugin README disagrees with it.
+- A plugin depends on `@wy3z/bb-suite` with anything but `file:../../packages/suite-shared`, or lists it as a peer, optional or bundled dependency. Any of those would send BB's install to the public npm registry.
+- `package-lock.json` has a stale version.
+
+It also refuses a downgrade, and any version at or below one already tagged on origin (or on the legacy stream's remote). It then runs the install check below on the exact tree it is about to tag, for the legacy layout too, and only tags if that passes. If it fails, the script drops the version bump commit it made.
+
+`npm run install-check -- <plugin-id>` builds the layout the release would tag, installs it the way BB does (BB's bundled npm with `--prefix`, `--omit=dev` and `--ignore-scripts`, then `bb plugin build`). It checks that `@wy3z/bb-suite` resolved to the vendored copy and that each `dist/*.meta.json` carries the right plugin id and version. Add `--legacy` for the root-level stream, or `--ref <tag>` to check a published tag. CI runs it for every plugin on each pull request and for the tagged plugin on each `<id>/vX.Y.Z` push.
 
 ## Licence
 

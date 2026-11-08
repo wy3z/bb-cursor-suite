@@ -16,7 +16,9 @@
     "build": "node scripts/suite.mjs build --changed",
     "test": "node scripts/suite.mjs test --changed",
     "typecheck": "node scripts/suite.mjs typecheck --changed",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "versions": "node scripts/versions.mjs",
+    "install-check": "node scripts/install-check.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -153,7 +153,7 @@ The panel also appears in BB's navigation like any plugin page.
 
 ```sh
 bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin pull-requests --tag-prefix pull-requests/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin pull-requests --tag-prefix pull-requests/
 ```
 
 ## Develop

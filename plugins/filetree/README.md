@@ -15,7 +15,7 @@ File access is read-only.
 
 ```sh
 bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
-bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.0 --plugin filetree --tag-prefix filetree/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin filetree --tag-prefix filetree/
 ```
 
 Requires BB 0.49+. Runs on macOS (Apple silicon and Intel), Linux (x64 and Arm64, glibc 2.29 or newer) and Windows x64. On any other machine the Files tab says it can't browse that machine.
