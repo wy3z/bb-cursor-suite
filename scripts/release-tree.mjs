@@ -8,7 +8,12 @@ export const root = resolve(import.meta.dirname, "..");
 export const vendorDir = "vendor/bb-suite";
 
 export function git(args, options = {}) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "inherit"], ...options }).trim();
+  const out = execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "inherit"], ...options });
+  return out === null ? "" : out.trim();
+}
+
+export function gitRun(args, options = {}) {
+  execFileSync("git", args, { cwd: root, stdio: "inherit", ...options });
 }
 
 export function json(value) {
