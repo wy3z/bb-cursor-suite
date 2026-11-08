@@ -63,7 +63,8 @@ is unavailable.
 ## Installation
 
 ```sh
-bb plugin install git:https://github.com/wy3z/bb-plugin-ui-tweaks.git
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plugin ui-tweaks --tag-prefix ui-tweaks/
 ```
 
 ## Development
@@ -89,3 +90,7 @@ Full notices ship in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

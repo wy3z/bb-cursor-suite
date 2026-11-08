@@ -22,3 +22,7 @@ Every request goes through the GitHub CLI (`gh`) already signed in on the BB
 server's machine, with prompts disabled. Results are cached for a minute, and
 reads pause for 15 minutes if GitHub's rate limit is hit. The only write is a
 comment, and only when you press Comment.
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

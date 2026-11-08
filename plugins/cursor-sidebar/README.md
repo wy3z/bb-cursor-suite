@@ -201,8 +201,8 @@ with `bb plugin disable cursor-sidebar`.
 ## Install
 
 ```sh
-bb plugin install git:https://github.com/wy3z/bb-plugin-cursor-sidebar.git
-bb plugin reload cursor-sidebar
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.4 --plugin cursor-sidebar --tag-prefix cursor-sidebar/
 ```
 
 ## Development
@@ -224,5 +224,9 @@ that has the SDK installed.
 
 ## License
 
-MIT. Portions adapted from bb-plugin-thread-inbox and T3 Code. See
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT, see [LICENSE](LICENSE). Portions adapted from bb-plugin-thread-inbox and
+T3 Code. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

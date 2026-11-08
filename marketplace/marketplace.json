@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "name": "bb-cursor-suite",
   "displayName": "BB Cursor Suite",
-  "description": "Plugins that make BB look and work like Cursor. Each one works on its own.",
+  "description": "Plugins that make BB look and work like Cursor. Each one works on its own. Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.",
   "plugins": [
     {
       "id": "cursor-sidebar",

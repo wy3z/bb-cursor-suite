@@ -55,3 +55,7 @@ discovery as unavailable. The plugin sends no data to an external service.
 
 BB `>=0.49 <0.50` and Plugin SDK `>=0.6.132 <0.7`. No external service, account, or
 separate install is needed.
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

@@ -149,6 +149,13 @@ page, so the button is registered as a disclosure whose component calls
 `useBbNavigate().toPluginPanel(...)` on mount and dismisses itself.
 The panel also appears in BB's navigation like any plugin page.
 
+## Install
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin pull-requests --tag-prefix pull-requests/
+```
+
 ## Develop
 
 ```sh
@@ -161,22 +168,10 @@ bb plugin install . --yes   # first time; then: bb plugin reload pull-requests
 
 ## Licence
 
-Code ported from Zeron is © 2026 Wing, MIT licence:
+MIT, see [LICENSE](LICENSE). Code ported from Zeron, and project icons from
+T3 Code; both notices are in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-> Permission is hereby granted, free of charge, to any person obtaining a copy
-> of this software and associated documentation files (the "Software"), to deal
-> in the Software without restriction, including without limitation the rights
-> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-> copies of the Software, and to permit persons to whom the Software is
-> furnished to do so, subject to the following conditions:
->
-> The above copyright notice and this permission notice shall be included in
-> all copies or substantial portions of the Software.
->
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-> SOFTWARE.
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
