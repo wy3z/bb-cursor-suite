@@ -12,9 +12,7 @@ bb plugin install .
 
 The repository contains **FileTree** (`bb-plugin-filetree`, plugin ID `filetree`).
 
-The plugin pins public SDK 0.6.132 and requires BB 0.49 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
-
-This release is verified on Linux x64. macOS requires building and verifying on the target platform. Windows is unsupported. The Linux binary must match the target libc. Unsupported or missing native binaries fail closed.
+The plugin pins public SDK 0.6.132 and requires BB 0.49 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. The descriptor-based native addon is embedded in the host artifact for darwin-arm64, darwin-x64, linux-arm64, linux-x64 and win32-x64, so the enrolled host does not need a compiler. On any other host, or when the addon can't load (for example on musl), the Files tab shows why instead of a file tree. Confinement fails closed.
 
 To prepare an installable package after the build:
 
@@ -23,7 +21,21 @@ npm pack
 bb plugin install ./bb-plugin-filetree-0.3.0.tgz
 ```
 
-This standalone repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `npm run build` regenerates them from source. Commit updated generated assets with source changes before publishing. For multi-platform packages, supply the corresponding `prebuilds/linux-x64.node`, `linux-arm64.node`, `darwin-x64.node`, or `darwin-arm64.node` files before generation.
+The repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `npm run build` regenerates them from source. Commit updated generated assets with source changes before publishing.
+
+## Native addon
+
+`host/native/host_native_files.c` is the POSIX addon (Linux and macOS). `host/native/host_native_files_win.c` is the Windows port: it opens each path component relative to its parent handle with `NtCreateFile`, refuses symbolic links and junctions, runs Git with the root as its working directory inside a job object, and uses Git for Windows from Program Files or `%LOCALAPPDATA%\Programs\Git`.
+
+`generated/native-assets.ts` embeds one build per platform, each tagged with a digest of the C sources. `npm run generate` only compiles the addon for your machine when its embedded build doesn't match the current source, which needs a C compiler, Python and Node headers. A test fails until every platform carries a build of the current source.
+
+The "Files native addon" workflow (`.github/workflows/files-native.yml`) builds and tests the addon on native runners for every platform. Linux builds run in a Debian bullseye container so the addon needs glibc GLIBC_FLOOR or newer rather than the runner's. After changing the C source, push, let the workflow finish, then import its result:
+
+```sh
+gh run download <run-id> --repo wy3z/bb-cursor-suite --name files-native-assets --dir plugins/filetree/generated
+```
+
+`node scripts/native-assets.mjs --check` reports any platform that is missing or stale.
 
 ## CLI
 

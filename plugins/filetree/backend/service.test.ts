@@ -35,6 +35,7 @@ async function setup() {
   });
   cleanups.push(() => worker.experimental_dispose());
   let currentPath = workspace;
+  const hostState: { support: unknown } = { support: { kind: "supported" } };
   const read = vi.fn(
     async (input: Parameters<BbPluginApi["sdk"]["files"]["read"]>[0]) => {
       input.signal?.throwIfAborted();
@@ -107,6 +108,8 @@ async function setup() {
             hostContract.gitStatus.input.parse(input),
             { signal },
           );
+        case "support":
+          return hostState.support;
         default:
           throw new Error(`Unexpected method ${method}`);
       }
@@ -125,12 +128,28 @@ async function setup() {
     workspace,
     rootId: roots.activeRootId,
     roots,
+    hostState,
     moveRoot: () => {
       currentPath = join(directory, "moved");
     },
   };
 }
 describe("Files plugin server and host", () => {
+  it("shows the host's unsupported reason instead of roots", async () => {
+    const test = await setup();
+    test.hostState.support = {
+      kind: "unsupported",
+      platform: "win32-arm64",
+      reason: "Files can't browse this machine (win32-arm64) yet.",
+    };
+    expect(
+      await test.harness.callRpc("roots", { threadId: "thread-1" }),
+    ).toEqual({
+      kind: "unavailable",
+      reason: "Files can't browse this machine (win32-arm64) yet.",
+      threadId: "thread-1",
+    });
+  });
   it("deduplicates the workspace source and rejects caller-supplied host paths", async () => {
     const test = await setup();
     expect(test.roots.roots).toHaveLength(1);
@@ -149,7 +168,11 @@ describe("Files plugin server and host", () => {
         path: "../",
       }),
     ).rejects.toThrow();
-    expect(test.harness.inspection.experimental_hostRpcCalls).toHaveLength(0);
+    expect(
+      test.harness.inspection.experimental_hostRpcCalls.filter(
+        (call) => call.method !== "support",
+      ),
+    ).toHaveLength(0);
   });
   it("lists and searches through the host and refuses stale root identities", async () => {
     const test = await setup();
@@ -209,7 +232,11 @@ describe("Files plugin server and host", () => {
         rootPath: test.workspace,
       }),
     );
-    expect(test.harness.inspection.experimental_hostRpcCalls).toHaveLength(0);
+    expect(
+      test.harness.inspection.experimental_hostRpcCalls.filter(
+        (call) => call.method !== "support",
+      ),
+    ).toHaveLength(0);
   });
   it("preserves a UTF-8 BOM and reuses an unchanged download snapshot", async () => {
     const test = await setup();

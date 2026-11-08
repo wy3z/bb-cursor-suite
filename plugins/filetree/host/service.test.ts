@@ -19,8 +19,9 @@ import {
   createLinuxProcFdPrimitive,
   linuxDescriptorPath,
 } from "./confinement.js";
-import { loadNativeFilesAddon } from "./native-addon.js";
+import { loadNativeFilesAddon, prepareNativeAddon } from "./native-addon.js";
 const execFileAsync = promisify(execFile);
+await prepareNativeAddon(await mkdtemp(join(tmpdir(), "bb-native-files-addon-")));
 const services: NativeFileHostService[] = [];
 async function fixture() {
   const base = await mkdtemp(join(tmpdir(), "bb-native-files-"));
@@ -47,7 +48,9 @@ async function swapDirectory(root: string, outside: string): Promise<void> {
 afterEach(async () => {
   await Promise.all(services.splice(0).map((entry) => entry.dispose()));
 });
-describe.runIf(loadNativeFilesAddon() !== null)("NativeFileHostService", () => {
+describe.runIf(
+  process.platform !== "win32" && loadNativeFilesAddon() !== null,
+)("NativeFileHostService", () => {
   it("reads the opened file object when its pathname is swapped", async () => {
     const { outside, root } = await fixture();
     const host = service({

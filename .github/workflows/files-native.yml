@@ -1,0 +1,121 @@
+name: Files native addon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - plugins/filetree/host/**
+      - plugins/filetree/host.ts
+      - plugins/filetree/contracts/**
+      - plugins/filetree/generated/native-assets.ts
+      - plugins/filetree/scripts/native-assets.mjs
+      - .github/workflows/files-native.yml
+  pull_request:
+    paths:
+      - plugins/filetree/host/**
+      - plugins/filetree/host.ts
+      - plugins/filetree/contracts/**
+      - plugins/filetree/generated/native-assets.ts
+      - plugins/filetree/scripts/native-assets.mjs
+      - .github/workflows/files-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: files-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    container: node:22-bullseye
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci --no-audit --no-fund
+      - name: Build the addon
+        working-directory: plugins/filetree
+        run: node scripts/native-assets.mjs --native
+      - name: Test the embedded addon
+        working-directory: plugins/filetree
+        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: files-prebuild-${{ matrix.platform }}
+          path: |
+            plugins/filetree/prebuilds/${{ matrix.platform }}.node
+            plugins/filetree/prebuilds/${{ matrix.platform }}.json
+          if-no-files-found: error
+
+  native:
+    name: build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-15
+          - platform: darwin-x64
+            runner: macos-15-intel
+          - platform: win32-x64
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build the addon
+        working-directory: plugins/filetree
+        run: node scripts/native-assets.mjs --native
+      - name: Test the embedded addon
+        working-directory: plugins/filetree
+        run: npx vitest run --config vitest.config.ts host/platform.test.ts host/service.test.ts host/git-env.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: files-prebuild-${{ matrix.platform }}
+          path: |
+            plugins/filetree/prebuilds/${{ matrix.platform }}.node
+            plugins/filetree/prebuilds/${{ matrix.platform }}.json
+          if-no-files-found: error
+
+  collect:
+    needs: [linux, native]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: files-prebuild-*
+          path: plugins/filetree/prebuilds
+          merge-multiple: true
+      - name: Embed every platform
+        working-directory: plugins/filetree
+        run: node scripts/native-assets.mjs --prebuilt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: files-native-assets
+          path: plugins/filetree/generated/native-assets.ts
+          if-no-files-found: error
+      - name: Compare with the committed file
+        run: |
+          if git diff --quiet -- plugins/filetree/generated/native-assets.ts; then
+            echo "The committed native-assets.ts matches this build."
+          else
+            echo "::notice::native-assets.ts differs from the committed file. Import the files-native-assets artifact if the C source changed."
+          fi

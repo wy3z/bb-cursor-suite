@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import path from "node:path";
 import {
   NATIVE_FILE_DIRECTORY_ENTRY_LIMIT,
   NATIVE_FILE_GIT_ENTRY_LIMIT,
@@ -21,6 +20,7 @@ import {
   type OpenatPrimitive,
 } from "./confinement.js";
 import { NativeFileHostError, remapFilesystemError } from "./errors.js";
+import { hostPathFlavor } from "../contracts/host-path.js";
 export { NativeFileHostError, type NativeFileHostErrorCode } from "./errors.js";
 const GIT_OUTPUT_LIMIT = 16 * 1024 * 1024;
 const GIT_TIMEOUT_MS = 15000;
@@ -232,7 +232,11 @@ export class NativeFileHostService {
     rootBindingId: string;
   }> {
     const primitive = this.primitive();
-    if (!path.posix.isAbsolute(rootPath) || rootPath.includes("\0")) {
+    if (
+      hostPathFlavor(rootPath) !==
+        (process.platform === "win32" ? "windows" : "posix") ||
+      rootPath.includes("\0")
+    ) {
       throw new NativeFileHostError(
         "native_file_invalid_path",
         "Root path must be absolute",
