@@ -65,7 +65,8 @@ export function TaskDetail({
   const threads = useTaskThreads(task.id, true);
   const pullRequests = useTaskPullRequests(task.id, true);
   const summaries = usePullRequestSummaries(pullRequests.filter((pr) => pr.state === "open").map((pr) => pr.url));
-  const attachments = useAttachments(task.id, true);
+  const attachmentState = useAttachments(task.id, true);
+  const attachments = attachmentState.kind === "ready" ? attachmentState.items : [];
   const lightbox = useLightbox(attachments.filter((attachment) => attachment.isImage));
   const derived = useDerived(task, threads, pullRequests, ctx);
   const agents = agentViews(threads, ctx.threads, ctx.now);
@@ -253,6 +254,11 @@ export function TaskDetail({
             <h3>Attachments</h3>
             <AttachmentList attachments={attachments} onImage={lightbox.open} />
             {lightbox.element}
+          </section>
+        ) : attachmentState.kind === "error" ? (
+          <section className="bbp-detail__section">
+            <h3>Attachments</h3>
+            <p className="bbp-detail__muted">Couldn't load attachments: {attachmentState.message}</p>
           </section>
         ) : null}
 

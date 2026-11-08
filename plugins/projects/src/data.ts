@@ -23,6 +23,7 @@ import {
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { projectsContract, type ReconcileView } from "./meta";
 import { COLUMNS, columnOf, type Column } from "./status";
+import { loadState, type LoadState } from "./moves";
 
 const REFRESH_MS = 15_000;
 
@@ -307,26 +308,7 @@ export function usePullRequestSummaries(urls: readonly string[]): ReadonlyMap<st
   }, [query.data]);
 }
 
-export type PrStatus = "merged" | "closed" | "draft" | "conflict" | "ci-failing" | "ready" | "waiting";
-
-export function prStatus(pr: PullRequest, summary: PullRequestSummary | undefined): PrStatus {
-  if (pr.state === "merged" || pr.state === "closed" || pr.state === "draft") return pr.state;
-  if (!summary) return "waiting";
-  if (summary.mergeability === "conflicting") return "conflict";
-  if (summary.ci.state === "failed") return "ci-failing";
-  const reviewed = summary.reviewDecision === "approved" || (summary.reviewDecision === "unknown" && summary.mergeability === "mergeable");
-  return summary.ci.state === "passed" && reviewed ? "ready" : "waiting";
-}
-
-export const PR_STATUS: Record<PrStatus, { icon: string; label: string }> = {
-  merged: { icon: "GitMerge", label: "Merged" },
-  closed: { icon: "GitPullRequestClosed", label: "Closed" },
-  draft: { icon: "GitPullRequestDraft", label: "Draft" },
-  conflict: { icon: "GitPullRequest", label: "Conflicts" },
-  "ci-failing": { icon: "CircleX", label: "CI Failing" },
-  ready: { icon: "GitPullRequestArrow", label: "Ready" },
-  waiting: { icon: "GitPullRequest", label: "Waiting for Reviewers" },
-};
+export { PR_STATUS, prStatus, type PrStatus } from "./pr-status";
 
 const attachmentSchema = z
   .object({ id: z.string(), fileName: z.string(), mime: z.string(), sizeBytes: z.number(), isImage: z.boolean(), createdAt: z.string() })
@@ -341,9 +323,9 @@ const attachmentsContract = defineRpcContract({
   },
 });
 
-export function useAttachments(taskId: string, enabled: boolean): Attachment[] {
+export function useAttachments(taskId: string, enabled: boolean): LoadState<Attachment> {
   const query = experimental_useRpcQuery({ pluginId: TASKS_PLUGIN, contract: attachmentsContract, method: "listAttachments", input: { taskId }, enabled });
-  return query.data?.attachments ?? [];
+  return loadState({ data: query.data ? { items: query.data.attachments } : undefined, error: query.error, isLoading: query.isLoading });
 }
 
 export function attachmentUrl(id: string): string {

@@ -121,6 +121,8 @@ export function deriveStatus(input: DeriveInput): Derived | null {
   return derived && derived.status !== columnOf(input.status) ? derived : null;
 }
 
-export function canApply(derived: Derived): boolean {
-  return derived.status !== "done" && derived.status !== "canceled";
+export function canApply(derived: Pick<Derived, "status" | "rule">): boolean {
+  if (derived.rule === "idle-demotion") return derived.status === "todo";
+  if (derived.rule === "children-rollup") return derived.status === "in_progress" || derived.status === "todo";
+  return false;
 }

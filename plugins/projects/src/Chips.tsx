@@ -323,7 +323,8 @@ export function AttachmentList({ attachments, onImage }: { attachments: readonly
 
 export function AttachmentsChip({ taskId, count }: { taskId: string; count: number }) {
   const { open, setOpen, ref } = usePopover<HTMLSpanElement>();
-  const attachments = useAttachments(taskId, open);
+  const state = useAttachments(taskId, open);
+  const attachments = state.kind === "ready" ? state.items : [];
   const images = attachments.filter((attachment) => attachment.isImage);
   const lightbox = useLightbox(images);
   if (count === 0) return null;
@@ -345,7 +346,13 @@ export function AttachmentsChip({ taskId, count }: { taskId: string; count: numb
       {open ? (
         <span className="bbp-menu bbp-menu--attachments" role="dialog" aria-label="Attachments">
           <span className="bbp-menu__label">Attachments</span>
-          {attachments.length === 0 ? <span className="bbp-menu__empty">Loading…</span> : <AttachmentList attachments={attachments} onImage={lightbox.open} />}
+          {state.kind === "ready" ? (
+            <AttachmentList attachments={attachments} onImage={lightbox.open} />
+          ) : (
+            <span className="bbp-menu__empty" data-tone={state.kind === "error" ? "error" : undefined}>
+              {state.kind === "loading" ? "Loading…" : state.kind === "error" ? `Couldn't load attachments: ${state.message}` : "No attachments."}
+            </span>
+          )}
         </span>
       ) : null}
       {lightbox.element}
@@ -355,7 +362,7 @@ export function AttachmentsChip({ taskId, count }: { taskId: string; count: numb
 
 export function BehindHint({ derived, stored, onApply, compact }: { derived: Derived; stored: Task["status"]; onApply?: () => void; compact: boolean }) {
   const label = COLUMN_LABEL[derived.status];
-  const title = `Stored as ${COLUMN_LABEL[columnOf(stored)]}; the evidence says ${label}: ${derived.reason}.${canApply(derived) ? "" : " Done is written by the lead or you, never by the board."}`;
+  const title = `Stored as ${COLUMN_LABEL[columnOf(stored)]}; the evidence says ${label}: ${derived.reason}.${canApply(derived) ? "" : " The lead or you write this one; the board only applies sub-task roll-ups and idle demotions."}`;
   if (compact) {
     return (
       <span className="bbp-behind-chip" title={title}>

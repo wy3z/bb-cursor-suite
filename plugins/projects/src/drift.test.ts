@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DRIFT_GRACE_MS, DRIFT_REPEAT_MS, EMPTY_DRIFT_STATE, driftPrompt, planDriftPing } from "./drift";
+import { DRIFT_GRACE_MS, DRIFT_MIN_GAP_MS, DRIFT_REPEAT_MS, EMPTY_DRIFT_STATE, driftPrompt, planDriftPing as planWithGap, type DriftState } from "./drift";
 import type { Drift } from "./reconcile";
 
 const drift = (key: string, suggested: Drift["suggested"] = "todo", applicable = true): Drift => ({
@@ -14,6 +14,7 @@ const drift = (key: string, suggested: Drift["suggested"] = "todo", applicable =
 });
 
 const minute = 60_000;
+const planDriftPing = (state: DriftState, drifts: Drift[], now: number) => planWithGap(state, drifts, now, { minGapMs: 0 });
 
 describe("planDriftPing", () => {
   it("stays quiet when the board is clean", () => {
@@ -68,6 +69,36 @@ describe("planDriftPing", () => {
   });
 });
 
+describe("per-project rate limit", () => {
+  it("sends at most one ping per project per gap, batching every drift that ripened meanwhile", () => {
+    const keys: string[] = [];
+    let state = EMPTY_DRIFT_STATE;
+    let pings = 0;
+    let last: Drift[] | null = null;
+    for (let step = 0; step <= 12; step++) {
+      keys.push(`A-${step}`);
+      const plan = planWithGap(state, keys.map((key) => drift(key)), step * 5 * minute);
+      state = plan.state;
+      if (plan.ping) {
+        pings++;
+        last = plan.ping;
+      }
+    }
+    expect(pings).toBe(1);
+    const later = planWithGap(state, keys.map((key) => drift(key)), DRIFT_GRACE_MS + DRIFT_MIN_GAP_MS);
+    expect(later.ping?.length).toBeGreaterThan(last!.length);
+    expect(later.ping?.map((item) => item.key)).toContain("A-12");
+  });
+
+  it("holds a ripe drift until the gap since the last ping passes", () => {
+    let state = planWithGap(EMPTY_DRIFT_STATE, [drift("A-1")], 0).state;
+    state = planWithGap(state, [drift("A-1")], DRIFT_GRACE_MS).state;
+    state = planWithGap(state, [drift("A-1"), drift("A-2")], DRIFT_GRACE_MS + minute).state;
+    expect(planWithGap(state, [drift("A-1"), drift("A-2")], 2 * DRIFT_GRACE_MS + minute).ping).toBeNull();
+    expect(planWithGap(state, [drift("A-1"), drift("A-2")], DRIFT_GRACE_MS + DRIFT_MIN_GAP_MS).ping?.map((item) => item.key)).toEqual(["A-1", "A-2"]);
+  });
+});
+
 describe("driftPrompt", () => {
   it("names the project, each drift and who writes Done", () => {
     const text = driftPrompt("BCS", [drift("BCS-48", "done", false), drift("BCS-28")]);
@@ -75,6 +106,7 @@ describe("driftPrompt", () => {
     expect(text).toContain("- BCS-48 In Progress → Done: PR #3 merged");
     expect(text).toContain("- BCS-28 In Progress → Queued: nothing running for 5h");
     expect(text).toContain("bb projects reconcile BCS --apply");
+    expect(text).toContain("holds it until the evidence changes");
     expect(driftPrompt("BCS", [drift("BCS-48", "done", false)])).not.toContain("--apply");
   });
 });

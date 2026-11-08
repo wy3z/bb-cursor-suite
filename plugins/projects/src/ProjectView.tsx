@@ -5,6 +5,7 @@ import { TaskCard, type CardContext } from "./Card";
 import { byColumn, childrenByParent, useBoardMoves, useNow, usePresets, useProjectData, useReconcile, useThreadIndex, type MoveTask } from "./data";
 import { FilterIcon, StatusGlyph } from "./glyphs";
 import { COLUMNS, COLUMN_LABEL, columnOf, type Column } from "./status";
+import { anchorsFor } from "./moves";
 import { ProjectIconMark, useProjectIcon } from "./ProjectIcon";
 import { useProjectMeta } from "./Focus";
 import { LoopCard } from "./Loop";
@@ -369,9 +370,7 @@ function Board({
     setDrop(null);
     if (!dragged) return;
     const index = dropIndex(status, event.clientY, dragged.id);
-    const ids = groups[status].map((task) => task.id).filter((id) => id !== dragged.id);
-    const beforeTaskId = ids[index - 1] ?? null;
-    const afterTaskId = ids[index] ?? null;
+    const { beforeTaskId, afterTaskId } = anchorsFor(groups[status], dragged.id, index, status);
     const unchanged = columnOf(dragged.status) === status && groups[status].findIndex((task) => task.id === dragged.id) === index;
     if (!unchanged) move(dragged, status, beforeTaskId, afterTaskId);
   };

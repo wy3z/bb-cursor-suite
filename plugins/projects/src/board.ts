@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { TASKS_PLUGIN, tasksContract, type Project, type Task } from "./contracts";
 import { commitsMentioning } from "./landings";
-import { reconcileProject, type CommentSignal, type ReconcileResult, type ReconcileSource } from "./reconcile";
+import { reconcileProject, type CommentSignal, type ReconcileResult, type ReconcileSource, type SignalBook } from "./reconcile";
 import { DRIFT_CHECK_MS, EMPTY_DRIFT_STATE, driftPrompt, planDriftPing, type DriftState } from "./drift";
 import { inWorkingHours, type LeadStatus } from "./outer-loop";
 import type { ProjectMeta } from "./meta";
@@ -25,6 +25,8 @@ export function createBoard(
     projects: () => Promise<Project[]>;
     leadStatus: (threadId: string) => Promise<LeadStatus>;
     deliver: (threadId: string, text: string) => Promise<unknown>;
+    leadOf: (projectId: string) => Promise<string | null>;
+    syncLeads: (leads: Lead[]) => void;
   },
 ) {
   const cache = new Map<string, { at: number; result: Promise<ReconcileResult> }>();
@@ -58,7 +60,7 @@ export function createBoard(
       },
       comments: async (taskId) =>
         (await call("listComments", { taskId }, tasksContract.listComments.output)).comments.map(
-          (comment): CommentSignal => ({ kind: comment.kind, body: comment.body, createdAt: comment.createdAt }),
+          (comment): CommentSignal => ({ kind: comment.kind, body: comment.body, createdAt: comment.createdAt, threadId: comment.threadId }),
         ),
       commits: async (sinceIso) => {
         const where = await sourcePath(project);
@@ -67,10 +69,19 @@ export function createBoard(
     };
   }
 
+  const signalsKey = (projectId: string) => `signals:${projectId}`;
+
+  async function run(project: Project): Promise<ReconcileResult> {
+    const [leadThreadId, signals] = await Promise.all([deps.leadOf(project.id), bb.storage.kv.get<SignalBook>(signalsKey(project.id))]);
+    const { signals: next, ...result } = await reconcileProject(source(project), Date.now(), { leadThreadId, signals: signals ?? {} });
+    await bb.storage.kv.set(signalsKey(project.id), next);
+    return result;
+  }
+
   function reconcile(project: Project, fresh = false): Promise<ReconcileResult> {
     const hit = cache.get(project.id);
     if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.result;
-    const result = reconcileProject(source(project), Date.now());
+    const result = run(project);
     cache.set(project.id, { at: Date.now(), result });
     result.catch(() => cache.delete(project.id));
     return result;
@@ -126,6 +137,7 @@ export function createBoard(
 
   async function tick(now: Date) {
     const [leads, projects] = await Promise.all([deps.leads(), deps.projects()]);
+    deps.syncLeads(leads);
     if (now.getTime() - lastRefresh >= REFRESH_MS) {
       lastRefresh = now.getTime();
       for (const project of projects) invalidate(project.id);

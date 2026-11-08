@@ -25,7 +25,8 @@ live cards, and a project lead workflow.
   agents with an open PR mean For Review, parents roll up from sub-tasks) plus
   a commit naming the task on the default branch (Done) and four idle hours on
   an In Progress card (Queued). When that disagrees with the stored status the
-  card shows a "behind" hint, with Apply for moves other than Done; the header
+  card shows a "behind" hint, with Apply only for sub-task roll-ups and idle
+  demotions (Done and For Review stay with the lead or you); the header
   shows "N behind". The board never writes Done itself.
   With Pull Requests installed, a PR chip opens the pull request in BB: the
   thread's side panel when the board is in one, otherwise the full-page view.
@@ -47,7 +48,9 @@ live cards, and a project lead workflow.
 - **Loop**: behind the loop button in the board header. A
   scheduled board sweep (off, 1h to 8h, weekdays 08:00-19:00 by default),
   drift pings (off by default: the lead hears only when cards stay behind
-  their evidence for ten minutes, at most once per drift every two hours),
+  their evidence for ten minutes, at most one ping per project an hour and
+  once per drift every two hours; a status or comment from the lead or user
+  holds a card until its evidence changes),
   following every PR the lead's workers link, the project's memory notes, and
   the last messages from the outer loop.
 - **Composer pill and side-panel tab**: in any thread of a BB project linked to
@@ -70,7 +73,7 @@ bb projects retry PIXEL req_...   # retry a failed or held request now
 bb projects notify                # webhook wake-up state; --test sends one now
 bb projects notes PIXEL           # project memory; --append "line", --set "all"
 bb projects loop PIXEL            # triggers; --sweep 2h|off, --any-hours, --drift on|off, --follow-prs on|off
-bb projects reconcile PIXEL       # cards behind their evidence, with moves; --apply makes the non-Done ones
+bb projects reconcile PIXEL       # cards behind their evidence, with moves; --apply makes roll-up and idle moves only
 bb projects queue-backlog PIXEL   # one-time Backlog -> Queued (todo) move; lists unless --apply
 ```
 

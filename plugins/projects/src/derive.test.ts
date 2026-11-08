@@ -91,10 +91,15 @@ describe("deriveStatus", () => {
     expect(rollup([])).toBeNull();
   });
 
-  it("lets the board apply anything except Done and Canceled", () => {
-    expect(canApply({ status: "todo", rule: "idle-demotion", reason: "" })).toBe(true);
-    expect(canApply({ status: "in_review", rule: "agent-idle-open-pr-for-review", reason: "" })).toBe(true);
-    expect(canApply({ status: "done", rule: "merged-prs-done", reason: "" })).toBe(false);
-    expect(canApply({ status: "canceled", rule: "children-rollup", reason: "" })).toBe(false);
+  it("lets the board apply only roll-ups and idle demotions, never Done or For Review", () => {
+    expect(canApply({ status: "todo", rule: "idle-demotion" })).toBe(true);
+    expect(canApply({ status: "in_progress", rule: "children-rollup" })).toBe(true);
+    expect(canApply({ status: "todo", rule: "children-rollup" })).toBe(true);
+    expect(canApply({ status: "in_review", rule: "children-rollup" })).toBe(false);
+    expect(canApply({ status: "in_review", rule: "agent-idle-open-pr-for-review" })).toBe(false);
+    expect(canApply({ status: "in_progress", rule: "agent-running-in-progress" })).toBe(false);
+    expect(canApply({ status: "done", rule: "merged-prs-done" })).toBe(false);
+    expect(canApply({ status: "done", rule: "children-rollup" })).toBe(false);
+    expect(canApply({ status: "canceled", rule: "children-rollup" })).toBe(false);
   });
 });

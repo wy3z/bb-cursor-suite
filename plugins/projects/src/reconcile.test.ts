@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasAsk, landingFor, lastStatusChange, mentionsKey, reconcileProject, type Commit, type CommentSignal, type ReconcileSource } from "./reconcile";
+import { hasAsk, lastDecision, landingFor, lastStatusChange, mentionsKey, reconcileProject, type Commit, type CommentSignal, type ReconcileSource } from "./reconcile";
 import { commitUrl, parseLog } from "./landings";
 import type { Task } from "./contracts";
 
@@ -117,8 +117,8 @@ describe("reconcileProject", () => {
     const result = await reconcileProject(world, now);
     expect(result.drifts.map((drift) => [drift.key, drift.suggested, drift.rule, drift.applicable])).toEqual([
       ["P-1", "done", "merged-prs-done", false],
-      ["P-2", "in_progress", "agent-running-in-progress", true],
-      ["P-3", "in_review", "agent-idle-open-pr-for-review", true],
+      ["P-2", "in_progress", "agent-running-in-progress", false],
+      ["P-3", "in_review", "agent-idle-open-pr-for-review", false],
       ["P-4", "todo", "idle-demotion", true],
       ["P-5", "done", "merged-commit-done", false],
       ["P-6", "todo", "children-rollup", true],
@@ -154,5 +154,56 @@ describe("reconcileProject", () => {
     const result = await reconcileProject(source({ tasks: [task("C-1", { status: "todo" }), task("C-2", { status: "done" })] }), now);
     expect(result.drifts).toEqual([]);
     expect(result.flags).toEqual([]);
+  });
+});
+
+describe("manual-pick hold", () => {
+  const merged = { "t_H-1": [{ number: 3, state: "merged" as const }] };
+  const idleThread = { "t_H-1": [{ liveStatus: "idle" as const, updatedAt: hoursAgo(3) }] };
+
+  it("counts status changes, user comments and the lead's comments as decisions, not workers'", () => {
+    const comments: CommentSignal[] = [
+      { kind: "system", body: "Status changed to In Progress", createdAt: hoursAgo(5) },
+      { kind: "agent", body: "worker progress", createdAt: hoursAgo(1), threadId: "thr_worker" },
+    ];
+    expect(lastDecision(comments, "thr_lead")).toBe(hoursAgo(5));
+    expect(lastDecision([...comments, { kind: "agent", body: "keeping it", createdAt: hoursAgo(2), threadId: "thr_lead" }], "thr_lead")).toBe(hoursAgo(2));
+    expect(lastDecision([...comments, { kind: "user", body: "works", createdAt: hoursAgo(0.5) }], null)).toBe(hoursAgo(0.5));
+    expect(lastDecision([{ kind: "system", body: "Thread attached", createdAt: hoursAgo(1) }], null)).toBeNull();
+  });
+
+  it("holds a drift once the lead decides after the evidence last changed, until the evidence changes again", async () => {
+    const tasks = [task("H-1", { status: "in_progress" })];
+    const first = await reconcileProject(source({ tasks, threads: idleThread, prs: merged }), now - 3_600_000, { leadThreadId: "thr_lead" });
+    expect(first.drifts.map((drift) => drift.key)).toEqual(["H-1"]);
+
+    const comments = { "t_H-1": [{ kind: "agent" as const, body: "Not done: the PR was a partial fix", createdAt: hoursAgo(0.5), threadId: "thr_lead" }] };
+    const second = await reconcileProject(source({ tasks, threads: idleThread, prs: merged, comments }), now, { leadThreadId: "thr_lead", signals: first.signals });
+    expect(second.drifts).toEqual([]);
+    expect(second.held.map((drift) => [drift.key, drift.suggested])).toEqual([["H-1", "done"]]);
+    expect(second.evidence[0]!.hold).toMatchObject({ status: "done", rule: "merged-prs-done" });
+
+    const morePrs = { "t_H-1": [{ number: 3, state: "merged" as const }, { number: 4, state: "merged" as const }] };
+    const third = await reconcileProject(source({ tasks, threads: idleThread, prs: morePrs, comments }), now + 60_000, { leadThreadId: "thr_lead", signals: second.signals });
+    expect(third.drifts.map((drift) => drift.key)).toEqual(["H-1"]);
+    expect(third.held).toEqual([]);
+  });
+
+  it("does not hold on decisions made before the evidence was seen, or on a worker's comment", async () => {
+    const tasks = [task("H-1", { status: "in_progress" })];
+    const early = { "t_H-1": [{ kind: "user" as const, body: "ok", createdAt: hoursAgo(10) }] };
+    expect((await reconcileProject(source({ tasks, threads: idleThread, prs: merged, comments: early }), now)).drifts).toHaveLength(1);
+    const first = await reconcileProject(source({ tasks, threads: idleThread, prs: merged }), now - 3_600_000, { leadThreadId: "thr_lead" });
+    const worker = { "t_H-1": [{ kind: "agent" as const, body: "done!", createdAt: hoursAgo(0.5), threadId: "thr_worker" }] };
+    expect((await reconcileProject(source({ tasks, threads: idleThread, prs: merged, comments: worker }), now, { leadThreadId: "thr_lead", signals: first.signals })).drifts).toHaveLength(1);
+  });
+
+  it("never holds idle demotion: the comment restarts the idle clock instead", async () => {
+    const tasks = [task("H-2", { status: "in_progress", updatedAt: hoursAgo(10) })];
+    const first = await reconcileProject(source({ tasks }), now - 6 * 3_600_000);
+    const comments = { "t_H-2": [{ kind: "user" as const, body: "still on it", createdAt: hoursAgo(5) }] };
+    const later = await reconcileProject(source({ tasks, comments }), now, { signals: first.signals });
+    expect(later.drifts.map((drift) => drift.rule)).toEqual(["idle-demotion"]);
+    expect(later.held).toEqual([]);
   });
 });

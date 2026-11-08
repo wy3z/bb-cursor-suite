@@ -1,5 +1,5 @@
 import type { Status, Task } from "./contracts";
-import { canApply, deriveStatus, type Landing, type PullRequestSignal, type Rule, type ThreadSignal } from "./derive";
+import { canApply, deriveStatus, isWorking, type Landing, type PullRequestSignal, type Rule, type ThreadSignal } from "./derive";
 import { COLUMN_LABEL, columnOf, isComplete, type Column } from "./status";
 
 export const REVIEW_STALE_MS = 48 * 60 * 60_000;
@@ -10,6 +10,14 @@ export interface CommentSignal {
   kind: "user" | "agent" | "system";
   body: string;
   createdAt: string;
+  threadId?: string | null;
+}
+
+export type SignalBook = Record<string, { fp: string; changedAt: string }>;
+
+export interface ReconcileContext {
+  leadThreadId?: string | null;
+  signals?: SignalBook;
 }
 
 export interface Commit {
@@ -51,13 +59,42 @@ export interface Evidence {
   taskId: string;
   lastActivityAt: string | null;
   landing: Landing | null;
+  hold: { status: Column; rule: Rule; since: string } | null;
 }
 
 export interface ReconcileResult {
   checkedAt: string;
   drifts: Drift[];
+  held: Drift[];
   flags: Flag[];
   evidence: Evidence[];
+}
+
+export function fingerprint(signals: {
+  threads: readonly ThreadSignal[];
+  pullRequests: readonly PullRequestSignal[];
+  children: readonly Status[];
+  landing: Landing | null;
+}): string {
+  return JSON.stringify({
+    prs: signals.pullRequests.map((pr) => `${pr.number}:${pr.state}`).sort(),
+    landing: signals.landing?.sha ?? null,
+    threads: signals.threads.length,
+    working: signals.threads.some(isWorking),
+    children: signals.children.map(columnOf).sort(),
+  });
+}
+
+export function lastDecision(comments: readonly CommentSignal[], leadThreadId: string | null | undefined): string | null {
+  let latest: string | null = null;
+  for (const comment of comments) {
+    const decision =
+      (comment.kind === "system" && STATUS_CHANGE_RE.test(comment.body.trim())) ||
+      comment.kind === "user" ||
+      (comment.kind === "agent" && !!leadThreadId && comment.threadId === leadThreadId);
+    if (decision && (!latest || Date.parse(comment.createdAt) > Date.parse(latest))) latest = comment.createdAt;
+  }
+  return latest;
 }
 
 export function mentionsKey(message: string, key: string): boolean {
@@ -99,7 +136,10 @@ function latest(values: readonly (string | null | undefined)[]): string | null {
   return best;
 }
 
-export async function reconcileProject(source: ReconcileSource, now: number): Promise<ReconcileResult> {
+export async function reconcileProject(source: ReconcileSource, now: number, context: ReconcileContext = {}): Promise<ReconcileResult & { signals: SignalBook }> {
+  const nowIso = new Date(now).toISOString();
+  const previous = context.signals ?? {};
+  const signals: SignalBook = {};
   const tasks = await source.tasks();
   const children = new Map<string, Status[]>();
   for (const task of tasks) {
@@ -117,24 +157,33 @@ export async function reconcileProject(source: ReconcileSource, now: number): Pr
   const commits = gathered.length > 0 ? await source.commits(oldest).catch(() => [] as Commit[]) : [];
 
   const drifts: Drift[] = [];
+  const held: Drift[] = [];
   const flags: Flag[] = [];
   const evidence: Evidence[] = [];
   for (const { task, threads, comments, pullRequests, changedAt } of gathered) {
     const landing = landingFor(task.key, changedAt, commits);
     const lastActivityAt = latest([task.updatedAt, ...comments.map((comment) => comment.createdAt)]);
-    evidence.push({ taskId: task.id, lastActivityAt, landing });
+    const kids = children.get(task.id) ?? [];
+    const fp = fingerprint({ threads, pullRequests, children: kids, landing });
+    const before = previous[task.id];
+    const book = before && before.fp === fp ? before : { fp, changedAt: nowIso };
+    signals[task.id] = book;
     const derived = deriveStatus({
       status: task.status,
       updatedAt: task.updatedAt,
       threads,
       pullRequests,
-      children: children.get(task.id) ?? [],
+      children: kids,
       landing,
       lastActivityAt,
       now,
     });
+    const decidedAt = lastDecision(comments, context.leadThreadId);
+    const isHeld = !!derived && derived.rule !== "idle-demotion" && !!decidedAt && Date.parse(decidedAt) > Date.parse(book.changedAt);
+    evidence.push({ taskId: task.id, lastActivityAt, landing, hold: isHeld && derived ? { status: derived.status, rule: derived.rule, since: decidedAt! } : null });
     if (derived) {
-      drifts.push({ taskId: task.id, key: task.key, title: task.title, stored: task.status, suggested: derived.status, rule: derived.rule, reason: derived.reason, applicable: canApply(derived) });
+      const drift = { taskId: task.id, key: task.key, title: task.title, stored: task.status, suggested: derived.status, rule: derived.rule, reason: derived.reason, applicable: canApply(derived) };
+      (isHeld ? held : drifts).push(drift);
     }
     if (columnOf(task.status) === "in_review" && !derived) {
       if (!hasAsk(comments, changedAt)) {
@@ -145,7 +194,7 @@ export async function reconcileProject(source: ReconcileSource, now: number): Pr
     }
   }
   const byKey = (left: { key: string }, right: { key: string }) => keyNumber(left.key) - keyNumber(right.key);
-  return { checkedAt: new Date(now).toISOString(), drifts: drifts.sort(byKey), flags: flags.sort(byKey), evidence };
+  return { checkedAt: nowIso, drifts: drifts.sort(byKey), held: held.sort(byKey), flags: flags.sort(byKey), evidence, signals };
 }
 
 export function describeDrift(drift: Drift): string {

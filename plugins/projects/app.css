@@ -2095,3 +2095,19 @@ a.bbp-menu__item {
   flex: 0 0 auto;
   white-space: nowrap;
 }
+.bbp-chip[data-pr-status="changes-requested"],
+[data-pr-status="changes-requested"] > svg,
+[data-pr-status="changes-requested"] > [data-icon-root],
+.bbp-pr-stack__icons [data-pr-status="changes-requested"] {
+  color: var(--bbs-orange, var(--bbp-amber));
+}
+.bbp-chip[data-pr-status="ci-pending"],
+.bbp-pr-stack__icons [data-pr-status="ci-pending"] {
+  color: var(--bbp-amber);
+}
+.bbp-chip[data-pr-status="open"] {
+  color: var(--bbp-muted);
+}
+.bbp-menu__empty[data-tone="error"] {
+  color: var(--bbp-red);
+}

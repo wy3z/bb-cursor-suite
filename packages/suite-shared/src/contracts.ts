@@ -266,22 +266,30 @@ const COLUMN_VALUES = ["in_review", "in_progress", "todo", "done", "canceled"] a
 
 const landingSchema = z.object({ sha: z.string(), subject: z.string(), at: z.string(), ref: z.string(), url: z.string().nullable() });
 
+const driftSchema = z.object({
+  taskId: z.string(),
+  key: z.string(),
+  title: z.string(),
+  stored: z.enum(STATUSES),
+  suggested: z.enum(COLUMN_VALUES),
+  rule: z.string(),
+  reason: z.string(),
+  applicable: z.boolean(),
+});
+
 const reconcileSchema = z.object({
   checkedAt: z.string(),
-  drifts: z.array(
+  drifts: z.array(driftSchema),
+  held: z.array(driftSchema),
+  flags: z.array(z.object({ taskId: z.string(), key: z.string(), title: z.string(), kind: z.string(), text: z.string() })),
+  evidence: z.array(
     z.object({
       taskId: z.string(),
-      key: z.string(),
-      title: z.string(),
-      stored: z.enum(STATUSES),
-      suggested: z.enum(COLUMN_VALUES),
-      rule: z.string(),
-      reason: z.string(),
-      applicable: z.boolean(),
+      lastActivityAt: z.string().nullable(),
+      landing: landingSchema.nullable(),
+      hold: z.object({ status: z.enum(COLUMN_VALUES), rule: z.string(), since: z.string() }).nullable(),
     }),
   ),
-  flags: z.array(z.object({ taskId: z.string(), key: z.string(), title: z.string(), kind: z.string(), text: z.string() })),
-  evidence: z.array(z.object({ taskId: z.string(), lastActivityAt: z.string().nullable(), landing: landingSchema.nullable() })),
 });
 export type ReconcileView = z.infer<typeof reconcileSchema>;
 

@@ -117,8 +117,8 @@ the board only knows what is attached. Every brief says which task it serves,
 the acceptance criteria, and how the work lands:
 
 - Work on a branch named after the task (`<key>-<slug>`, such as
-  `bcs-54-cursor-statuses`) in the worktree, and put the task key in commit
-  subjects (`... (BCS-54)`).
+  `abc-12-login-retry`) in the worktree, and put the task key in commit
+  subjects (`... (ABC-12)`).
 - Push the branch and open a pull request into the default branch with `gh pr
   create`, then link it to the worker thread with `bb pull-requests link
   <url>`. Workers never merge, and never commit to main.
@@ -127,15 +127,17 @@ the acceptance criteria, and how the work lands:
 
 ## Landing work
 
-Workers open PRs; you merge them. When a worker finishes:
+How work lands is project policy: read it in `bb projects notes <PREFIX>` and
+follow it. Without a rule there, workers open PRs and you merge them. When a
+worker finishes:
 
 1. Read the PR and the worker's evidence. Get a review (a reviewer thread or
    your own read) when the brief asked for one.
 2. If the change is something the user must see or decide, move the card to
    For Review with a `Needs <user>:` comment and wait for their go.
-3. Merge with a merge commit, never a squash: `gh pr merge <url> --merge`.
-   Then reload or release whatever the project's notes say, check it, and
-   mark the card Done.
+3. Merge the way the notes say (for example `gh pr merge <url> --merge`),
+   then reload or release whatever they say, check it, and mark the card
+   Done.
 
 ## Statuses
 
@@ -151,7 +153,7 @@ The board has five statuses. Write `todo` for Queued and never write
 - **For Review**: only when the user has to act: a visual change they haven't
   seen, a decision, an account or credential step, a PR waiting for their go.
   Add a comment starting `Needs <user>: <one line>` in the same turn
-  (`Needs James: approve the new icon`). If it sits for two days, ask once,
+  (`Needs Sam: approve the new icon`). If it sits for two days, ask once,
   or move it to Done if they have used it since.
 - **In Progress**: only while a live thread works on it. When the worker
   stops, move the card on: For Review, Done, or back to Queued.
@@ -180,9 +182,16 @@ two of ours, and marks cards whose stored status is behind:
 
 `bb projects reconcile <PREFIX>` lists those cards with the suggested move, and
 For Review cards with no `Needs <user>:` comment or waiting for days. Run it
-before a status update and whenever the board may be stale. `--apply` makes the
-moves that aren't Done or Canceled. Done is always yours to write, after you
-check the evidence: the plugin never writes it.
+before a status update and whenever the board may be stale. `--apply` makes only
+the sub-task roll-ups and idle demotions to Queued; Done, For Review and In
+Progress are yours to write, after you check the evidence.
+
+When the evidence is wrong (a commit mentions the key in passing, say), leave
+the status and comment on the card why. A status you set, or a comment from you
+or the user, holds the card until its evidence changes: a new PR state, a new
+commit, an agent starting or stopping, a sub-task moving. Held cards drop out of
+"behind" and drift pings, and reconcile lists them separately. Idle demotion
+isn't held: a comment counts as activity and restarts its four hours.
 
 ## Keep the board true
 

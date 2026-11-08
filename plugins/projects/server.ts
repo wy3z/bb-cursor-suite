@@ -143,7 +143,17 @@ export default function plugin(bb: BbPluginApi) {
 
   const loop = createLoop(bb, { leads: leadsWithMeta, writeMeta });
   const messaging = createMessaging(bb, { resolveProject, projects, readMeta });
-  const board = createBoard(bb, { leads: leadsWithMeta, projects, leadStatus: loop.leadStatus, deliver: loop.deliver });
+  const board = createBoard(bb, {
+    leads: leadsWithMeta,
+    projects,
+    leadStatus: loop.leadStatus,
+    deliver: loop.deliver,
+    leadOf: async (projectId) => (await readMeta(projectId)).leadThreadId,
+    syncLeads: (leads) => {
+      leadPrefixes.clear();
+      for (const lead of leads) if (lead.meta.leadThreadId) leadPrefixes.set(lead.meta.leadThreadId, lead.prefix);
+    },
+  });
 
   function parseEvery(raw: string): number | null {
     if (/^(off|none|0)$/i.test(raw)) return null;
@@ -183,7 +193,7 @@ export default function plugin(bb: BbPluginApi) {
     listInbox: async ({ projectId }) => ({ items: messaging.inboxItems(projectId) }),
     reconcile: async ({ projectId }) => {
       const project = (await projects()).find((item) => item.id === projectId);
-      if (!project) return { checkedAt: new Date().toISOString(), drifts: [], flags: [], evidence: [] };
+      if (!project) return { checkedAt: new Date().toISOString(), drifts: [], held: [], flags: [], evidence: [] };
       return board.reconcile(project);
     },
   });
@@ -338,7 +348,7 @@ export default function plugin(bb: BbPluginApi) {
           summary: "List cards whose stored status disagrees with the evidence (PRs, agents, commits, sub-tasks, idle time), with the suggested move",
           positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
           options: {
-            apply: { type: "boolean", description: "Apply the suggested moves, except Done and Canceled, which stay yours to write" },
+            apply: { type: "boolean", description: "Apply only sub-task roll-ups and idle demotions; Done, For Review and the rest stay yours to write" },
             json,
           },
           async run(input) {
@@ -355,6 +365,10 @@ export default function plugin(bb: BbPluginApi) {
                 lines.push(`- ${describeDrift(drift)}${tag}`);
               }
             }
+            if (result.held.length) {
+              lines.push("", "Held by a later decision until the evidence changes:");
+              for (const drift of result.held) lines.push(`- ${describeDrift(drift)}`);
+            }
             if (result.flags.length) {
               lines.push("", "Also check:");
               for (const flag of result.flags) lines.push(`- ${flag.key} ${flag.title}: ${flag.text}`);
@@ -363,7 +377,7 @@ export default function plugin(bb: BbPluginApi) {
               lines.push("", "Failed to apply:");
               for (const failure of applied.failed) lines.push(`- ${failure.key}: ${failure.error}`);
             }
-            if (!applied && result.drifts.some((drift) => drift.applicable)) lines.push("", `Run with --apply to make the moves that aren't Done.`);
+            if (!applied && result.drifts.some((drift) => drift.applicable)) lines.push("", `Run with --apply to make the roll-up and idle moves.`);
             return { exitCode: applied?.failed.length ? 1 : 0, stdout: lines.join("\n") + "\n" };
           },
         }),

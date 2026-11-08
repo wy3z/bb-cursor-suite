@@ -29,6 +29,7 @@ type Flash = { tone: "good" | "bad" | "busy"; text: string } | null;
 export interface TaskEvidence {
   lastActivityAt: string | null;
   landing: Landing | null;
+  hold: { status: string; rule: string; since: string } | null;
 }
 
 export interface CardContext {
@@ -74,6 +75,7 @@ export function useDerived(
     now: ctx.now,
   });
   if (derived?.rule === "idle-demotion" && !evidence) return null;
+  if (derived && evidence?.hold && evidence.hold.status === derived.status) return null;
   return derived;
 }
 
@@ -98,7 +100,7 @@ export function TaskCard({
 }) {
   const navigate = useBbNavigate();
   const sdk = useSdk();
-  const taskThreads = useTaskThreads(task.id, true);
+  const taskThreads = useTaskThreads(task.id, task.status !== "backlog" || activeThreads.length > 0);
   const links = taskThreads.length > 0 ? taskThreads : activeThreads;
   const worker = pickWorker(links, ctx.threads);
   const pullRequests = useTaskPullRequests(task.id, links.length > 0);
