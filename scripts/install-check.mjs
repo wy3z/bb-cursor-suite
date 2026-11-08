@@ -3,9 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync 
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
-import { pathToFileURL } from "node:url";
 import { git, releaseTree, root, vendorDir } from "./release-tree.mjs";
-import { legacyStreams, sharedName, sharedSpecErrors } from "./versions.mjs";
+import { isMainModule, legacyStreams, sharedName, sharedSpecErrors } from "./versions.mjs";
 
 function bbNpm() {
   if (process.env.BB_NPM) return [process.execPath, [process.env.BB_NPM]];
@@ -100,7 +99,7 @@ function usage(code) {
   process.exit(code);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2);
   let id;
   let ref;

@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 export const suiteUrl = "https://github.com/wy3z/bb-cursor-suite.git";
 export const sharedDir = "packages/suite-shared";
@@ -10,6 +10,15 @@ export const legacyStreams = {
   "cursor-sidebar": "^0.3.2",
   "ui-tweaks": "^0.30.0",
 };
+
+export function isMainModule(url) {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(url));
+  } catch {
+    return false;
+  }
+}
 
 const versionPattern = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
@@ -159,7 +168,7 @@ export function checkVersions(root, overrides = {}) {
   return errors;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+if (isMainModule(import.meta.url)) {
   const root = resolve(import.meta.dirname, "..");
   const errors = checkVersions(root);
   if (errors.length) {
