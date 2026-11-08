@@ -43,7 +43,11 @@ export const githubPrStatus = {
 
 export type GitHubStatusRow = z.infer<typeof githubPrStatus.pullRequests.output>[string];
 
-export type Source<Row> = { status: "missing" } | { status: "loading" } | { status: "row"; row: Row };
+export type Source<Row> =
+  | { status: "missing" }
+  | { status: "loading" }
+  | { status: "row"; row: Row }
+  | { status: "failed"; message: string; row?: Row };
 
 export interface RequestView {
   provider: ChangeRequestProvider;
@@ -122,21 +126,55 @@ export function isStale(row: ChangeRequestRow, branch: string | null | undefined
   return row.environmentBranch !== undefined && branch !== undefined && row.environmentBranch !== branch;
 }
 
+function githubRowOf(github: Source<GitHubStatusRow>): GitHubStatusRow | undefined {
+  if (github.status === "row") return github.row;
+  return github.status === "failed" ? github.row : undefined;
+}
+
+function githubOnly(github: Source<GitHubStatusRow>): SidebarRequest {
+  const row = githubRowOf(github);
+  if (row !== undefined) return fromGitHubStatus(row);
+  if (github.status === "loading") return LOADING;
+  if (github.status === "failed") return { kind: "unavailable", provider: "github", message: github.message };
+  return NO_SOURCE;
+}
+
+function onGitHub(github: Source<GitHubStatusRow>, fallback: SidebarRequest): SidebarRequest {
+  const row = githubRowOf(github);
+  if (row !== undefined) return fromGitHubStatus(row);
+  return github.status === "loading" ? LOADING : fallback;
+}
+
+function onUnidentifiedForge(github: Source<GitHubStatusRow>, fallback: SidebarRequest): SidebarRequest {
+  const row = githubRowOf(github);
+  if (row?.outcome === "available") return fromGitHubStatus(row);
+  return github.status === "loading" ? LOADING : fallback;
+}
+
+function unreachable(provider: ChangeRequestProvider | null, message: string): SidebarRequest {
+  return { kind: "unavailable", provider, message: `Pull Requests couldn't be reached: ${message}` };
+}
+
 export function resolveRequest(
   pullRequests: Source<ChangeRequestRow>,
   github: Source<GitHubStatusRow>,
   branch?: string | null,
 ): SidebarRequest {
-  if (pullRequests.status === "missing") {
-    if (github.status === "row") return fromGitHubStatus(github.row);
-    return github.status === "loading" ? LOADING : NO_SOURCE;
+  if (pullRequests.status === "missing") return githubOnly(github);
+  if (pullRequests.status === "loading") return LOADING;
+  if (pullRequests.status === "failed") {
+    const known = pullRequests.row !== undefined && !isStale(pullRequests.row, branch) ? rowProvider(pullRequests.row) : null;
+    const failure = unreachable(known, pullRequests.message);
+    if (known === "gitlab") return failure;
+    if (known === "github") return onGitHub(github, failure);
+    return onUnidentifiedForge(github, failure);
   }
-  if (pullRequests.status === "loading" || isStale(pullRequests.row, branch)) return LOADING;
   const row = pullRequests.row;
-  if (rowProvider(row) === "gitlab") return fromChangeRequestRow(row);
-  if (github.status === "row") return fromGitHubStatus(github.row);
-  if (github.status === "loading") return LOADING;
-  return fromChangeRequestRow(row);
+  if (isStale(row, branch)) return LOADING;
+  const provider = rowProvider(row);
+  if (provider === "gitlab") return fromChangeRequestRow(row);
+  if (provider === "github") return onGitHub(github, fromChangeRequestRow(row));
+  return onUnidentifiedForge(github, fromChangeRequestRow(row));
 }
 
 const STATE_LABELS: Record<ChangeRequestProvider, Record<ChangeRequestState, string>> = {
@@ -217,9 +255,51 @@ interface QueryLike<Row> {
   error: unknown;
 }
 
+const ABSENT_PLUGIN_MESSAGE = /unknown plugin "|has no rpc method "|is not running \(status: disabled\b/;
+
+export function pluginAbsent(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const code = Reflect.get(error, "code");
+  const status = Reflect.get(error, "status");
+  const message = Reflect.get(error, "message");
+  if (code === "unknown_method") return true;
+  if (typeof status === "number" && status !== 404 && status !== 503) return false;
+  return typeof message === "string" && ABSENT_PLUGIN_MESSAGE.test(message);
+}
+
+export function errorSource<Row>(error: unknown, row: Row | undefined): Source<Row> {
+  if (pluginAbsent(error)) return { status: "missing" };
+  const message = error instanceof Error && error.message ? error.message : "the read failed";
+  return row === undefined ? { status: "failed", message } : { status: "failed", message, row };
+}
+
+export function requestNounOf(provider: ChangeRequestProvider | null): string {
+  return provider === null ? "pull or merge request" : changeRequestNoun(provider);
+}
+
+type CallRpc = (args: { pluginId: string; method: string; input: { keys: string[] }; outputSchema: unknown }) => Promise<unknown>;
+
+async function readOnce<Row>(callRpc: CallRpc, pluginId: string, method: string, outputSchema: unknown, environmentId: string): Promise<Source<Row>> {
+  try {
+    const result = (await callRpc({ pluginId, method, input: { keys: [environmentId] }, outputSchema })) as Record<string, Row>;
+    const row = result[environmentId];
+    return row === undefined ? { status: "failed", message: "no answer for this environment" } : { status: "row", row };
+  } catch (error) {
+    return errorSource<Row>(error, undefined);
+  }
+}
+
+export async function readRequestOnce(callRpc: CallRpc, environmentId: string, branch: string | null): Promise<SidebarRequest> {
+  const [pullRequests, github] = await Promise.all([
+    readOnce<ChangeRequestRow>(callRpc, CHANGE_REQUESTS_PLUGIN, "changeRequests", changeRequestsContract.changeRequests.output, environmentId),
+    readOnce<GitHubStatusRow>(callRpc, GITHUB_PR_STATUS_PLUGIN, "pullRequests", githubPrStatus.pullRequests.output, environmentId),
+  ]);
+  return resolveRequest(pullRequests, github, branch);
+}
+
 export function sourceOf<Row>(query: QueryLike<Row>, key: string): Source<Row> {
-  if (query.error) return { status: "missing" };
   const row = query.data?.[key];
+  if (query.error) return errorSource(query.error, row);
   return row === undefined ? { status: "loading" } : { status: "row", row };
 }
 

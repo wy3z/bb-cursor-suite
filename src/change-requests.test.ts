@@ -10,6 +10,8 @@ import {
 } from "@wy3z/bb-suite/change-requests";
 import {
   environmentTargets,
+  pluginAbsent,
+  readRequestOnce,
   githubPrStatus,
   projectRequestSummary,
   requestFilterState,
@@ -80,6 +82,13 @@ function githubFromPullRequests(state: ChangeRequestState, branch?: string | nul
 }
 
 const row = <Row,>(value: Row): Source<Row> => ({ status: "row", row: value });
+
+function rpcError(code: string, status: number | undefined, message: string): Error {
+  const error = new Error(message);
+  Reflect.set(error, "code", code);
+  if (status !== undefined) Reflect.set(error, "status", status);
+  return error;
+}
 const LOADING = { status: "loading" } as const;
 const MISSING = { status: "missing" } as const;
 
@@ -201,8 +210,8 @@ test("GitHub rows keep the builtin GitHub answer, so GitHub behaviour is unchang
   assert.equal(available(live).label, "#21");
   assert.equal(available(live).state, "merged");
   assert.equal(available(live).openable, null);
-  const unknownHost = resolveRequest(row<ChangeRequestRow>({ outcome: "unavailable", provider: null, reason: "unsupportedHost", message: "x" }), row({ outcome: "absent" }));
-  assert.deepEqual(unknownHost, { kind: "absent", provider: "github" });
+  const sshAlias = resolveRequest(row<ChangeRequestRow>({ outcome: "unavailable", provider: null, reason: "unsupportedHost", message: "x" }), row(githubRow("open", { number: 33 })));
+  assert.equal(available(sshAlias).label, "#33");
   const builtinOff = resolveRequest(row<ChangeRequestRow>({ outcome: "unavailable", provider: "github", reason: "providerUnavailable", message: "off" }), MISSING);
   assert.equal(builtinOff.kind, "unavailable");
   assert.equal(requestFilterState(builtinOff), undefined);
@@ -284,7 +293,8 @@ test("without Pull Requests the builtin GitHub status is used exactly as before"
 test("removing Pull Requests mid-session drops its GitLab answers and falls back to GitHub", () => {
   const before = resolveRequests([{ environmentId: "e" }], { error: null, data: { e: { outcome: "available", changeRequest: mergeRequest() } } }, { error: null, data: { e: { outcome: "absent" } } });
   assert.equal(available(before.get("e")!).provider, "gitlab");
-  const after = resolveRequests([{ environmentId: "e" }], { error: new Error("not_found"), data: { e: { outcome: "available", changeRequest: mergeRequest() } } }, { error: null, data: { e: { outcome: "absent" } } });
+  const removed = rpcError("handler_error", 404, 'unknown plugin "pull-requests"');
+  const after = resolveRequests([{ environmentId: "e" }], { error: removed, data: { e: { outcome: "available", changeRequest: mergeRequest() } } }, { error: null, data: { e: { outcome: "absent" } } });
   assert.deepEqual(after.get("e"), { kind: "absent", provider: "github" });
 });
 
@@ -318,4 +328,91 @@ test("opening dispatches the shared cancelable event with the connection and thr
 
 test("without a Pull Requests handler the caller opens the URL itself", () => {
   assert.equal(requestOpenChangeRequest(new EventTarget(), mergeRequest(), null), false);
+});
+
+test("a Pull Requests read that fails for operational reasons keeps the GitLab identity and never becomes None", () => {
+  const failures = [
+    rpcError("transport_error", undefined, "network timeout"),
+    rpcError("invalid_response", 200, "bad body"),
+    rpcError("handler_error", 500, "boom"),
+    rpcError("handler_error", 503, 'plugin "pull-requests" is not running (status: starting)'),
+  ];
+  const known: ChangeRequestRow[] = [
+    { outcome: "unavailable", provider: "gitlab", reason: "authentication", message: "Sign in to glab", environmentBranch: "feature" },
+    { outcome: "available", changeRequest: mergeRequest(), environmentBranch: "feature" },
+  ];
+  const github = { error: null, data: { e: { outcome: "absent" } satisfies GitHubStatusRow } };
+  for (const error of failures) {
+    assert.equal(pluginAbsent(error), false, error.message);
+    for (const cached of known) {
+      const status = resolveRequests([{ environmentId: "e", branch: "feature" }], { error, data: { e: cached } }, github).get("e")!;
+      assert.equal(status.kind, "unavailable", error.message);
+      assert.equal((status as Extract<SidebarRequest, { kind: "unavailable" }>).provider, "gitlab");
+      assert.equal(threadFilterState(thread("t", "e"), new Map([["e", status]])), undefined);
+    }
+    const cold = resolveRequests([{ environmentId: "e" }], { error, data: {} }, github).get("e")!;
+    assert.equal(cold.kind, "unavailable");
+    assert.equal(requestFilterState(cold), undefined);
+    const hub = resolveRequests([{ environmentId: "e" }], { error, data: {} }, { error: null, data: { e: githubRow("open") } }).get("e")!;
+    assert.equal(available(hub).provider, "github");
+  }
+});
+
+test("only a missing plugin, a missing method or a disabled plugin counts as Pull Requests being absent", () => {
+  assert.equal(pluginAbsent(rpcError("handler_error", 404, 'unknown plugin "pull-requests"')), true);
+  assert.equal(pluginAbsent(rpcError("handler_error", 503, 'plugin "pull-requests" is not running (status: disabled)')), true);
+  assert.equal(pluginAbsent(rpcError("unknown_method", 404, 'plugin "pull-requests" has no rpc method "changeRequests"')), true);
+  assert.equal(pluginAbsent(new Error('unknown plugin "pull-requests"')), true);
+  assert.equal(pluginAbsent(rpcError("not_found", 404, "environment not found")), false);
+  assert.equal(pluginAbsent(rpcError("handler_error", 500, 'unknown plugin "pull-requests"')), false);
+  assert.equal(pluginAbsent("timeout"), false);
+  assert.equal(pluginAbsent(null), false);
+});
+
+test("copy link keeps an operational failure distinct from a missing Pull Requests plugin", async () => {
+  const fake = (pullRequests: () => unknown) => async (args: { pluginId: string }) =>
+    args.pluginId === "pull-requests" ? pullRequests() : { e: { outcome: "absent" } };
+  const timedOut = await readRequestOnce(fake(() => { throw rpcError("transport_error", undefined, "network timeout"); }), "e", "feature");
+  assert.equal(timedOut.kind, "unavailable");
+  assert.equal(requestFilterState(timedOut), undefined);
+  const missing = await readRequestOnce(fake(() => { throw rpcError("handler_error", 404, 'unknown plugin "pull-requests"'); }), "e", "feature");
+  assert.deepEqual(missing, { kind: "absent", provider: "github" });
+  const lab = await readRequestOnce(fake(() => ({ e: { outcome: "absent", provider: "gitlab", environmentBranch: "feature" } })), "e", "feature");
+  assert.deepEqual(lab, { kind: "absent", provider: "gitlab" });
+});
+
+test("GitHub's absent answer never establishes absence on a forge Pull Requests couldn't identify", () => {
+  const unsupported: ChangeRequestRow = { outcome: "unavailable", provider: null, reason: "unsupportedHost", message: "git.corp.example isn't GitHub or a known GitLab instance.", environmentBranch: "feature" };
+  const coldOffline: ChangeRequestRow = { outcome: "unavailable", provider: null, reason: "hostOffline", message: "Laptop is offline", environmentBranch: "feature" };
+  for (const cached of [unsupported, coldOffline]) {
+    const status = resolveRequest(row(cached), row({ outcome: "absent" }), "feature");
+    assert.equal(status.kind, "unavailable");
+    assert.equal((status as Extract<SidebarRequest, { kind: "unavailable" }>).provider, null);
+    assert.equal(requestFilterState(status), undefined);
+    assert.equal(projectRequestSummary([status]).known, false);
+  }
+  const statuses = resolveRequests([{ environmentId: "corp", branch: "feature" }], { error: null, data: { corp: unsupported } }, { error: null, data: { corp: { outcome: "absent" } } });
+  const kept = filterOrdinaryThreads([thread("t-corp", "corp")], { ...DEFAULT_SIDEBAR_VIEW, prFilter: ["open"] }, {
+    now: 0,
+    bypass: () => false,
+    prStateOf: (entry) => threadFilterState(entry, statuses),
+  });
+  assert.deepEqual(kept.map((entry) => entry.id), ["t-corp"]);
+  const none = filterOrdinaryThreads([thread("t-corp", "corp")], { ...DEFAULT_SIDEBAR_VIEW, prFilter: ["none"] }, {
+    now: 0,
+    bypass: () => false,
+    prStateOf: (entry) => threadFilterState(entry, statuses),
+  });
+  assert.deepEqual(none.map((entry) => entry.id), ["t-corp"]);
+  assert.deepEqual(resolveRequest(row<ChangeRequestRow>({ outcome: "absent", provider: null }), row({ outcome: "absent" })), { kind: "absent", provider: null });
+});
+
+test("delayed BB branch metadata shows nothing until the sidebar and Pull Requests agree on the branch", () => {
+  const forNew: ChangeRequestRow = { outcome: "available", changeRequest: mergeRequest({}, 2), environmentBranch: "new" };
+  assert.deepEqual(resolveRequest(row(forNew), MISSING, "old"), { kind: "loading" });
+  assert.equal(available(resolveRequest(row(forNew), MISSING, "new")).label, "!2");
+  const forOld: ChangeRequestRow = { outcome: "available", changeRequest: mergeRequest({}, 1), environmentBranch: "old" };
+  const failedStale = resolveRequest({ status: "failed", message: "timeout", row: forOld }, row({ outcome: "absent" }), "new");
+  assert.equal(failedStale.kind, "unavailable");
+  assert.equal(requestFilterState(failedStale), undefined);
 });
