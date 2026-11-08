@@ -208,8 +208,8 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
   width: var(--bbs-icon);
   height: var(--bbs-icon);
 }
-/* Tray status colours (lib/status.ts): BB's semantic tokens, with the
-   GitHub/Cursor values as fallbacks. */
+/* Tray status colours (lib/status.ts): BB's semantic tokens, with
+   fallbacks. */
 .bb-pr-tray__leading[data-tone="green"] { color: var(--bbs-green); }
 .bb-pr-tray__leading[data-tone="red"] { color: var(--destructive-text, var(--bbs-red)); }
 .bb-pr-tray__leading[data-tone="orange"] { color: var(--warning-text, var(--bbs-orange)); }
@@ -312,8 +312,8 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
   font-size: var(--bbs-text-body);
 }
 
-/* Pull request links in messages, after Cursor: an ordinary link led by a
-   13px lifecycle icon (components/pr/inline-link.tsx). */
+/* Pull request links in messages: an ordinary link led by a 13px lifecycle
+   icon (components/pr/inline-link.tsx). */
 .bb-pr-link {
   white-space: nowrap;
 }
@@ -425,9 +425,9 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
 }
 
 /* Pull request tabs: colour the tab's icon by lifecycle (open, merged,
-   closed, draft), as Cursor's PR tabs do. The title ends in an invisible
-   marker (LIFECYCLE_MARK in components/pr/pills.tsx), which only this plugin
-   writes, so the rule cannot match another plugin's tabs. */
+   closed, draft). The title ends in an invisible marker (LIFECYCLE_MARK in
+   components/pr/pills.tsx), which only this plugin writes, so the rule cannot
+   match another plugin's tabs. */
 [data-tab-pill]:has([title$="\2060\200B"]) [data-icon="GitPullRequest"] { color: var(--bbs-green); }
 [data-tab-pill]:has([title$="\2060\200C"]) [data-icon="GitPullRequest"] { color: var(--pr-merged, var(--bbs-purple)); }
 [data-tab-pill]:has([title$="\2060\200D"]) [data-icon="GitPullRequest"] { color: var(--destructive-text, var(--bbs-red)); }

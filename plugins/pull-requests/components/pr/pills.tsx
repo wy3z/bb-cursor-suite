@@ -3,9 +3,8 @@
 // into a reply with `::pull-request{url="…"}`. Both open the pull request in
 // the thread's side panel.
 //
-// The chips are styled by this plugin's own `bb-pr-` classes in app.css (a
-// minimal copy of Cursor's pill and tray look), so nothing here depends on
-// another plugin being installed.
+// The chips are styled by this plugin's own `bb-pr-` classes in app.css, so
+// nothing here depends on another plugin being installed.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
@@ -151,9 +150,9 @@ export function useOpenPullRequest(threadId: string) {
   );
 }
 
-// ---- Tab titles: Cursor's per-branch PR tabs read "PR #N" with a lifecycle
-// icon. BB fixes a tab's icon at registration, so the title ends in an
-// invisible marker that app.css matches to colour the icon.
+// ---- Tab titles: the title reads "PR #N" with a lifecycle icon. BB fixes a
+// tab's icon at registration, so the title ends in an invisible marker that
+// app.css matches to colour the icon.
 
 const LIFECYCLE_MARK: Record<Lifecycle, string> = {
   open: "\u2060\u200B",
@@ -348,9 +347,8 @@ function useTrackItems(threadId: string, environmentId: string | null) {
   return { items, unlink, loaded };
 }
 
-// ---- The composer tray, after Cursor's agent-prs-tray: a "PRs" chip with
-// the open count, opening a tray of open pull requests, newest first, then
-// the finished ones under "Done".
+// ---- The composer tray: a "PRs" chip with the open count, opening a tray of
+// open pull requests, newest first, then the finished ones under "Done".
 
 const FIRST_PAGE = 5;
 const NEXT_PAGE = 8;
@@ -399,7 +397,6 @@ function TrayRow({
       className="bb-pr-tray__row"
       data-active={active || undefined}
       onClick={(event) => {
-        // Cursor: a modified click opens GitHub instead.
         if (event.metaKey || event.ctrlKey || event.shiftKey) window.open(url, "_blank", "noopener");
         else onOpen(url);
       }}

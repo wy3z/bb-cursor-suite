@@ -26,10 +26,10 @@ its custom code viewer (BB's `experimental_Diff` is used instead), comment
 
 ## In threads
 
-- **A PRs tray above the composer**, after Cursor's agent-prs-tray: a "PRs"
+- **A PRs tray above the composer**: a "PRs"
   chip with the open count opens a tray headed "N Open", newest first, then
-  merged and closed ones under "N Done" (three at a time). Each row has
-  Cursor's status icon, the title, `#N` and a status word (Draft, Conflicts,
+  merged and closed ones under "N Done" (three at a time). Each row has a
+  status icon, the title, `#N` and a status word (Draft, Conflicts,
   CI Failing, Ready, Waiting for Reviewers); hovering swaps the word for Add to
   chat, which puts the URL in the composer. A click opens it in the side
   panel, Ctrl or middle-click opens GitHub. The branch's pull request (from
@@ -37,9 +37,8 @@ its custom code viewer (BB's `experimental_Diff` is used instead), comment
   subscribes to, and the branch, linked and subscribed pull requests of its
   child threads (and theirs, all the
   way down, archived ones skipped); hovering such a title names the child. Status rules live in `lib/status.ts`. The
-  chip and tray are styled by this plugin's own `bb-pr-` classes in `app.css`
-  (a minimal copy of Cursor's pill and tray look), so no other plugin has to be
-  installed.
+  chip and tray are styled by this plugin's own `bb-pr-` classes in `app.css`,
+  so no other plugin has to be installed.
 - **Linking.** `bb pull-requests link <url>` (also `unlink`, `list`) links a
   pull request to the thread running the command, or `--thread <id>`. Links
   live in the thread's plugin metadata, at most 12 per thread.
@@ -54,7 +53,8 @@ its custom code viewer (BB's `experimental_Diff` is used instead), comment
   time for remove. The checker (`lib/subscriptions.ts`) runs as the `watch`
   background service: every 60s by default, the first check is a silent
   baseline, changes within 10s go out as one message, a message still queued
-  is rewritten rather than stacked. Both intervals are plugin settings.- **Links in messages**, after Cursor's composer markdown: any markdown link
+  is rewritten rather than stacked. Both intervals are plugin settings.
+- **Links in messages**, in the composer: any markdown link
   to a github.com pull request gets a live lifecycle icon (open, draft, merged,
   closed), reads `#N` when its text is just the URL or number, and has a hover
   card (title, status, "Opened 4h ago by @x on owner/repo"). A click opens it
