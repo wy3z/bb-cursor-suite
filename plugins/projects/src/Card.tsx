@@ -1,5 +1,6 @@
-import { useEffect, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useState, type ComponentProps, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { experimental_Icon as Icon, useBbNavigate, useSdk } from "@get-bb/plugin-sdk/app";
+import { NEEDS_PULL_REQUESTS, usePluginAvailability, type PluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import {
   PULL_REQUESTS_PLUGIN,
   TASKS_PLUGIN,
@@ -55,6 +56,43 @@ function pickWorker(taskThreads: readonly TaskThread[], index: ReadonlyMap<strin
   const working = live.find((item) => item.info?.working || item.link.liveStatus === "working" || item.link.liveStatus === "starting");
   const input = live.find((item) => item.info?.needsInput);
   return { latest: live[0] ?? null, working: working ?? null, input: input ?? null, count: live.length };
+}
+
+export function GitActionItems({
+  gitActions,
+  canApply,
+  canCreatePr,
+  onApply,
+  onCreatePr,
+}: {
+  gitActions: PluginAvailability;
+  canApply: boolean;
+  canCreatePr: boolean;
+  onApply: () => void;
+  onCreatePr: () => void;
+}) {
+  const disabled = gitActions !== "available";
+  const reason = gitActions === "unavailable" ? <span className="bbp-menu__reason">{NEEDS_PULL_REQUESTS}</span> : null;
+  const item = (label: string, icon: ComponentProps<typeof Icon>["name"], onClick: () => void) => (
+    <button
+      type="button"
+      role="menuitem"
+      className="bbp-menu__item"
+      disabled={disabled}
+      title={gitActions === "unavailable" ? NEEDS_PULL_REQUESTS : undefined}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+      <span>{label}</span>
+      {reason}
+    </button>
+  );
+  return (
+    <>
+      {canApply ? item("Apply locally", "Download", onApply) : null}
+      {canCreatePr ? item("Create PR", "GitPullRequest", onCreatePr) : null}
+    </>
+  );
 }
 
 export function useDerived(
@@ -116,6 +154,7 @@ export function TaskCard({
   const attachmentCount = ctx.attachmentCounts.get(task.id) ?? 0;
   const agents = agentViews(links, ctx.threads, ctx.now);
   const { open: menu, setOpen: setMenu, ref: menuRef } = usePopover();
+  const gitActions = usePluginAvailability(PULL_REQUESTS_PLUGIN);
   const [flash, setFlash] = useState<Flash>(null);
 
   useEffect(() => {
@@ -155,7 +194,7 @@ export function TaskCard({
     });
 
   const applyLocally = () =>
-    workerEnv && ctx.targetEnvironmentId
+    gitActions === "available" && workerEnv && ctx.targetEnvironmentId
       ? run("Applying…", async () => {
           const result = await sdk.plugins.callRpc({
             pluginId: PULL_REQUESTS_PLUGIN,
@@ -170,7 +209,7 @@ export function TaskCard({
       : undefined;
 
   const createPr = () =>
-    workerEnv
+    gitActions === "available" && workerEnv
       ? run("Creating pull request…", async () => {
           const result = await sdk.plugins.callRpc({
             pluginId: PULL_REQUESTS_PLUGIN,
@@ -236,18 +275,13 @@ export function TaskCard({
             ))
           )}
           {workerEnv ? <div className="bbp-menu__sep" /> : null}
-          {workerEnv && ctx.targetEnvironmentId ? (
-            <button type="button" role="menuitem" className="bbp-menu__item" onClick={() => void applyLocally()}>
-              <Icon name="Download" />
-              <span>Apply locally</span>
-            </button>
-          ) : null}
-          {workerEnv && !openPr ? (
-            <button type="button" role="menuitem" className="bbp-menu__item" onClick={() => void createPr()}>
-              <Icon name="GitPullRequest" />
-              <span>Create PR</span>
-            </button>
-          ) : null}
+          <GitActionItems
+            gitActions={gitActions}
+            canApply={Boolean(workerEnv && ctx.targetEnvironmentId)}
+            canCreatePr={Boolean(workerEnv && !openPr)}
+            onApply={() => void applyLocally()}
+            onCreatePr={() => void createPr()}
+          />
           <div className="bbp-menu__sep" />
           {ctx.onSelect ? (
             <button
