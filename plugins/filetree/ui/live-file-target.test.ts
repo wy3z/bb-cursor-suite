@@ -27,4 +27,16 @@ describe("liveFileTarget", () => {
       }),
     ).toEqual({ kind: "host", hostId: "host_1", path: "/home/me/repo/README.md" });
   });
+
+  it("joins project source files on a Windows host with backslashes", () => {
+    expect(
+      liveFileTarget({
+        root: root(
+          { kind: "project-source", projectId: "proj_1", sourceId: "src_1" },
+          "C:\\Users\\me\\repo",
+        ),
+        path: "src/app.ts",
+      }),
+    ).toEqual({ kind: "host", hostId: "host_1", path: "C:\\Users\\me\\repo\\src\\app.ts" });
+  });
 });

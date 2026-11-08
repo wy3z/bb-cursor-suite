@@ -53,7 +53,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     const id = task.id ?? `task_${task.key.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
     const full: FakeTask = {
       id,
-      projectId: "proj_pixel",
+      projectId: "proj_abc",
       title: task.key,
       description: "",
       status: "todo",
@@ -121,7 +121,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
               faults.listProjects--;
               throw new Error("tasks plugin is reloading");
             }
-            return { projects: [{ id: "proj_pixel", name: "Pixel", prefix: "PIXEL", color: "blue", linkedBbProjectId: null }, { id: "proj_other", name: "Other", prefix: "OTHER", color: "red", linkedBbProjectId: null }] };
+            return { projects: [{ id: "proj_abc", name: "Acme", prefix: "ABC", color: "blue", linkedBbProjectId: null }, { id: "proj_other", name: "Other", prefix: "OTHER", color: "red", linkedBbProjectId: null }] };
           }
           if (pluginId === "tasks" && method === "listAllTasks") return { tasks: [...tasks.values()].filter((task) => task.projectId === input.projectId).map((task) => structuredClone(task)) };
           if (pluginId === "tasks" && method === "listTaskCardMeta") return { cards: [] };

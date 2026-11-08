@@ -1502,7 +1502,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         ref={listRef}
         data-fade-more={listHasMore ? "true" : undefined}
         onKeyDown={handleListKeyDown}
-        className="cs-scroll relative min-h-0 flex-1 overflow-y-auto px-1.5 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="cs-scroll cs-row-inset relative min-h-0 flex-1 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       <div className="cs-managers pt-2">
                 <GroupHeading
@@ -1662,7 +1662,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
             ) : null}
             <div className="relative">
       {standaloneHeading ? (
-        <div className={cn(SECTION_HEADING_ROW, "mb-1 pl-4")}>
+        <div className={cn(SECTION_HEADING_ROW, "mb-1")}>
           <button
             type="button"
             aria-label={GROUPING_HEADINGS[view.groupBy]}
@@ -1713,7 +1713,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
             {/* No heading is ever drawn empty; when nothing renders at all the
                 list still says why, rather than going blank. */}
             {nothingToShow ? (
-              <p className="px-3 py-2 text-xs text-[color:var(--bbs-text-secondary)]">
+              <p className="cs-row-note py-2 text-xs text-[color:var(--bbs-text-secondary)]">
                 {selectedProjectEmpty
                   ? "No threads"
                   : viewHasActiveFilters(view)
@@ -2035,7 +2035,7 @@ function GroupHeading({
       label={label}
       open={open}
       onToggle={onToggle}
-      className="mt-3 first:mt-0 pl-4"
+      className="mt-3 first:mt-0"
       actions={actions}
     />
   );
@@ -2158,7 +2158,7 @@ function ProjectSection({
     return (
       <section aria-label={section.name} className="mb-1 mt-1 min-h-8 first:mt-0">
         {isEmpty ? (
-          <p className="px-3 py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
+          <p className="cs-row-note py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
         ) : (
           <>
             <ShelfList
@@ -2230,11 +2230,11 @@ function ProjectSection({
         onPointerDown={canDragProject ? onHeadingDragStart : undefined}
         className={cn(
           SECTION_HEADING_ROW,
-          "cs-project-heading group/heading relative min-h-7 rounded-md pr-2",
+          "cs-project-heading group/heading relative min-h-7 rounded-md",
           sectionOpen && "mb-px",
         )}
       >
-        <span className="cs-status-slot relative flex w-4 shrink-0 items-center justify-center">
+        <span className="cs-status-slot relative flex shrink-0 items-center justify-center">
           <span className="flex pointer-events-none group-hover/heading:opacity-0 group-has-[:focus-visible]/heading:opacity-0">
             {section.personal ? (
               <Icon name="Home" aria-hidden="true" className="size-3.5 text-[color:var(--bbs-text-secondary)]" />
@@ -2278,7 +2278,7 @@ function ProjectSection({
             if (ctx.consumeSuppressedClick(section.id)) return;
             onToggleProject();
           }}
-          className="flex min-h-5 min-w-0 flex-1 items-center rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:min-h-9 pointer-coarse:min-h-9"
+          className="cs-row-text flex min-h-5 min-w-0 flex-1 items-center rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:min-h-9 pointer-coarse:min-h-9"
         >
           <span className={cn(SECTION_HEADING_LABEL, "cs-project-name")}>
             {section.name}
@@ -2308,7 +2308,7 @@ function ProjectSection({
 
       <Drawer open={sectionOpen || showCollapsedSelection || keepException}>
         {isEmpty ? (
-          <p className="px-3 py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
+          <p className="cs-row-note py-1 text-xs text-[color:var(--bbs-text-secondary)]">No threads</p>
         ) : (
           <>
             <ShelfList

@@ -46,7 +46,7 @@ export function PullRequestMark({
       role="img"
       aria-label={label}
       title={`${request.label} · ${label.toLowerCase()}`}
-      className="mr-1 flex size-3.5 shrink-0 items-center justify-center"
+      className="flex size-3.5 shrink-0 items-center justify-center"
     >
       <Icon
         name={presentation.icon}
@@ -90,7 +90,7 @@ function MergeRequestMark({
       type="button"
       aria-label={`${label} ${number}, open`}
       title={`${number} · ${label.toLowerCase()}`}
-      className="pointer-events-auto relative z-10 mr-1 flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+      className="pointer-events-auto relative z-10 flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
       onPointerDown={(event) => event.stopPropagation()}
       onClick={open}
       onAuxClick={(event) => {

@@ -2,6 +2,8 @@
 
 Plugins that make [BB](https://getbb.app) look and work like Cursor. Each plugin installs and works on its own; together they cover the sidebar, the composer, files, project boards and pull requests.
 
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
+
 | Plugin | Folder | What it does |
 |---|---|---|
 | Cursor Sidebar | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
@@ -74,4 +76,4 @@ It also refuses a downgrade, and any version at or below one already tagged on o
 
 ## Licence
 
-MIT. Marketplace icons come from [Lucide](https://lucide.dev) (ISC).
+MIT, see [LICENSE](LICENSE). Marketplace icons come from [Lucide](https://lucide.dev) (ISC).

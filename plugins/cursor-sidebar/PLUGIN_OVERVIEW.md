@@ -28,7 +28,7 @@ A warning mark on the menu button means a view change has not reached the server
 
 ## Row details
 
-A row can show its project icon, a status glyph and metadata. When a chat has child chats that are working, the age at the end of the row becomes a small accent pill with their count. The pill disappears when nothing below it is running.
+A row can show its project icon, a status glyph and metadata. When a chat has child chats that are working, the age at the end of the row becomes a small accent pill with their count. The pill disappears when nothing below it is running. Every row shares one left edge with no indent or tree lines: icons sit in one 14px column and titles start in the next. Child chats sit under their parent with a small corner arrow before the age, and the pull request and provider marks sit there too.
 
 ## Compact navigation
 
@@ -41,3 +41,7 @@ Touch uses the same list with gestures instead of hover. Tap a row to open it an
 ## Requirements
 
 BB 0.49 or newer, with plugin SDK 0.6.132 or newer. No account or external service is needed.
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

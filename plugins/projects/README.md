@@ -60,21 +60,21 @@ live cards, and a project lead workflow.
 ## CLI
 
 ```sh
-bb projects status PIXEL          # counts per column, work in flight, focus
-bb projects focus PIXEL "text"    # set; --clear to remove; no text to show
-bb projects lead PIXEL            # make the current thread the lead; --thread, --show
-bb projects send PIXEL "text"     # hand the lead a request; --as <agent>, --ref, --key
-bb projects reply PIXEL "text"    # lead only: answer an agent; --to req_..., --for <agent>, --kind
-bb projects replies [PIXEL]       # --as <agent>: its unacknowledged replies; --all, --after, --limit
-bb projects ack PIXEL rep_...     # --as <agent> (required): mark replies handled; safe to repeat
-bb projects consumers PIXEL       # agents following the lead; --forget <agent>
-bb projects requests PIXEL        # requests and whether each reached the lead; --as <agent>
-bb projects retry PIXEL req_...   # retry a failed or held request now
-bb projects notify                # webhook wake-up state; --test sends one now
-bb projects notes PIXEL           # project memory; --append "line", --set "all"
-bb projects loop PIXEL            # triggers; --sweep 2h|off, --any-hours, --drift on|off, --follow-prs on|off
-bb projects reconcile PIXEL       # cards behind their evidence, with moves; --apply makes roll-up and idle moves only
-bb projects queue-backlog PIXEL   # one-time Backlog -> Queued (todo) move; lists unless --apply
+bb projects status ABC         # counts per column, work in flight, focus
+bb projects focus ABC "text"   # set; --clear to remove; no text to show
+bb projects lead ABC           # make the current thread the lead; --thread, --show
+bb projects send ABC "text"    # hand the lead a request; --as <agent>, --ref, --key
+bb projects reply ABC "text"   # lead only: answer an agent; --to req_..., --for <agent>, --kind
+bb projects replies [ABC]      # --as <agent>: its unacknowledged replies; --all, --after, --limit
+bb projects ack ABC rep_...    # --as <agent> (required): mark replies handled; safe to repeat
+bb projects consumers ABC      # agents following the lead; --forget <agent>
+bb projects requests ABC       # requests and whether each reached the lead; --as <agent>
+bb projects retry ABC req_...  # retry a failed or held request now
+bb projects notify             # webhook wake-up state; --test sends one now
+bb projects notes ABC          # project memory; --append "line", --set "all"
+bb projects loop ABC           # triggers; --sweep 2h|off, --any-hours, --drift on|off, --follow-prs on|off
+bb projects reconcile ABC      # cards behind their evidence, with moves; --apply makes roll-up and idle moves only
+bb projects queue-backlog ABC  # one-time Backlog -> Queued (todo) move; lists unless --apply
 ```
 
 ## Outer loop and inner loop
@@ -100,10 +100,10 @@ For example, with Grok Bot as the outer loop:
    `bb` command, start agents and change files. Revoke it with
    `bb mcp revoke`.
 3. Give the routine a stable instruction, for example: "Every weekday at 09:00
-   and when someone reports a bug in #pixel-feedback, summarise what is new and
-   run `bb projects send PIXEL "<summary>" --as grok-bot --ref <link>
+   and when someone reports a bug in #project-feedback, summarise what is new and
+   run `bb projects send ABC "<summary>" --as grok-bot --ref <link>
    --key <the origin's message id>` through the bb connector. Read
-   `bb projects status PIXEL --json` first and don't resend what the lead
+   `bb projects status ABC --json` first and don't resend what the lead
    already has."
 
 The lead triages each message onto the board, delegates, and notifies you
@@ -133,7 +133,7 @@ anything else happens, so a restart or a failed call loses nothing.
   backoff from 15 seconds up to 15 minutes. After 10 consecutive failures the
   request is `failed`, and in the same transaction a `failure` reply is saved
   for the consumer saying why and how to retry. Nothing failed is retried
-  automatically; `bb projects retry PIXEL <req>` does it, first checking the
+  automatically; `bb projects retry ABC <req>` does it, first checking the
   lead's thread and queue so a copy that did land is not sent twice.
 - If BB restarts in the middle of a delivery, the next attempt makes the same
   check. If the check cannot see it, the lead is told it may be a redelivery.
@@ -144,19 +144,19 @@ anything else happens, so a restart or a failed call loses nothing.
   it cannot be removed, nothing is sent and the attempt is retried. If the
   earlier target is now hidden, so the check cannot see into it, the request
   is held with a notice instead of risking a duplicate;
-  `bb projects retry PIXEL <req> --resend` sends it to the current lead anyway.
+  `bb projects retry ABC <req> --resend` sends it to the current lead anyway.
 - The thread a request was delivered to can always answer that request with
   `--to`, even after it stops being the lead; only the current lead can send
   news without `--to`.
 - Replies are per agent. An agent follows a project's lead once it sends a
-  request or reads `replies PIXEL --as <agent>`. A reply `--to` a request,
+  request or reads `replies ABC --as <agent>`. A reply `--to` a request,
   and the `notice` and `failure` replies about it, go only to the agent that
   sent the request. A reply without `--to` is project news for every agent
   following the project at that moment (later followers do not get old news);
   `--for <agent>` sends it to one. Each agent acknowledges its own copy with
-  `ack PIXEL --as <agent>`, so one agent never consumes another's replies.
+  `ack ABC --as <agent>`, so one agent never consumes another's replies.
   Ids from another project or another agent are refused, and the lead thread
-  cannot acknowledge its own replies. `consumers PIXEL --forget <agent>`
+  cannot acknowledge its own replies. `consumers ABC --forget <agent>`
   removes a dead or mistyped agent and clears what it was owed.
 - `replies --as <agent> --json` includes the request each one answers (id,
   source, ref, key). Without `--as` it is an overview for people: every reply
@@ -183,7 +183,7 @@ ignore wake-ups with nothing for it:
 
 ```json
 {"type":"bb.projects.replies-pending","version":1,"wake":7,"pending":3,
- "projects":{"PIXEL":3},"consumers":{"grok-bot":{"PIXEL":2},"dots":{"PIXEL":1}},
+ "projects":{"ABC":3},"consumers":{"grok-bot":{"ABC":2},"dots":{"ABC":1}},
  "newestReplyId":"rep_...","at":"2026-11-07T10:00:00.000Z"}
 ```
 
@@ -200,6 +200,13 @@ the URL, header or response body.
 BB 0.49+, plugin SDK 0.6.132+, the built-in Tasks plugin enabled, and Agent
 Pills for Apply locally and Create PR.
 
+## Install
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin projects --tag-prefix projects/
+```
+
 ## Develop
 
 ```sh
@@ -209,3 +216,11 @@ npm run build
 bb plugin install path:$PWD --yes
 bb plugin reload projects
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

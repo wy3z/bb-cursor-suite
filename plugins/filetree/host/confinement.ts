@@ -1,6 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { fstat as fstatCallback, read as readCallback } from "node:fs";
 import { open, opendir, realpath, type FileHandle } from "node:fs/promises";
+import { win32 } from "node:path";
 import { NativeFileHostError, remapFilesystemError } from "./errors.js";
 import { loadNativeFilesAddon, type NativeFilesAddon } from "./native-addon.js";
 import { resolveTrustedGit, scrubbedGitEnvPairs } from "./git-env.js";
@@ -224,10 +225,15 @@ export function createLinuxProcFdPrimitive(): OpenatPrimitive {
 }
 export function createNativeOpenatPrimitive(
   addon: NativeFilesAddon,
+  platform: NodeJS.Platform = process.platform,
 ): OpenatPrimitive {
+  const { fstat: nativeFstat, read: nativeRead } = addon;
   return {
     async openRoot(path, flags) {
-      return addon.open(path, flags);
+      return addon.open(
+        platform === "win32" ? win32.toNamespacedPath(path) : path,
+        flags,
+      );
     },
     async openat(dirfd, name, flags) {
       assertComponent(name);
@@ -240,12 +246,18 @@ export function createNativeOpenatPrimitive(
       addon.close(fd);
     },
     async fstat(fd) {
+      if (nativeFstat) {
+        const { device, inode, isDirectory, isFile, mtimeMs, size } =
+          nativeFstat(fd);
+        return { device, inode, isDirectory, isFile, mtimeMs, size };
+      }
       return toConfinementStat(await fstatOpenedFd(fd));
     },
     async canonicalPath(fd) {
       return addon.canonicalPath(fd);
     },
     async readFile(fd, size) {
+      if (nativeRead) return nativeRead(fd, size);
       return await readOpenedFd(fd, size);
     },
     async *iterateDirents(fd) {
@@ -310,7 +322,7 @@ export function createOpenatPrimitive(
     dependencies.nativeAddon === undefined
       ? loadNativeFilesAddon()
       : dependencies.nativeAddon;
-  if (addon) return createNativeOpenatPrimitive(addon);
+  if (addon) return createNativeOpenatPrimitive(addon, platform);
   confinementUnavailable(platform);
 }
 export async function openRelativePath(
