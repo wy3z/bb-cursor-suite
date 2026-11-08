@@ -37,8 +37,8 @@ live cards, and a project lead workflow.
   Requests is not installed.
 - **Card menu**: delegate to any Tasks preset, Apply locally (the worker's
   worktree into the project checkout), Create PR, Open in Tasks. Apply and
-  Create PR call the Agent Pills plugin's git actions, so that plugin must be
-  installed.
+  Create PR call the Cursor Composer plugin's git actions, so that plugin must
+  be installed.
 - **Board icon**: each board has its own icon, stored by this plugin and set
   from the icon in the board header or **Set icon…** in the board menu (the
   **⋯** button), or with `bb projects icon`. The picker is the suite's port of

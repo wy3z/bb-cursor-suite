@@ -1,4 +1,4 @@
-# Agent Pills
+# Cursor Composer
 
 Restyles BB's composer to look like Cursor's, and adds Cursor-style pills
 for child threads and background tasks above it.
@@ -47,8 +47,8 @@ whole editor and would stop picking up BB's composer fixes.
 On by default. The pills replace the full-width cards above the composer
 (child threads, background tasks, workflows, to-dos, the queue and the rest)
 with one row of small pills. Turn them off under **Settings → Plugins →
-Agent Pills → Agent pills** to get BB's own cards back; the composer keeps its
-restyle either way. The setting is kept in this browser only.
+Cursor Composer → Agent pills** to get BB's own cards back; the composer
+keeps its restyle either way. The setting is kept in this browser only.
 
 The Agents and Changes chips, and the Pull Requests and Subscriptions
 plugins' chips, share one Cursor tray style from `app.css` (`__tray-*`): a
