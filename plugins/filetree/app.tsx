@@ -1,5 +1,6 @@
 import { definePluginApp, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { NativeFilesPanel } from "./ui/NativeFilesPanel.js";
+import { FilesSettings } from "./ui/FilesSettings.js";
 import { useFilesData } from "./ui/use-files-data.js";
 import { liveFileTarget } from "./ui/live-file-target.js";
 import { focusSiblingPane } from "./ui/split-pane-target.js";
@@ -91,5 +92,9 @@ export default definePluginApp((app) => {
     icon: icons ? TAB_ICON : "Folder",
     layout: "flush",
     component: FilesPanel,
+  });
+  app.slots.settingsSection({
+    id: "files",
+    component: FilesSettings,
   });
 });

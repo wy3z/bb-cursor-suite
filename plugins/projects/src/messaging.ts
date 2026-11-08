@@ -23,13 +23,13 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     wakeEnabled: {
       type: "boolean",
       label: "Wake the outer loop by webhook",
-      description: "POST a wake-up (counts and ids only, never message text) when a project lead replies. Off until the receiver's contract is confirmed.",
+      description: "Sends a wake-up (counts and ids only, never message text) when a project lead replies. Off by default. Turn on once your receiver is ready.",
       default: false,
     },
-    wakeUrl: { type: "string", label: "Webhook URL", description: "https only; http is accepted for a loopback test receiver.", secret: true },
+    wakeUrl: { type: "string", label: "Webhook URL", description: "Where the wake-up goes. Use https; plain http works only for a loopback test receiver.", secret: true },
     wakeHeaderName: { type: "string", label: "Auth header name", description: "Exactly as the receiver documents it. Leave empty if it needs none.", default: "" },
-    wakeHeaderValue: { type: "string", label: "Auth header value", secret: true },
-    wakeRemindMinutes: { type: "number", label: "Remind every (minutes)", description: "Wake again while replies stay unacknowledged.", default: 60 },
+    wakeHeaderValue: { type: "string", label: "Auth header value", description: "Sent in the header above. Leave empty if the receiver needs none.", secret: true },
+    wakeRemindMinutes: { type: "number", label: "Remind every (minutes)", description: "Wakes the receiver again while replies stay unacknowledged. 60 by default.", default: 60 },
   });
 
   let migrated = false;

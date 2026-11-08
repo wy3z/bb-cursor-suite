@@ -295,15 +295,16 @@ export function createSubscriptions(bb: BbPluginApi, deps: SubscriptionsDeps) {
   const settings = bb.settings.define({
     intervalSeconds: {
       type: "number",
-      label: "Subscription check interval in seconds",
+      label: "Check every (seconds)",
+      description: "How often followed pull requests are checked for changes. 60 by default.",
       default: 60,
       experimental_schema: z.number().int().min(30).max(3600),
     },
     debounceSeconds: {
       type: "number",
-      label: "Debounce subscription messages within (seconds)",
+      label: "Batch changes within (seconds)",
       description:
-        "Changes seen within this window go out as one message. While a thread is busy, later changes rewrite the message already waiting for it.",
+        "Changes seen within this window go out as one message. While a thread is busy, later changes update the message already waiting for it. 10 by default.",
       default: 10,
       experimental_schema: z.number().int().min(0).max(600),
     },
