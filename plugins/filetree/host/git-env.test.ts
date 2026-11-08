@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
+import type { GitLookupProbe } from "@wy3z/bb-suite/git";
 import {
-  fallbackGitDirs,
   resolveTrustedGit,
   scrubbedGitEnv,
   TRUSTED_GIT_PATH,
+  trustedGitDirs,
   windowsGitCandidates,
 } from "./git-env.js";
+function probeWith(dir: string, dirMode = 0o755): GitLookupProbe {
+  return {
+    stat(path) {
+      if (path !== dir && path !== `${dir}/git`) return null;
+      const isDir = path === dir;
+      return { isFile: () => !isDir, isDirectory: () => isDir, mode: isDir ? dirMode : 0o755, uid: 0 };
+    },
+  };
+}
 describe("git spawn environment", () => {
   it("drops inherited GIT_* overrides and pins a trusted PATH", () => {
     const env = scrubbedGitEnv(
@@ -67,33 +77,36 @@ describe("git spawn environment", () => {
     ]);
     expect(windowsGitCandidates({ ProgramFiles: "relative\\dir" })).toEqual([]);
   });
-  it("finds git on NixOS and Homebrew when the system dirs have none", () => {
-    const env = { HOME: "/home/u", USER: "u", PATH: "/usr/bin:/bin" };
-    for (const git of [
-      "/run/current-system/sw/bin/git",
-      "/etc/profiles/per-user/u/bin/git",
-      "/home/u/.nix-profile/bin/git",
-      "/home/linuxbrew/.linuxbrew/bin/git",
+  it("finds git on NixOS, Nix profiles, Guix, Homebrew and Linuxbrew when the system dirs have none", () => {
+    const me = { username: "u", home: "/home/u", uid: 1000 };
+    for (const dir of [
+      "/run/current-system/sw/bin",
+      "/nix/var/nix/profiles/default/bin",
+      "/etc/profiles/per-user/u/bin",
+      "/run/current-system/profile/bin",
+      "/home/linuxbrew/.linuxbrew/bin",
+      "/home/u/.nix-profile/bin",
+      "/home/u/.guix-profile/bin",
+      "/home/u/.linuxbrew/bin",
     ]) {
       expect(
-        resolveTrustedGit("/usr/local/bin:/usr/bin:/bin", "linux", env, (candidate) => candidate === git),
-      ).toBe(git);
+        resolveTrustedGit("/usr/local/bin:/usr/bin:/bin", "linux", {}, me, probeWith(dir)),
+      ).toBe(`${dir}/git`);
     }
   });
-  it("falls back to absolute server PATH entries only after the system dirs", () => {
-    const env = { PATH: "relative:/opt/tools/bin" };
-    expect(fallbackGitDirs(env)).toContain("/opt/tools/bin");
-    expect(fallbackGitDirs(env)).not.toContain("relative");
-    expect(
-      resolveTrustedGit("/usr/bin", "linux", env, (candidate) =>
-        candidate === "/opt/tools/bin/git" || candidate === "/usr/bin/git",
-      ),
-    ).toBe("/usr/bin/git");
-    expect(
-      resolveTrustedGit("/usr/bin", "linux", env, (candidate) => candidate === "/opt/tools/bin/git"),
-    ).toBe("/opt/tools/bin/git");
-    expect(() => resolveTrustedGit("/usr/bin", "linux", env, () => false)).toThrow(
-      "git executable was not found in the trusted path",
-    );
+  it("never falls back to the server PATH, and names every place it checked", () => {
+    const me = { username: "u", home: "/home/u", uid: 1000 };
+    const fromPath = () =>
+      resolveTrustedGit("/usr/bin", "linux", { PATH: "/opt/tools/bin" }, me, probeWith("/opt/tools/bin"));
+    expect(fromPath).toThrow("git executable was not found. Checked: /usr/bin, /usr/local/bin");
+    expect(fromPath).toThrow("/run/current-system/sw/bin");
+    expect(fromPath).not.toThrow("/opt/tools/bin");
+    expect(trustedGitDirs("/usr/bin", me)).not.toContain("/opt/tools/bin");
+  });
+  it("skips a world-writable git directory", () => {
+    const me = { username: "u", home: "/home/u", uid: 1000 };
+    expect(() =>
+      resolveTrustedGit("/usr/bin", "linux", {}, me, probeWith("/usr/bin", 0o777)),
+    ).toThrow("git executable was not found");
   });
 });
