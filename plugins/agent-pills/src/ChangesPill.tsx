@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import { z } from "zod";
 import {
   experimental_Icon as Icon,
@@ -156,6 +157,8 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
     };
   }, [open]);
 
+  useMenuKeyboard(rootRef, open, () => setOpen(false), '[role="dialog"]');
+
   if (changes === null) return null;
   const { title, insertions, deletions, fileCount, files } = changes;
   const fileWord = fileCount === 1 ? "File" : "Files";
@@ -206,7 +209,7 @@ export function ChangesPill(props: ExperimentalThreadContextSegmentProps) {
               <Icon name="Minus" />
             </button>
           </div>
-          <div className="bb-agent-pills__tray-rows">
+          <div className="bb-agent-pills__tray-rows" role="menu" aria-label="Changed files">
             {files.slice(0, shown).map((file) => (
               <button
                 type="button"
