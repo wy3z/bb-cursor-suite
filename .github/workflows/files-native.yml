@@ -42,7 +42,7 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - run: npm ci --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build the addon
         working-directory: plugins/filetree
         run: node scripts/native-assets.mjs --native
@@ -69,14 +69,14 @@ jobs:
           - platform: darwin-x64
             runner: macos-15-intel
           - platform: win32-x64
-            runner: windows-2025
+            runner: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build the addon
         working-directory: plugins/filetree
         run: node scripts/native-assets.mjs --native

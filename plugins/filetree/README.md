@@ -15,7 +15,7 @@ File access is read-only.
 bb plugin install https://github.com/wy3z/bb-plugin-filetree
 ```
 
-Requires BB 0.49+. Runs on macOS (Apple silicon and Intel), Linux (x64 and Arm64, glibc GLIBC_FLOOR or newer) and Windows x64. On any other machine the Files tab says it can't browse that machine.
+Requires BB 0.49+. Runs on macOS (Apple silicon and Intel), Linux (x64 and Arm64, glibc 2.29 or newer) and Windows x64. On any other machine the Files tab says it can't browse that machine.
 
 [Development and CLI](docs/development.md)
 

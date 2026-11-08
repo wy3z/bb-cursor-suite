@@ -29,7 +29,7 @@ The repository includes the generated worker and native-asset modules needed by 
 
 `generated/native-assets.ts` embeds one build per platform, each tagged with a digest of the C sources. `npm run generate` only compiles the addon for your machine when its embedded build doesn't match the current source, which needs a C compiler, Python and Node headers. A test fails until every platform carries a build of the current source.
 
-The "Files native addon" workflow (`.github/workflows/files-native.yml`) builds and tests the addon on native runners for every platform. Linux builds run in a Debian bullseye container so the addon needs glibc GLIBC_FLOOR or newer rather than the runner's. After changing the C source, push, let the workflow finish, then import its result:
+The "Files native addon" workflow (`.github/workflows/files-native.yml`) builds and tests the addon on native runners for every platform. Linux builds run in a Debian bullseye container so the addon needs glibc 2.29 or newer rather than the runner's. After changing the C source, push, let the workflow finish, then import its result:
 
 ```sh
 gh run download <run-id> --repo wy3z/bb-cursor-suite --name files-native-assets --dir plugins/filetree/generated
