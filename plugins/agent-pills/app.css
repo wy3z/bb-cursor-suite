@@ -1088,15 +1088,16 @@ html[data-bb-agent-pills-composer="cursor"].dark [data-bb-agent-pills-has-scroll
   z-index: 30;
 }
 
-/* BB's 24px overflow fade above the footer was made to meet a solid footer;
-   over the transparent one it reads as a dark line. Stretch it over the
-   whole footer instead, so the transcript fades out towards the bottom of
-   the window behind the frosted box. */
+html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] form[data-promptbox] {
+  anchor-name: --bb-agent-pills-composer;
+}
+
 html[data-bb-agent-pills-composer="cursor"]
   [data-scroll-footer]
   [data-overflow-fade="above"] {
   top: -48px !important;
   bottom: 0 !important;
+  bottom: anchor(--bb-agent-pills-composer top, 0px) !important;
   height: auto !important;
   background: linear-gradient(
     to bottom,
@@ -1104,6 +1105,17 @@ html[data-bb-agent-pills-composer="cursor"]
     color-mix(in oklab, var(--background) 55%, transparent) 45%,
     var(--background) 100%
   ) !important;
+}
+
+html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] > div::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  top: anchor(--bb-agent-pills-composer top, 100%);
+  bottom: 0;
+  background: var(--background);
+  pointer-events: none;
 }
 
 /* Narrow screens: a long model name squeezed the editor until the
