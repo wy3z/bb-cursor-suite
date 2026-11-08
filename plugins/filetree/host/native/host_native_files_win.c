@@ -273,12 +273,18 @@ static bool same_file(const BY_HANDLE_FILE_INFORMATION *left,
 static bool same_file_id(HANDLE left, HANDLE right) {
   FILE_ID_INFO a;
   FILE_ID_INFO b;
-  if (!GetFileInformationByHandleEx(left, FileIdInfo, &a, sizeof(a)) ||
-      !GetFileInformationByHandleEx(right, FileIdInfo, &b, sizeof(b))) {
+  if (GetFileInformationByHandleEx(left, FileIdInfo, &a, sizeof(a)) &&
+      GetFileInformationByHandleEx(right, FileIdInfo, &b, sizeof(b))) {
+    return a.VolumeSerialNumber == b.VolumeSerialNumber &&
+           memcmp(&a.FileId, &b.FileId, sizeof(a.FileId)) == 0;
+  }
+  BY_HANDLE_FILE_INFORMATION c;
+  BY_HANDLE_FILE_INFORMATION d;
+  if (!GetFileInformationByHandle(left, &c) || !GetFileInformationByHandle(right, &d)) {
     return false;
   }
-  return a.VolumeSerialNumber == b.VolumeSerialNumber &&
-         memcmp(&a.FileId, &b.FileId, sizeof(a.FileId)) == 0;
+  return c.dwVolumeSerialNumber == d.dwVolumeSerialNumber &&
+         c.nFileIndexHigh == d.nFileIndexHigh && c.nFileIndexLow == d.nFileIndexLow;
 }
 
 static DWORD reopen_same(HANDLE handle, ACCESS_MASK access, ULONG share, ULONG options,
@@ -298,6 +304,10 @@ static DWORD reopen_same(HANDLE handle, ACCESS_MASK access, ULONG share, ULONG o
                                      &attributes, &io, NULL, 0, share, FILE_OPEN,
                                      options | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
     if (status >= 0) {
+      if (!same_file_id(handle, reopened)) {
+        CloseHandle(reopened);
+        return ERROR_STOPPED_ON_SYMLINK;
+      }
       *out = reopened;
       return ERROR_SUCCESS;
     }
@@ -323,6 +333,13 @@ static DWORD reopen_same(HANDLE handle, ACCESS_MASK access, ULONG share, ULONG o
     }
   }
   return first;
+}
+
+static bool is_name_surrogate(HANDLE handle) {
+  FILE_ATTRIBUTE_TAG_INFO tag;
+  if (!GetFileInformationByHandleEx(handle, FileAttributeTagInfo, &tag, sizeof(tag))) return true;
+  return (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
+         IsReparseTagNameSurrogate(tag.ReparseTag);
 }
 
 static DWORD settle_reparse(HANDLE *handle) {
@@ -628,10 +645,12 @@ static napi_value DirOpen(napi_env env, napi_callback_info info) {
   int slot = next_dir_slot();
   if (slot < 0) return throw_info(env, "dirOpen", E_MFILE);
   HANDLE directory = NULL;
-  DWORD err = reopen_same(handle, FILE_LIST_DIRECTORY, SHARE_ALL, FILE_DIRECTORY_FILE, &directory);
-  if (err != ERROR_SUCCESS &&
-      !DuplicateHandle(GetCurrentProcess(), handle, GetCurrentProcess(), &directory, 0, FALSE,
-                       DUPLICATE_SAME_ACCESS)) {
+  DWORD err = reopen_same(handle, FILE_LIST_DIRECTORY, SHARE_ALL,
+                          FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT, &directory);
+  if (err != ERROR_SUCCESS) return throw_win32(env, "dirOpen", err);
+  err = settle_reparse(&directory);
+  if (err != ERROR_SUCCESS) {
+    CloseHandle(directory);
     return throw_win32(env, "dirOpen", err);
   }
   unsigned char *buffer = malloc(DIR_BUFFER_SIZE);
@@ -937,23 +956,36 @@ static void git_execute(napi_env env, void *data) {
     return;
   }
   DWORD err = reopen_same(request->dir, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                          FILE_DIRECTORY_FILE, &pin);
-  if (err != ERROR_SUCCESS) pin = NULL;
-  err = ERROR_SUCCESS;
-  cwd = final_path(pin != NULL ? pin : request->dir, &err);
+                          FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT, &pin);
+  if (err == ERROR_SUCCESS && is_name_surrogate(pin)) err = ERROR_STOPPED_ON_SYMLINK;
+  if (err != ERROR_SUCCESS) {
+    if (pin != NULL) CloseHandle(pin);
+    pin = NULL;
+    fail_request(request, "pin the Git root", err);
+    goto cleanup;
+  }
+  cwd = final_path(pin, &err);
   if (cwd == NULL) {
     fail_request(request, "GetFinalPathNameByHandle", err);
+    goto cleanup;
+  }
+  HANDLE resolved = CreateFileW(cwd, FILE_READ_ATTRIBUTES, SHARE_ALL, NULL, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+  if (resolved == INVALID_HANDLE_VALUE) {
+    fail_request(request, "resolve the Git root", GetLastError());
+    goto cleanup;
+  }
+  bool cwd_matches = same_file_id(resolved, pin);
+  CloseHandle(resolved);
+  if (!cwd_matches) {
+    fail_request(request, "resolve the Git root", ERROR_STOPPED_ON_SYMLINK);
     goto cleanup;
   }
   if (!CreatePipe(&out_read, &out_write, NULL, 0) || !CreatePipe(&err_read, &err_write, NULL, 0)) {
     fail_request(request, "pipe", GetLastError());
     goto cleanup;
   }
-  SECURITY_ATTRIBUTES inheritable;
-  inheritable.nLength = sizeof(inheritable);
-  inheritable.lpSecurityDescriptor = NULL;
-  inheritable.bInheritHandle = TRUE;
-  null_input = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritable,
+  null_input = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                            OPEN_EXISTING, 0, NULL);
   if (null_input == INVALID_HANDLE_VALUE) {
     fail_request(request, "open NUL", GetLastError());
@@ -1001,8 +1033,12 @@ static void git_execute(napi_env env, void *data) {
   startup.StartupInfo.hStdOutput = out_write;
   startup.StartupInfo.hStdError = err_write;
   startup.lpAttributeList = attributes;
-  SetHandleInformation(out_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
-  SetHandleInformation(err_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+  if (!SetHandleInformation(null_input, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) ||
+      !SetHandleInformation(out_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) ||
+      !SetHandleInformation(err_write, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
+    fail_request(request, "SetHandleInformation", GetLastError());
+    goto cleanup;
+  }
   BOOL created = CreateProcessW(request->file, request->command_line, NULL, NULL, TRUE,
                                 CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW |
                                     EXTENDED_STARTUPINFO_PRESENT,
