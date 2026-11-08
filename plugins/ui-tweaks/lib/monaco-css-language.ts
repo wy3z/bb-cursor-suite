@@ -1,0 +1,147 @@
+const IDENTIFIER =
+  "-?-?(?:[a-zA-Z_]|(?:\\\\(?:(?:[0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))(?:[\\w\\-]|(?:\\\\(?:(?:[0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))*";
+
+export const MONACO_CSS_LANGUAGE = {
+  defaultToken: "",
+  tokenPostfix: ".css",
+  ws: "[ \\t\\n\\r\\f]*",
+  identifier: IDENTIFIER,
+  brackets: [
+    { open: "{", close: "}", token: "delimiter.bracket" },
+    { open: "[", close: "]", token: "delimiter.bracket" },
+    { open: "(", close: ")", token: "delimiter.parenthesis" },
+  ],
+  tokenizer: {
+    root: [
+      { include: "@atrules" },
+      { include: "@selector" },
+      ["{", { token: "delimiter.bracket", next: "@block" }],
+      ["}", "delimiter.bracket"],
+    ],
+    block: [
+      { include: "@comments" },
+      { include: "@atrules" },
+      [
+        "(--@identifier)(@ws)(:)",
+        ["variable", "", { token: "delimiter", next: "@value" }],
+      ],
+      [
+        "([*_]?@identifier)(@ws)(:)(?=(?:\\s|\\d|$|[^{;}]*[;}]))",
+        ["attribute.name", "", { token: "delimiter", next: "@value" }],
+      ],
+      { include: "@selector" },
+      ["{", { token: "delimiter.bracket", next: "@push" }],
+      ["}", { token: "delimiter.bracket", next: "@pop" }],
+      [";", "delimiter"],
+    ],
+    atrules: [
+      { include: "@comments" },
+      [
+        "[@](media|supports|container|layer|scope|document|-moz-document)\\b",
+        { token: "keyword", next: "@prelude" },
+      ],
+      [
+        "[@](-webkit-|-moz-|-o-)?keyframes\\b",
+        { token: "keyword", next: "@keyframesname" },
+      ],
+      ["[@](font-face|page|property|counter-style|font-feature-values)\\b", "keyword"],
+      ["[@][\\w-]+", { token: "keyword", next: "@prelude" }],
+    ],
+    prelude: [
+      { include: "@comments" },
+      { include: "@strings" },
+      ["\\b(and|or|not|only)\\b", "keyword"],
+      ["(@identifier)(@ws)(:)", ["attribute.name", "", "delimiter"]],
+      ["url(?=\\()", { token: "function", next: "@url" }],
+      ["@identifier(?=\\()", "function"],
+      { include: "@numbers" },
+      ["@identifier", "attribute.value.keyword"],
+      ["[()]", "delimiter.parenthesis"],
+      ["[,/]", "delimiter"],
+      [">=|<=|[<>=]", "operator"],
+      [";", { token: "delimiter", next: "@pop" }],
+      ["{", { token: "delimiter.bracket", switchTo: "@block" }],
+    ],
+    keyframesname: [
+      { include: "@comments" },
+      ["@identifier", "attribute.value.keyword"],
+      ["{", { token: "delimiter.bracket", switchTo: "@block" }],
+    ],
+    selector: [
+      { include: "@comments" },
+      { include: "@strings" },
+      ["\\[", { token: "delimiter.bracket", next: "@attribute" }],
+      ["::?@identifier", "selector.pseudo"],
+      ["\\.@identifier", "selector.class"],
+      ["#@identifier", "selector.id"],
+      ["\\d+(\\.\\d+)?%", "attribute.value.number"],
+      ["@identifier", "tag"],
+      ["[*&]", "tag"],
+      ["[>~+]|\\|\\|", "operator"],
+      ["[()]", "delimiter.parenthesis"],
+      [",", "delimiter"],
+    ],
+    attribute: [
+      { include: "@comments" },
+      { include: "@strings" },
+      ["[~|^$*]?=", "operator"],
+      ["\\b[iIsS](?=\\s*\\])", "keyword"],
+      ["@identifier", "attribute.name.selector"],
+      ["\\]", { token: "delimiter.bracket", next: "@pop" }],
+    ],
+    value: [
+      { include: "@comments" },
+      { include: "@strings" },
+      ["!\\s*important\\b", "keyword"],
+      ["url(?=\\()", { token: "function", next: "@url" }],
+      ["--@identifier", "variable"],
+      ["@identifier(?=\\()", "function"],
+      { include: "@numbers" },
+      ["@identifier", "attribute.value.keyword"],
+      ["[()]", "delimiter.parenthesis"],
+      ["[,/]", "delimiter"],
+      ["[+*]|-(?=\\s)", "operator"],
+      [";", { token: "delimiter", next: "@pop" }],
+      ["(?=})", { token: "", next: "@pop" }],
+    ],
+    url: [
+      ["\\(", "delimiter.parenthesis"],
+      { include: "@strings" },
+      ["[^)\\r\\n]+", "string"],
+      ["\\)", { token: "delimiter.parenthesis", next: "@pop" }],
+    ],
+    numbers: [
+      [
+        "[-+]?(\\d*\\.)?\\d+([eE][\\-+]?\\d+)?",
+        { token: "attribute.value.number", next: "@units" },
+      ],
+      ["#[0-9a-fA-F]+(?![\\w-])", "attribute.value.hex"],
+    ],
+    units: [
+      [
+        "(%|[a-zA-Z]+)?",
+        { token: "attribute.value.unit", next: "@pop" },
+      ],
+    ],
+    comments: [["\\/\\*", { token: "comment", next: "@comment" }]],
+    comment: [
+      ["\\*\\/", { token: "comment", next: "@pop" }],
+      ["[^*/]+", "comment"],
+      [".", "comment"],
+    ],
+    strings: [
+      ['"', { token: "string", next: "@stringdouble" }],
+      ["'", { token: "string", next: "@stringsingle" }],
+    ],
+    stringdouble: [
+      ["\\\\.", "string.escape"],
+      ['"', { token: "string", next: "@pop" }],
+      ['[^\\\\"]+', "string"],
+    ],
+    stringsingle: [
+      ["\\\\.", "string.escape"],
+      ["'", { token: "string", next: "@pop" }],
+      ["[^\\\\']+", "string"],
+    ],
+  },
+};

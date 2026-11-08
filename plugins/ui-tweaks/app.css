@@ -1,0 +1,177 @@
+html[data-bb-ui-prompt-position="center"]
+  [data-bb-ui-tweaks-prompt-container="true"],
+html[data-bb-ui-prompt-position="bottom"]
+  [data-bb-ui-tweaks-prompt-container="true"] {
+  min-height: 100%;
+}
+
+html[data-bb-ui-prompt-position="center"]
+  [data-bb-ui-tweaks-prompt-container="true"] {
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+html[data-bb-ui-prompt-position="bottom"]
+  [data-bb-ui-tweaks-prompt-container="true"] {
+  justify-content: flex-end;
+  padding-top: 0;
+}
+
+[data-bb-ui-tweaks-workspace-app-menu-hidden="true"] {
+  display: none !important;
+}
+
+/* Line height matches the editor's 1.7 leading; 1rem covers its padding. */
+html[data-bb-ui-prompt-height="two-lines"] [data-promptbox-editor-scroll] {
+  min-height: calc(3.4em + 1rem) !important;
+}
+
+html[data-bb-ui-prompt-height="one-line"] [data-promptbox-editor-scroll] {
+  min-height: calc(1.7em + 1rem) !important;
+}
+
+/* Match the right panel's collapse motion, including delayed visibility. */
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  body:not(.sidebar-resizing) [data-sidebar="gap"] {
+    transition-duration: 220ms !important;
+    transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+  }
+
+  body:not(.sidebar-resizing) [data-sidebar="panel"] {
+    transition: left 220ms cubic-bezier(0.32, 0.72, 0, 1),
+      right 220ms cubic-bezier(0.32, 0.72, 0, 1),
+      width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear !important;
+  }
+
+  body:not(.sidebar-resizing)
+    [data-collapsible="offcanvas"] > [data-sidebar="panel"] {
+    transition-delay: 0s, 0s, 0s, 220ms !important;
+  }
+
+  [data-collapsible="rail"] [data-sidebar="collapsible-body"],
+  [data-side="left"][data-state="collapsed"] ~ [data-sidebar="inset"],
+  [data-side="left"][data-state="collapsed"] ~ [data-sidebar="inset"]::before {
+    transition-delay: 220ms !important;
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: reduce) {
+  [data-sidebar="gap"],
+  [data-sidebar="panel"],
+  [data-sidebar="collapsible-body"],
+  [data-sidebar="inset"],
+  [data-sidebar="inset"]::before {
+    transition: none !important;
+  }
+}
+
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="gap"],
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="panel"],
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="collapsible-body"],
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="inset"],
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="inset"]::before,
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar-shelf],
+html[data-bb-ui-disable-chrome-animations="true"] [data-panel-shelf],
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="inset"]::after,
+html[data-bb-ui-disable-chrome-animations="true"] [data-sidebar="inset-edge"],
+html[data-bb-ui-disable-chrome-animations="true"] [data-testid="app-page-header-content-row"],
+html[data-bb-ui-disable-chrome-animations="true"] [class*="220ms_cubic-bezier"],
+html[data-bb-ui-disable-chrome-animations="true"] [class*="--panel-collapse-duration"],
+html[data-bb-ui-disable-chrome-animations="true"] [class*="_0s_linear_200ms"],
+html[data-bb-ui-disable-chrome-animations="true"] [class*="_0s_linear_200ms"]::before,
+html[data-bb-ui-disable-chrome-animations="true"] [class*="transition-[padding]"],
+html[data-bb-ui-disable-chrome-animations="true"] [class*="transition-[width]"] {
+  transition: none !important;
+  transition-delay: 0s !important;
+}
+
+html[data-bb-ui-disable-chrome-animations="true"] {
+  --panel-collapse-duration: 0ms;
+}
+
+/*
+ * Optional clearer hierarchy. Keep every role's own size and weight except:
+ * the open thread's title, the ordinary chat Markdown root, and bold prose.
+ * Headings and code keep their utilities; code inside bold prose keeps its
+ * previous bold weight.
+ */
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-testid="app-page-header-content-row"]
+  .bb-thread-title {
+  font-weight: 500;
+}
+
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-thread-window]
+  [data-message-column]
+  [data-sidebar-swipe-selectable]
+  [data-markdown-preview].text-sm {
+  font-size: calc(var(--text-sm) + 1px);
+  font-weight: 400;
+}
+
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-thread-window]
+  [data-message-column]
+  [data-sidebar-swipe-selectable]
+  [data-markdown-preview].text-sm
+  :is(strong, b):not(h1 *, h2 *, h3 *, h4 *, h5 *, h6 *, code *, pre *, kbd *, samp *) {
+  font-weight: 600;
+}
+
+html[data-bb-ui-clearer-hierarchy="true"]
+  [data-thread-window]
+  [data-message-column]
+  [data-sidebar-swipe-selectable]
+  [data-markdown-preview].text-sm
+  :is(strong, b)
+  :is(code, pre, kbd, samp):not(
+    h1 *,
+    h2 *,
+    h3 *,
+    h4 *,
+    h5 *,
+    h6 *,
+    pre *,
+    code *,
+    kbd *,
+    samp *
+  ) {
+  font-weight: var(--font-weight-bold, 700);
+}
+
+html[data-bb-ui-hide-steer-labels="true"]
+  [data-thread-window]
+  div.flex.items-center.gap-2:has(
+    > span.shrink-0.whitespace-nowrap.text-xs.leading-none.text-muted-foreground:only-child
+  ) {
+  display: none !important;
+}
+
+:is([data-testid="app-page-header-content-row"], [data-testid="thread-secondary-panel-top-chrome"], [data-testid="app-layout-content-shell"]) {
+  --bbs-chrome-icon: color-mix(in srgb, oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h) 60%, transparent);
+  --bbs-chrome-icon-active: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
+}
+[data-testid="app-page-header-content-row"] button > :is(svg, [data-icon-root]),
+[data-testid="thread-secondary-panel-top-chrome"] button :is(svg, [data-icon-root]),
+[data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"] > :is(svg, [data-icon-root]) {
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
+}
+[data-testid="app-page-header-content-row"] button:has(> :is(svg, [data-icon-root])):not(:has(> :not(svg, [data-icon-root], img))),
+[data-testid="thread-secondary-panel-top-chrome"] button:has(:is(svg, [data-icon-root])):not(:has(> :not(svg, [data-icon-root], img, span))),
+[data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"] {
+  color: var(--bbs-chrome-icon);
+}
+:is([data-testid="app-page-header-content-row"], [data-testid="thread-secondary-panel-top-chrome"]) button:has(:is(svg, [data-icon-root])):is(:hover, :focus-visible, [data-state="open"], [data-state="active"], [aria-selected="true"], [aria-pressed="true"]),
+[data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"]:is(:hover, :focus-visible) {
+  color: var(--bbs-chrome-icon-active);
+}
+
+@media (max-width: 767px) {
+  body:has([data-sidebar="inset"][data-panel-shelf="full"][style*="translate"])
+    > [data-testid="secondary-panel-shelf"][data-state="full"] {
+    z-index: 0 !important;
+  }
+}
