@@ -469,45 +469,6 @@ div[data-app-composer]:is(div[data-bb-agent-pills-has-interaction])
   display: revert !important;
 }
 
-/* ── Settings section ──────────────────────────────────────────────────── */
-
-.bb-agent-pills-settings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bbs-gap);
-}
-
-.bb-agent-pills-settings__row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--bbs-gap);
-  cursor: pointer;
-}
-
-.bb-agent-pills-settings__row input {
-  margin-top: 2px;
-  accent-color: var(--accent);
-}
-
-.bb-agent-pills-settings__copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bbs-gap-tight);
-  min-width: 0;
-}
-
-.bb-agent-pills-settings__title {
-  color: var(--bbs-text-primary);
-  font-size: var(--bbs-text-row);
-  font-weight: 500;
-}
-
-.bb-agent-pills-settings__hint {
-  color: var(--bbs-text-tertiary);
-  font-size: var(--bbs-text-body);
-  line-height: 1.45;
-}
-
 /* ── Composer restyle (gated by the settings toggle) ───────────────────── */
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
