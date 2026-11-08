@@ -116,6 +116,7 @@ export function prepareNativeAddon(
       await extract(target, bytes, asset.sha256);
       loadCandidate(target);
     } catch (error) {
+      prepared = null;
       return unsupported(
         platform,
         `Files couldn't load its native module on this machine (${platform}): ${firstLine(error)}`,
