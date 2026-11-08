@@ -8,6 +8,13 @@ export const MERGE_METHOD_LABEL: Record<MergeMethod, string> = {
   rebase: "Rebase and merge",
 };
 
+export const MERGE_METHOD_MENU_LABEL: Record<MergeMethod, string> = {
+  ...MERGE_METHOD_LABEL,
+  merge: "Create a merge commit",
+};
+
+export const MERGE_SETTINGS_UNKNOWN = "Couldn’t read this repo’s merge settings";
+
 export interface MergeSettings {
   allowed: MergeMethod[];
   defaultMethod: MergeMethod | null;

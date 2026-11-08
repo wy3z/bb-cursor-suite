@@ -22,10 +22,17 @@ describe("the merge action", () => {
     const { calls, merge } = recorder();
     const action = mergeAction({ allowed: ["merge", "rebase"], defaultMethod: "merge" }, merge, undefined);
     expect(action.label).toBe("Merge");
+    expect(action.title).toBeUndefined();
     expect(action.menu?.map((option) => option.label)).toEqual(["Rebase and merge"]);
     action.run();
     action.menu?.[0]?.run();
     expect(calls).toEqual(["merge", "rebase"]);
+  });
+
+  it("offers a merge commit in the menu as Create a merge commit", () => {
+    const action = mergeAction({ allowed: ["merge", "squash"], defaultMethod: "squash" }, () => undefined, undefined);
+    expect(action.label).toBe("Squash and merge");
+    expect(action.menu?.map((option) => option.label)).toEqual(["Create a merge commit"]);
   });
 
   it("labels itself by the default method", () => {
@@ -39,8 +46,13 @@ describe("the merge action", () => {
     const action = mergeAction(null, merge, undefined);
     action.run();
     expect(action.label).toBe("Merge");
+    expect(action.title).toBe("Couldn’t read this repo’s merge settings");
     expect(calls).toEqual(["merge"]);
     expect(action.menu?.map((option) => option.label)).toEqual(["Squash and merge", "Rebase and merge"]);
+  });
+
+  it("prefers the blocked reason over the unknown-settings tooltip", () => {
+    expect(mergeAction(null, () => undefined, "Conflicts").title).toBe("Conflicts");
   });
 
   it("carries the reason it is blocked", () => {
@@ -65,6 +77,12 @@ describe("the primary action button", () => {
     const html = renderToStaticMarkup(<PrimaryActionButton action={action} busy={null} />);
     expect(html).toContain(">Squash and merge</button>");
     expect(html).not.toContain("Other merge methods");
+  });
+
+  it("explains the fallback when the repository settings are unknown", () => {
+    const html = renderToStaticMarkup(<PrimaryActionButton action={mergeAction(null, () => undefined, undefined)} busy={null} />);
+    expect(html).toContain('title="Couldn’t read this repo’s merge settings"');
+    expect(html).toContain(">Merge</button>");
   });
 
   it("shows the busy label and disables both halves while merging", () => {

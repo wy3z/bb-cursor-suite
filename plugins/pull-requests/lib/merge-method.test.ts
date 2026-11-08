@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MERGE_METHOD_LABEL, mergeChoices, mergeConfirmText, mergeSettingsFrom } from "./merge-method";
+import { MERGE_METHOD_LABEL, MERGE_METHOD_MENU_LABEL, mergeChoices, mergeConfirmText, mergeSettingsFrom } from "./merge-method";
 
 function repo(overrides: Record<string, unknown> = {}) {
   return {
@@ -78,8 +78,9 @@ describe("choosing the merge button", () => {
     }
   });
 
-  it("labels each method the way GitHub does", () => {
+  it("labels the button by method and spells out a merge commit in the menu", () => {
     expect(MERGE_METHOD_LABEL).toEqual({ merge: "Merge", squash: "Squash and merge", rebase: "Rebase and merge" });
+    expect(MERGE_METHOD_MENU_LABEL).toEqual({ merge: "Create a merge commit", squash: "Squash and merge", rebase: "Rebase and merge" });
   });
 
   it("names the method and target in the confirmation", () => {

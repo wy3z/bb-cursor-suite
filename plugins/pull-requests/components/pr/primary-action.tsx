@@ -2,7 +2,7 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { MERGE_METHOD_LABEL, mergeChoices, type MergeMethod, type MergeSettings } from "@/lib/merge-method";
+import { MERGE_METHOD_LABEL, MERGE_METHOD_MENU_LABEL, MERGE_SETTINGS_UNKNOWN, mergeChoices, type MergeMethod, type MergeSettings } from "@/lib/merge-method";
 
 export interface PrimaryActionOption {
   key: string;
@@ -32,10 +32,10 @@ export function mergeAction(
     label: MERGE_METHOD_LABEL[choices.primary],
     busyLabel: "Merging…",
     disabled: blocked !== undefined,
-    title: blocked,
+    title: blocked ?? (choices.known ? undefined : MERGE_SETTINGS_UNKNOWN),
     run: () => merge(choices.primary),
     menuLabel: "Other merge methods",
-    menu: choices.others.map((method) => ({ key: method, label: MERGE_METHOD_LABEL[method], run: () => merge(method) })),
+    menu: choices.others.map((method) => ({ key: method, label: MERGE_METHOD_MENU_LABEL[method], run: () => merge(method) })),
   };
 }
 
@@ -52,7 +52,7 @@ export function PrimaryActionButton({ action, busy }: { action: PrimaryAction; b
           <DropdownMenuTrigger asChild>
             <Button
               size="sm"
-              className="h-8 w-7 rounded-l-none border-l border-background/25 px-0"
+              className="h-8 w-8 rounded-l-none border-l border-background/25 px-0"
               disabled={disabled}
               aria-label={action.menuLabel ?? "More options"}
             >
