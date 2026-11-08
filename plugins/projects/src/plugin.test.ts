@@ -269,6 +269,33 @@ describe("outer loop reliability", () => {
       { threadId: "thr_b", urls: ["https://github.com/o/r/pull/1"] },
     ]);
   });
+
+  it("skips following PRs quietly while Pull Requests is missing and picks up once it is back", async () => {
+    const start = new Date(2026, 10, 10, 10);
+    setSystemTime(start);
+    const fake = boot();
+    fake.addThread("thr_a");
+    fake.addThread("thr_a_worker", { parentThreadId: "thr_a" });
+    fake.linked.set("thr_a_worker", ["https://github.com/o/r/pull/1"]);
+    await fake.run(["lead", "ABC", "--thread", "thr_a"]);
+    await fake.run(["loop", "ABC", "--follow-prs", "on"]);
+    const pullRequests = fake.plugins.find((plugin) => plugin.id === "pull-requests")!;
+    pullRequests.enabled = false;
+    pullRequests.status = "disabled";
+    await runService(fake, "outer-loop");
+    expect(fake.subscribed).toEqual([]);
+    expect(fake.logs.filter((line) => line.includes("pull requests"))).toEqual([]);
+
+    fake.plugins.splice(fake.plugins.indexOf(pullRequests), 1);
+    await runService(fake, "outer-loop");
+    expect(fake.subscribed).toEqual([]);
+    expect(fake.logs.filter((line) => line.includes("pull requests"))).toEqual([]);
+
+    fake.plugins.push({ id: "pull-requests", enabled: true, status: "running" });
+    setSystemTime(new Date(start.getTime() + 60_000));
+    await runService(fake, "outer-loop");
+    expect(fake.subscribed).toEqual([{ threadId: "thr_a", urls: ["https://github.com/o/r/pull/1"] }]);
+  });
 });
 
 describe("any agent system", () => {

@@ -58,6 +58,11 @@ right under their parent with no indent and no tree lines, and carry a small
 corner arrow before the age instead. The pull request mark and provider mark sit
 there too, so they never push a title to the right.
 
+The sidebar toggle, search, back and forward buttons and the footer icons use
+the same grid, so their icons line up with the row icons. A truncated title
+fades out the same distance before the cloud mark as the cloud mark sits before
+the time, and the same distance before the time on rows without one.
+
 ## The view menu
 
 | Control | What it changes |

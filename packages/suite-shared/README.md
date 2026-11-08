@@ -12,6 +12,21 @@ and `bb plugin build` bundles it.
   served by pull-requests (`changeRequests`, keyed by environment id) for GitHub
   pull requests and GitLab merge requests, its labels (`#12`, `!12`) and the
   `bb-pull-requests:open` event detail. Frontend-safe: zod only, no SDK import.
+- `@wy3z/bb-suite/plugin-availability`: `usePluginAvailability(pluginId)`,
+  whether another plugin is installed, enabled and running (`unknown` until
+  BB's plugin list loads, then `available` or `unavailable`). One
+  `plugins.list()` per app is shared by every caller and refreshed when BB
+  reports `plugins-changed` or the realtime connection comes back, so enabling
+  or disabling a plugin updates the UI without a reload. A refresh that fails
+  keeps the last list that loaded. If no list has loaded, because the call
+  failed or took longer than `LIST_TIMEOUT_MS` (10 seconds), it answers
+  `available` and leaves the click to report the error. A plugin whose service
+  crashes after it started still reads as running in BB, so it stays
+  `available` too. Plus `NEEDS_PULL_REQUESTS`, the label for actions served by
+  pull-requests.
+- `@wy3z/bb-suite/plugin-status`: `pluginAvailability(plugins, pluginId)` and
+  the types behind the hook, without React or the app SDK, for plugin servers
+  that read `bb.sdk.plugins.list()` themselves.
 - `@wy3z/bb-suite/project-icon`: the stored icon format (`glyph:<name>:<color>`,
   `emoji:`, `monogram:`, PNG data URL), Cursor's ten picker colours plus the
   older 18, the icon catalog (Cursor's picker icons in Cursor's order, matched

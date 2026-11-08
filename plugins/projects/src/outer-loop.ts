@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { pluginAvailability } from "@wy3z/bb-suite/plugin-status";
 import { NOTES_MAX, type ProjectMeta, type ProjectNotes } from "./meta";
 import { sleep } from "./sleep";
 
@@ -142,6 +143,15 @@ export function createLoop(bb: BbPluginApi, deps: LoopDeps) {
 
   const lastFollow = new Map<string, number>();
 
+  async function pullRequestsAvailable(): Promise<boolean> {
+    try {
+      const { plugins } = await bb.sdk.plugins.list();
+      return pluginAvailability(plugins, PULL_REQUESTS) === "available";
+    } catch {
+      return true;
+    }
+  }
+
   async function tick() {
     const now = new Date();
     let leads: Lead[];
@@ -151,6 +161,7 @@ export function createLoop(bb: BbPluginApi, deps: LoopDeps) {
       bb.log.warn(`Outer loop could not list project leads: ${cause instanceof Error ? cause.message : String(cause)}`);
       return;
     }
+    let canFollow: Promise<boolean> | null = null;
     for (const lead of leads) {
       if (!lead.meta.leadThreadId) continue;
       try {
@@ -160,6 +171,8 @@ export function createLoop(bb: BbPluginApi, deps: LoopDeps) {
       }
       const followKey = `${lead.projectId}:${lead.meta.leadThreadId}`;
       if (!lead.meta.followPrs || now.getTime() - (lastFollow.get(followKey) ?? 0) < FOLLOW_EVERY_MS) continue;
+      canFollow ??= pullRequestsAvailable();
+      if (!(await canFollow)) continue;
       lastFollow.set(followKey, now.getTime());
       try {
         await follow(lead);
