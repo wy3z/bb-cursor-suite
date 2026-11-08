@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cloudGroupHost, cloudHostIdsOf, isCloudHost, rowHostLabel, sameHostIds } from "./cloud-hosts";
+import { cloudGroupHost, cloudHostIdsOf, isCloudHost, rowHostDisplay, rowHostLabel, sameHostIds } from "./cloud-hosts";
 
 test("a provider sandbox is cloud", () => {
   assert.equal(isCloudHost({ id: "host_83ufksdhp3", type: "ephemeral", machineProviderId: "modal-sandbox" }), true);
@@ -98,4 +98,17 @@ test("only a cloud host's environment heading is a cloud group", () => {
   assert.equal(cloudGroupHost("environment:name:host_83ufksdhp3", cloud), null);
   assert.equal(cloudGroupHost("status:working", cloud), null);
   assert.equal(cloudGroupHost("environment:host:host_83ufksdhp3", null), null);
+});
+
+test("the cloud glyph shows whether or not the Machine option is on", () => {
+  const label = { kind: "cloud", name: "Modal sandbox ksdhp3" } as const;
+  assert.deepEqual(rowHostDisplay(label, true), { cloudName: "Modal sandbox ksdhp3", hostText: null });
+  assert.deepEqual(rowHostDisplay(label, false), { cloudName: "Modal sandbox ksdhp3", hostText: null });
+});
+
+test("the Machine option only controls host text", () => {
+  const label = { kind: "text", text: "Host: box" } as const;
+  assert.deepEqual(rowHostDisplay(label, true), { cloudName: null, hostText: "Host: box" });
+  assert.deepEqual(rowHostDisplay(label, false), { cloudName: null, hostText: null });
+  assert.deepEqual(rowHostDisplay(null, true), { cloudName: null, hostText: null });
 });

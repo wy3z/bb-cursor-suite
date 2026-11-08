@@ -64,7 +64,7 @@ import { resolveRowStatus, THREAD_STATUS_LABEL, type ThreadStatusKind } from "./
 import { ThreadHoverCard, type ThreadHoverFact } from "./ThreadHoverCard";
 import { ThreadGitFacts } from "./ThreadGitFacts";
 import { relativeTimeLabel } from "./relative-time";
-import { cloudGroupHost, rowHostLabel } from "./cloud-hosts";
+import { cloudGroupHost, rowHostDisplay, rowHostLabel } from "./cloud-hosts";
 
 /** Everything a row needs that is the same for every row in a section. */
 export interface TreeContext {
@@ -822,8 +822,7 @@ function ThreadRow({
     cloudHostIds: ctx.cloudHostIds,
     hasWorkspaceOrBranch: workspace !== null || branch !== null,
   });
-  const location = hostLabel?.kind === "text" ? hostLabel.text : null;
-  const cloudHostName = hostLabel?.kind === "cloud" ? hostLabel.name : null;
+  const { cloudName: cloudHostName, hostText: location } = rowHostDisplay(hostLabel, ctx.view.show.host);
   // Under an Environment heading the group already names the host/workspace,
   // so the row keeps branch (and any non-matching host) instead of repeating ARCH.
   const hideGroupedWorkspace = labelsMatch(workspace, environmentGroupLabel);
@@ -831,30 +830,18 @@ function ThreadRow({
   const secondary = [
     ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null,
     ctx.view.show.branch ? branch : null,
-    ctx.view.show.host && !hideGroupedHost ? location : null,
+    hideGroupedHost ? null : location,
   ].filter(Boolean).join(" · ");
-  const showCloudHost = cloudHostName !== null && ctx.view.show.host && !hideGroupedHost;
-  const cloudHostTitle = showCloudHost ? `Cloud machine: ${cloudHostName}` : null;
   const secondaryTitle = [
     ctx.view.show.environment && workspace !== null && !hideGroupedWorkspace ? workspacePath : null,
     ctx.view.show.branch ? branch : null,
-    ctx.view.show.host && !hideGroupedHost ? location ?? cloudHostTitle : null,
+    hideGroupedHost ? null : location,
   ].filter(Boolean).join(" · ");
   const secondaryMobile = [
     ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null,
     ctx.view.show.branch ? branch : null,
   ].filter(Boolean).join(" · ");
-  const cloudGlyph = cloudHostTitle !== null ? (
-    <span
-      role="img"
-      aria-label={cloudHostTitle}
-      title={cloudHostTitle}
-      data-cloud-host={native.host?.id}
-      className="cs-cloud-host mr-1 inline-flex align-[-2px]"
-    >
-      <Icon name="Cloud" aria-hidden="true" className="size-3 shrink-0" />
-    </span>
-  ) : null;
+  const cloudHostTitle = cloudHostName !== null ? `Cloud machine: ${cloudHostName}` : null;
   // The resting slot speaks for the whole subtree, so a collapsed parent still
   // shows a running or attention-seeking descendant instead of hiding it.
   const statusThread = statusSourceForGroup(
@@ -1285,7 +1272,7 @@ function ThreadRow({
               thread.isUnread && "font-medium",
             )}
           />
-          {secondary || cloudGlyph ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{cloudGlyph}{secondary}</span><span className="cs-secondary-mobile hidden">{cloudGlyph}{secondaryMobile}</span></span> : null}
+          {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{secondaryMobile}</span></span> : null}
           </div>
 
           <div className="relative -ml-2 flex min-w-6 shrink-0 items-center justify-end gap-1">
@@ -1333,6 +1320,17 @@ function ThreadRow({
                 </button>
               </span>
             </span>
+            {cloudHostTitle !== null ? (
+              <span
+                role="img"
+                aria-label={cloudHostTitle}
+                title={cloudHostTitle}
+                data-cloud-host={native.host?.id}
+                className="cs-thread-cloud pointer-events-none flex shrink-0 items-center text-sidebar-foreground/45"
+              >
+                <Icon name="Cloud" aria-hidden="true" className="size-3" />
+              </span>
+            ) : null}
             <span className="cs-thread-time pointer-events-none tabular-nums text-xs text-sidebar-foreground/45">
               {activeChildCount > 0 ? (
                 /* While children are running, a light accent pill with their

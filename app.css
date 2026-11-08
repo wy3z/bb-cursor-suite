@@ -187,6 +187,7 @@
 [data-cursor-sidebar-root] [data-thread-shelf="settled"] .cs-thread-title,
 [data-cursor-sidebar-root] .cs-thread-info,
 [data-cursor-sidebar-root] .cs-thread-time,
+[data-cursor-sidebar-root] .cs-thread-cloud,
 [data-cursor-sidebar-root] .cs-board-row__meta {
   color: var(--bbs-text-tertiary);
 }

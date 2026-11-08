@@ -44,6 +44,14 @@ export function rowHostLabel({
   return null;
 }
 
+export function rowHostDisplay(
+  label: RowHostLabel,
+  showHostText: boolean,
+): { cloudName: string | null; hostText: string | null } {
+  if (label?.kind === "cloud") return { cloudName: label.name, hostText: null };
+  return { cloudName: null, hostText: showHostText && label?.kind === "text" ? label.text : null };
+}
+
 const HOST_GROUP_PREFIX = "environment:host:";
 
 export function cloudGroupHost(
