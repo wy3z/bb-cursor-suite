@@ -1,0 +1,90 @@
+:root {
+  --bbs-accent: var(--timeline-accent, #3b82f6);
+  --bbs-green: var(--success, #3fb950);
+  --bbs-amber: var(--attention, #d29922);
+  --bbs-red: var(--destructive-text, var(--destructive, #f85149));
+  --bbs-purple: var(--color-purple-400, #a371f7);
+  --bbs-pink: var(--color-pink-400, #e5577f);
+  --bbs-orange: var(--warning, #db6d28);
+  --bbs-grey: var(--muted-foreground);
+  --bbs-muted: var(--muted-foreground);
+  --bbs-text-primary: var(--foreground);
+  --bbs-text-secondary: color-mix(in srgb, var(--bbs-text-primary) 74%, transparent);
+  --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
+  --bbs-line: color-mix(in srgb, var(--border) 80%, transparent);
+  --bbs-pill-height: var(--bbs-height);
+  --bbs-pill-gap: 8px;
+  --bbs-pill-radius: 9999px;
+  --bbs-pill-font: 12.5px;
+  --bbs-tray-radius: 10px;
+  --bbs-dot: 6px;
+
+  --bbs-text-meta: 11px;
+  --bbs-text-body: 12px;
+  --bbs-text-row: 13px;
+  --bbs-text-heading: 15px;
+  --bbs-text-display: 17px;
+
+  --bbs-icon-inline: 12px;
+  --bbs-icon: 14px;
+  --bbs-icon-toolbar: 16px;
+  --bbs-icon-stroke: 1.5;
+
+  --bbs-height: 28px;
+  --bbs-height-compact: 20px;
+
+  --bbs-radius-xs: 4px;
+  --bbs-radius-sm: 6px;
+  --bbs-radius-md: 8px;
+
+  --bbs-gap-tight: 2px;
+  --bbs-gap-xs: 4px;
+  --bbs-gap-icon: 6px;
+  --bbs-gap: 8px;
+}
+
+:root {
+  --bbs-glass-surface: color-mix(in oklab, var(--background) 60%, transparent);
+  --bbs-glass-surface-hover: var(--surface-selected, var(--state-hover));
+  --bbs-glass-outline: var(--border);
+  --bbs-glass-blur: blur(28px) saturate(160%);
+}
+.dark {
+  --bbs-glass-surface: color-mix(in oklab, var(--popover) 45%, transparent);
+  --bbs-glass-outline: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+:root {
+  --bbs-live-orb-color: var(--color-timeline-accent, var(--timeline-accent, var(--primary)));
+  --bbs-live-orb-size: 8px;
+  --bbs-live-orb-halo: 0 0 0 3px color-mix(in oklch, var(--bbs-live-orb-color) 22%, transparent);
+  --bbs-done-color: var(--success, #3fb950);
+}
+
+@keyframes bbs-live-orb-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.bbs-live-orb {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--bbs-live-orb-size);
+  height: var(--bbs-live-orb-size);
+  border-radius: 9999px;
+  background: var(--bbs-live-orb-color);
+  box-shadow: var(--bbs-live-orb-halo);
+  animation: bbs-live-orb-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.bbs-live-orb--ring {
+  background: var(--bbs-live-orb-color);
+  box-shadow: var(--bbs-live-orb-halo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbs-live-orb {
+    animation: none;
+  }
+}
