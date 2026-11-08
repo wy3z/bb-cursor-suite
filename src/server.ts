@@ -11,11 +11,13 @@ import { execFile } from "node:child_process";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  CLOUD_HOSTS_CHANNEL,
   PROJECT_ICON_CHANNEL,
   SIDEBAR_VIEW_CHANNEL,
   THREAD_ORDER_CHANNEL,
   THREAD_SECTIONS_CHANNEL,
 } from "./channels";
+import { cloudHostIdsOf, sameHostIds } from "./cloud-hosts";
 import { registerIconCli } from "./icon-cli";
 import { coerceSidebarView } from "./sidebar-view";
 
@@ -208,6 +210,10 @@ export const cursorSidebarRpcContract = defineRpcContract({
     input: z.object({}),
     output: z.object({ hostId: z.string().nullable() }),
   },
+  cloudHosts: {
+    input: z.object({}),
+    output: z.object({ hostIds: z.array(z.string()) }),
+  },
   deleteNativeProject: {
     input: z.object({ projectId: z.string().trim().min(1) }),
     output: z.object({ ok: z.literal(true) }),
@@ -387,6 +393,35 @@ export default function plugin(bb: BbPluginApi) {
     }));
   };
 
+  const readCloudHostIds = async (): Promise<string[]> =>
+    cloudHostIdsOf(await bb.sdk.hosts.list({ includeCreating: true }));
+  let knownCloudHostIds: string[] | null = null;
+  let cloudHostsTimer: ReturnType<typeof setTimeout> | null = null;
+  const refreshCloudHosts = async (): Promise<void> => {
+    try {
+      const hostIds = await readCloudHostIds();
+      if (knownCloudHostIds !== null && sameHostIds(knownCloudHostIds, hostIds)) return;
+      knownCloudHostIds = hostIds;
+      bb.realtime.publish(CLOUD_HOSTS_CHANNEL, {});
+    } catch {
+      knownCloudHostIds = null;
+    }
+  };
+  const unsubscribeHosts = bb.sdk.subscribe({
+    event: "host:changed",
+    callback: () => {
+      if (cloudHostsTimer !== null) clearTimeout(cloudHostsTimer);
+      cloudHostsTimer = setTimeout(() => {
+        cloudHostsTimer = null;
+        void refreshCloudHosts();
+      }, 250);
+    },
+  });
+  bb.onDispose(() => {
+    unsubscribeHosts();
+    if (cloudHostsTimer !== null) clearTimeout(cloudHostsTimer);
+  });
+
   bb.rpc.register(cursorSidebarRpcContract, {
     transcript: ({ threadId }) =>
       new Promise((resolve, reject) => {
@@ -444,6 +479,11 @@ export default function plugin(bb: BbPluginApi) {
     async primaryHost() {
       const config = await bb.sdk.system.config();
       return { hostId: config.primaryHostId };
+    },
+    async cloudHosts() {
+      const hostIds = await readCloudHostIds();
+      knownCloudHostIds = hostIds;
+      return { hostIds };
     },
     async deleteNativeProject({ projectId }) {
       await bb.sdk.projects.delete({ projectId });

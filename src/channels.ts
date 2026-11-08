@@ -16,3 +16,4 @@ export const THREAD_ORDER_CHANNEL = "thread-order";
 export const PROJECT_ICON_CHANNEL = "project-icon";
 export const SIDEBAR_VIEW_CHANNEL = "sidebar-view";
 export const THREAD_SECTIONS_CHANNEL = "thread-sections";
+export const CLOUD_HOSTS_CHANNEL = "cloud-hosts";

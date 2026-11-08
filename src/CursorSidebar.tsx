@@ -60,6 +60,7 @@ import { planConversations } from "./conversations";
 import { useWorkspaces } from "./useWorkspaces";
 import { useWorkspaceNesting } from "./workspace-tabs";
 import { usePrimaryHost } from "./usePrimaryHost";
+import { useCloudHosts } from "./useCloudHosts";
 import { useProjectIcons } from "./useProjectIcons";
 import { ComposerProjectIcons } from "./ComposerProjectIcons";
 import { ProjectIconPicker } from "./ProjectIconPicker";
@@ -163,6 +164,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   const projectedById = useMemo(() => new Map(projectedThreads.map((thread) => [thread.id, thread])), [projectedThreads]);
   const workspacePaths = useWorkspaces(rawThreads);
   const primaryHostId = usePrimaryHost();
+  const cloudHostIds = useCloudHosts();
   const rawById = useMemo(() => new Map(rawThreads.map((thread) => [thread.id, thread])), [rawThreads]);
   const threadOrders = useThreadOrders();
   const threadOrdersRef = useRef(threadOrders);
@@ -1048,6 +1050,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       rawById,
       workspacePaths,
       primaryHostId,
+      cloudHostIds,
       visibleById,
       familyFacts,
       descendantsById,
@@ -1104,7 +1107,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       shortcutKeys,
     }),
     [
-      rawById, workspacePaths, primaryHostId,
+      rawById, workspacePaths, primaryHostId, cloudHostIds,
       shortcutKeys,
       activeThreadId,
       canPin,

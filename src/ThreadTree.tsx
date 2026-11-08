@@ -64,6 +64,7 @@ import { resolveRowStatus, THREAD_STATUS_LABEL, type ThreadStatusKind } from "./
 import { ThreadHoverCard, type ThreadHoverFact } from "./ThreadHoverCard";
 import { ThreadGitFacts } from "./ThreadGitFacts";
 import { relativeTimeLabel } from "./relative-time";
+import { cloudGroupHost, rowHostLabel } from "./cloud-hosts";
 
 /** Everything a row needs that is the same for every row in a section. */
 export interface TreeContext {
@@ -84,6 +85,7 @@ export interface TreeContext {
   workspacePaths: ReadonlyMap<string, string | null>;
   /** The host bb runs on; a row only names its host when it differs. */
   primaryHostId: string | null;
+  cloudHostIds: ReadonlySet<string> | null;
   now: number;
   onNavigate: () => void;
   onToggleChildren: (threadId: string) => void;
@@ -633,6 +635,7 @@ export function ShelfList({
           >
             <SectionDivider
               label={group.label}
+              icon={ctx.view.groupBy === "environment" && cloudGroupHost(group.key, ctx.cloudHostIds) !== null ? "Cloud" : undefined}
               open={open}
               onToggle={
                 isDate
@@ -813,10 +816,14 @@ function ThreadRow({
   // Name the machine when a thread has no workspace or branch (a personal chat,
   // say). A remote host is named even when a branch exists, so a row never
   // loses the machine it actually runs on.
-  const remoteHost =
-    native.host && native.host.id !== ctx.primaryHostId ? `Host: ${native.host.name}` : null;
-  const location =
-    remoteHost ?? (workspace === null && branch === null && hostName ? `Host: ${hostName}` : null);
+  const hostLabel = rowHostLabel({
+    host: native.host,
+    primaryHostId: ctx.primaryHostId,
+    cloudHostIds: ctx.cloudHostIds,
+    hasWorkspaceOrBranch: workspace !== null || branch !== null,
+  });
+  const location = hostLabel?.kind === "text" ? hostLabel.text : null;
+  const cloudHostName = hostLabel?.kind === "cloud" ? hostLabel.name : null;
   // Under an Environment heading the group already names the host/workspace,
   // so the row keeps branch (and any non-matching host) instead of repeating ARCH.
   const hideGroupedWorkspace = labelsMatch(workspace, environmentGroupLabel);
@@ -826,11 +833,28 @@ function ThreadRow({
     ctx.view.show.branch ? branch : null,
     ctx.view.show.host && !hideGroupedHost ? location : null,
   ].filter(Boolean).join(" · ");
+  const showCloudHost = cloudHostName !== null && ctx.view.show.host && !hideGroupedHost;
+  const cloudHostTitle = showCloudHost ? `Cloud machine: ${cloudHostName}` : null;
   const secondaryTitle = [
     ctx.view.show.environment && workspace !== null && !hideGroupedWorkspace ? workspacePath : null,
     ctx.view.show.branch ? branch : null,
-    ctx.view.show.host && !hideGroupedHost ? location : null,
+    ctx.view.show.host && !hideGroupedHost ? location ?? cloudHostTitle : null,
   ].filter(Boolean).join(" · ");
+  const secondaryMobile = [
+    ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null,
+    ctx.view.show.branch ? branch : null,
+  ].filter(Boolean).join(" · ");
+  const cloudGlyph = cloudHostTitle !== null ? (
+    <span
+      role="img"
+      aria-label={cloudHostTitle}
+      title={cloudHostTitle}
+      data-cloud-host={native.host?.id}
+      className="cs-cloud-host mr-1 inline-flex align-[-2px]"
+    >
+      <Icon name="Cloud" aria-hidden="true" className="size-3 shrink-0" />
+    </span>
+  ) : null;
   // The resting slot speaks for the whole subtree, so a collapsed parent still
   // shows a running or attention-seeking descendant instead of hiding it.
   const statusThread = statusSourceForGroup(
@@ -948,7 +972,11 @@ function ThreadRow({
     },
     ...(showHoverWorkspace && workspace !== null ? [{ icon: "Layers" as const, text: workspace, detail: workspacePath ?? null }] : []),
     ...(branch !== null && !native.environment?.id ? [{ icon: "GitBranch" as const, text: branch }] : []),
-    ...(hostName !== null ? [{ icon: "Monitor" as const, text: hostName }] : []),
+    ...(cloudHostName !== null
+      ? [{ icon: "Cloud" as const, text: cloudHostName }]
+      : hostName !== null
+        ? [{ icon: "Monitor" as const, text: hostName }]
+        : []),
     ...(nativeParent !== undefined ? [{ icon: "CornerDownRight" as const, text: `Child of ${threadDisplayTitle(nativeParent)}` }] : []),
     ...(hasChildren ? [{ icon: "Layers" as const, text: `${children.length} child ${children.length === 1 ? "thread" : "threads"}${activeChildCount > 0 ? `, ${activeChildCount} running` : ""}` }] : []),
     { icon: "Clock", text: `Updated ${ago(thread.updatedAt)} · created ${ago(thread.createdAt)}` },
@@ -1257,7 +1285,7 @@ function ThreadRow({
               thread.isUnread && "font-medium",
             )}
           />
-          {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{[ctx.view.show.environment && !hideGroupedWorkspace ? workspace : null, ctx.view.show.branch ? branch : null].filter(Boolean).join(" · ")}</span></span> : null}
+          {secondary || cloudGlyph ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{cloudGlyph}{secondary}</span><span className="cs-secondary-mobile hidden">{cloudGlyph}{secondaryMobile}</span></span> : null}
           </div>
 
           <div className="relative -ml-2 flex min-w-6 shrink-0 items-center justify-end gap-1">

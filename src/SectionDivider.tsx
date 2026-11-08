@@ -64,12 +64,13 @@ export function SectionHeading({
 }
 
 /** A fixed heading for the generated ordinary groups (age, status, environment). */
-export function SectionDivider({ label, open, onToggle, shelfKey }: {
+export function SectionDivider({ label, icon, open, onToggle, shelfKey }: {
   label: string;
+  icon?: IconName;
   open: boolean;
   onToggle: () => void;
   /** Stable key for the fold assertion the view controller reads. */
   shelfKey?: string;
 }) {
-  return <SectionHeading label={label} open={open} onToggle={onToggle} shelfKey={shelfKey} className="pl-4" />;
+  return <SectionHeading label={label} icon={icon} open={open} onToggle={onToggle} shelfKey={shelfKey} className="pl-4" />;
 }
