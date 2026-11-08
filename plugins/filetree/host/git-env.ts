@@ -124,7 +124,7 @@ export function gitDriverOverrides(output: string): string[] | null {
     if (first <= 0 || last <= first) continue;
     const section = name.slice(0, first);
     const subsection = name.slice(first + 1, last);
-    if (!(section in DRIVER_COMMANDS)) continue;
+    if (!Object.hasOwn(DRIVER_COMMANDS, section)) continue;
     if (/[=\n]/u.test(subsection)) return null;
     drivers.add(`${section}.${subsection}`);
   }
