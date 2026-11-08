@@ -34,7 +34,7 @@ const body: WakeBody = {
   version: 1,
   wake: 3,
   pending: 2,
-  projects: { PIXEL: 2 },
+  projects: { ABC: 2 },
   newestReplyId: "rep_1",
   at: "2026-11-07T10:00:00.000Z",
 };

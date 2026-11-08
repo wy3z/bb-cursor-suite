@@ -191,7 +191,7 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     send: cliCommand({
       summary: "Hand the project lead a request from an agent system (Grok Bot, dots, a routine, a person); saved first, delivered when the lead can take it",
       positionals: [
-        { name: "project", description: "Tracker project prefix, such as PIXEL", required: true },
+        { name: "project", description: "Tracker project prefix, such as ABC", required: true },
         { name: "message", description: "What happened and what you want; the lead triages it onto the board", variadic: true, required: true },
       ],
       options: {
@@ -236,7 +236,7 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     reply: cliCommand({
       summary: "Project lead only: answer the agent that sent a request, or tell every agent following the project; saved until each acknowledges it",
       positionals: [
-        { name: "project", description: "Tracker project prefix, such as PIXEL", required: true },
+        { name: "project", description: "Tracker project prefix, such as ABC", required: true },
         { name: "message", description: "What the sender needs to know; no secrets, no worker chatter", variadic: true, required: true },
       ],
       options: {
@@ -324,7 +324,7 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     ack: cliCommand({
       summary: "Acknowledge replies your agent system has handled, by id; safe to repeat. Other agents still see their copy",
       positionals: [
-        { name: "project", description: "Tracker project prefix, such as PIXEL", required: true },
+        { name: "project", description: "Tracker project prefix, such as ABC", required: true },
         { name: "ids", description: "Reply ids (rep_...)", variadic: true, required: true },
       ],
       options: { as: { type: "string", description: "Your agent system's name (required), the same one you read replies with" }, json },
@@ -348,7 +348,7 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     }),
     consumers: cliCommand({
       summary: "List the agent systems following a project's lead (anyone that sent it a request or read its replies); --forget removes one and clears what it was owed",
-      positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+      positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
       options: { forget: { type: "string", description: "Agent name to stop following this project, such as a mistyped --as" }, json },
       async run(input, ctx) {
         const project = await deps.resolveProject(input.positionals.project);
@@ -378,7 +378,7 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     retry: cliCommand({
       summary: "Retry a request that failed or is held, now; it is checked against the lead's thread first so it is not delivered twice",
       positionals: [
-        { name: "project", description: "Tracker project prefix, such as PIXEL", required: true },
+        { name: "project", description: "Tracker project prefix, such as ABC", required: true },
         { name: "id", description: "Request id (req_...)", required: true },
       ],
       options: {
@@ -398,7 +398,7 @@ export function createMessaging(bb: BbPluginApi, deps: Deps) {
     }),
     requests: cliCommand({
       summary: "List the requests agent systems sent a project lead and whether each was delivered",
-      positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+      positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
       options: {
         as: { type: "string", description: "Only requests this agent system sent" },
         limit: { type: "integer", min: 1, max: 200, description: "At most this many, newest first (default 20)" },

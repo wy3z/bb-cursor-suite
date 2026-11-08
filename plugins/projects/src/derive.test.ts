@@ -49,7 +49,7 @@ describe("deriveStatus", () => {
   });
 
   it("shows Done for a direct-to-main commit only when no agent is working and no sub-task is open", () => {
-    const landing = { sha: "7502059abcdef", subject: "Ship it (PIXEL-4)", at: hoursAgo(2), ref: "main", url: null };
+    const landing = { sha: "7502059abcdef", subject: "Ship it (ABC-4)", at: hoursAgo(2), ref: "main", url: null };
     expect(deriveStatus({ ...base, landing })).toMatchObject({ status: "done", rule: "merged-commit-done", reason: "7502059 landed on main" });
     expect(deriveStatus({ ...base, landing, threads: [working] })).toBeNull();
     expect(deriveStatus({ ...base, landing, children: ["done", "todo"] })?.rule).not.toBe("merged-commit-done");

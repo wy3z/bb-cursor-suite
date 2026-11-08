@@ -207,7 +207,7 @@ export default function plugin(bb: BbPluginApi) {
       commands: {
         status: cliCommand({
           summary: "Summarise a tracker project's board: counts per column, work in flight, and the focus",
-          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: { json },
           async run(input) {
             const project = await resolveProject(input.positionals.project);
@@ -276,7 +276,7 @@ export default function plugin(bb: BbPluginApi) {
         focus: cliCommand({
           summary: "Show, set or clear the project's focus line, which the lead reads and the board doesn't show",
           positionals: [
-            { name: "project", description: "Tracker project prefix, such as PIXEL", required: true },
+            { name: "project", description: "Tracker project prefix, such as ABC", required: true },
             { name: "text", description: "New focus, one or two sentences; omit to show the current one", variadic: true },
           ],
           options: { clear: { type: "boolean", description: "Remove the focus" }, json },
@@ -297,7 +297,7 @@ export default function plugin(bb: BbPluginApi) {
         ...messaging.commands,
         notes: cliCommand({
           summary: "Show or change the project's memory: conventions, preferences and gotchas the lead reads every session",
-          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: {
             append: { type: "string", description: "Add a line or paragraph to the end" },
             set: { type: "string", description: "Replace the notes entirely" },
@@ -315,7 +315,7 @@ export default function plugin(bb: BbPluginApi) {
         }),
         loop: cliCommand({
           summary: "Show or set the lead's triggers: a scheduled board sweep and following every PR its workers open",
-          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: {
             sweep: { type: "string", description: "Sweep interval such as 2h or 90m (30m-24h), or off" },
             "any-hours": { type: "boolean", description: "Sweep around the clock, not only weekdays 08:00-19:00" },
@@ -346,7 +346,7 @@ export default function plugin(bb: BbPluginApi) {
         }),
         reconcile: cliCommand({
           summary: "List cards whose stored status disagrees with the evidence (PRs, agents, commits, sub-tasks, idle time), with the suggested move",
-          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: {
             apply: { type: "boolean", description: "Apply only sub-task roll-ups and idle demotions; Done, For Review and the rest stay yours to write" },
             json,
@@ -383,7 +383,7 @@ export default function plugin(bb: BbPluginApi) {
         }),
         "queue-backlog": cliCommand({
           summary: "One-time move of every Backlog card to Queued (todo), since the board shows both as Queued; lists them unless --apply",
-          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: { apply: { type: "boolean", description: "Move them now" }, json },
           async run(input) {
             const project = await resolveProject(input.positionals.project);
@@ -414,7 +414,7 @@ export default function plugin(bb: BbPluginApi) {
         }),
         lead: cliCommand({
           summary: "Show or set the project's lead thread (defaults to the thread running the command)",
-          positionals: [{ name: "project", description: "Tracker project prefix, such as PIXEL", required: true }],
+          positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: {
             thread: { type: "string", description: "Thread id to make the lead; defaults to the current thread" },
             show: { type: "boolean", description: "Only show the current lead" },
