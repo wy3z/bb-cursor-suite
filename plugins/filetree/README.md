@@ -11,8 +11,11 @@ A file tree for BB's right panel.
 
 File access is read-only.
 
+## Install
+
 ```sh
-bb plugin install https://github.com/wy3z/bb-plugin-filetree
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.0 --plugin filetree --tag-prefix filetree/
 ```
 
 Requires BB 0.49+. Includes a Linux x64 build; macOS requires a native build. Windows is unsupported.

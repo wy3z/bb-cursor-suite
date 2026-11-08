@@ -195,8 +195,8 @@ with `bb plugin disable cursor-sidebar`.
 ## Install
 
 ```sh
-bb plugin install git:https://github.com/wy3z/bb-plugin-cursor-sidebar.git
-bb plugin reload cursor-sidebar
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.4 --plugin cursor-sidebar --tag-prefix cursor-sidebar/
 ```
 
 ## Development

@@ -91,8 +91,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wy3z/bb-plugin-filetree.git"
+    "url": "git+https://github.com/wy3z/bb-cursor-suite.git",
+    "directory": "plugins/filetree"
   },
-  "homepage": "https://github.com/wy3z/bb-plugin-filetree#readme",
+  "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/filetree#readme",
   "description": "Browse thread workspaces and project sources with search, Git status, and document previews."
 }

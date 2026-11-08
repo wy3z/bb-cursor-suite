@@ -9,11 +9,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wy3z/bb-plugin-ui-tweaks.git"
+    "url": "git+https://github.com/wy3z/bb-cursor-suite.git",
+    "directory": "plugins/ui-tweaks"
   },
-  "homepage": "https://github.com/wy3z/bb-plugin-ui-tweaks#readme",
+  "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/ui-tweaks#readme",
   "bugs": {
-    "url": "https://github.com/wy3z/bb-plugin-ui-tweaks/issues"
+    "url": "https://github.com/wy3z/bb-cursor-suite/issues"
   },
   "type": "module",
   "files": [

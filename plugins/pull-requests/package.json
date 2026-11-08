@@ -2,6 +2,12 @@
   "name": "bb-plugin-pull-requests",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wy3z/bb-cursor-suite.git",
+    "directory": "plugins/pull-requests"
+  },
+  "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/pull-requests#readme",
   "type": "module",
   "engines": {
     "bb": ">=0.49",

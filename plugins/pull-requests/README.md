@@ -149,6 +149,13 @@ page, so the button is registered as a disclosure whose component calls
 `useBbNavigate().toPluginPanel(...)` on mount and dismisses itself.
 The panel also appears in BB's navigation like any plugin page.
 
+## Install
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin pull-requests --tag-prefix pull-requests/
+```
+
 ## Develop
 
 ```sh

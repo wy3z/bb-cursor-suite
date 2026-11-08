@@ -136,8 +136,8 @@ thread context segment slot.
 ## Install
 
 ```sh
-bb plugin install path:/home/wyez/Projects/personal/bb-plugins/bb-plugin-agent-pills
-bb plugin reload agent-pills
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin agent-pills --tag-prefix agent-pills/
 ```
 
 Turn it off with `bb plugin disable agent-pills`.

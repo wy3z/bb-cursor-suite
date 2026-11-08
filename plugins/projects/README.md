@@ -200,6 +200,13 @@ the URL, header or response body.
 BB 0.49+, plugin SDK 0.6.132+, the built-in Tasks plugin enabled, and Agent
 Pills for Apply locally and Create PR.
 
+## Install
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin projects --tag-prefix projects/
+```
+
 ## Develop
 
 ```sh
