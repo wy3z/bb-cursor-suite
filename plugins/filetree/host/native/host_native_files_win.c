@@ -27,6 +27,9 @@
 #ifndef FILE_SYNCHRONOUS_IO_NONALERT
 #define FILE_SYNCHRONOUS_IO_NONALERT 0x00000020
 #endif
+#ifndef FILE_DIRECTORY_FILE
+#define FILE_DIRECTORY_FILE 0x00000001
+#endif
 #ifndef FILE_OPEN_REPARSE_POINT
 #define FILE_OPEN_REPARSE_POINT 0x00200000
 #endif
@@ -78,6 +81,7 @@ typedef struct {
   unsigned char *buffer;
   DWORD offset;
   bool has_data;
+  bool started;
   bool done;
 } DirSlot;
 
@@ -187,7 +191,11 @@ static napi_value throw_info(napi_env env, const char *syscall, ErrorInfo info) 
 }
 
 static napi_value throw_win32(napi_env env, const char *syscall, DWORD err) {
-  return throw_info(env, syscall, win32_error_info(err));
+  ErrorInfo info = win32_error_info(err);
+  char message[160];
+  snprintf(message, sizeof(message), "%s (Windows error %lu)", info.message, (unsigned long)err);
+  info.message = message;
+  return throw_info(env, syscall, info);
 }
 
 static int get_handle_arg(napi_env env, napi_value value, HANDLE *handle) {
@@ -262,6 +270,61 @@ static bool same_file(const BY_HANDLE_FILE_INFORMATION *left,
          left->nFileIndexLow == right->nFileIndexLow;
 }
 
+static bool same_file_id(HANDLE left, HANDLE right) {
+  FILE_ID_INFO a;
+  FILE_ID_INFO b;
+  if (!GetFileInformationByHandleEx(left, FileIdInfo, &a, sizeof(a)) ||
+      !GetFileInformationByHandleEx(right, FileIdInfo, &b, sizeof(b))) {
+    return false;
+  }
+  return a.VolumeSerialNumber == b.VolumeSerialNumber &&
+         memcmp(&a.FileId, &b.FileId, sizeof(a.FileId)) == 0;
+}
+
+static DWORD reopen_same(HANDLE handle, ACCESS_MASK access, ULONG share, ULONG options,
+                         HANDLE *out) {
+  DWORD first = ERROR_NOT_SUPPORTED;
+  if (nt_create_file != NULL) {
+    UNICODE_STRING empty;
+    empty.Length = 0;
+    empty.MaximumLength = 0;
+    empty.Buffer = NULL;
+    OBJECT_ATTRIBUTES attributes;
+    InitializeObjectAttributes(&attributes, &empty, 0, handle, NULL);
+    IO_STATUS_BLOCK io;
+    memset(&io, 0, sizeof(io));
+    HANDLE reopened = NULL;
+    NTSTATUS status = nt_create_file(&reopened, access | SYNCHRONIZE | FILE_READ_ATTRIBUTES,
+                                     &attributes, &io, NULL, 0, share, FILE_OPEN,
+                                     options | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
+    if (status >= 0) {
+      *out = reopened;
+      return ERROR_SUCCESS;
+    }
+    first = status_to_win32(status);
+  }
+  FILE_ID_INFO id;
+  if (GetFileInformationByHandleEx(handle, FileIdInfo, &id, sizeof(id))) {
+    FILE_ID_DESCRIPTOR descriptor;
+    memset(&descriptor, 0, sizeof(descriptor));
+    descriptor.dwSize = sizeof(descriptor);
+    descriptor.Type = ExtendedFileIdType;
+    descriptor.ExtendedFileId = id.FileId;
+    DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+    if ((options & FILE_OPEN_REPARSE_POINT) != 0) flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    HANDLE reopened = OpenFileById(handle, &descriptor, access | SYNCHRONIZE | FILE_READ_ATTRIBUTES,
+                                   share, NULL, flags);
+    if (reopened != INVALID_HANDLE_VALUE) {
+      if (same_file_id(handle, reopened)) {
+        *out = reopened;
+        return ERROR_SUCCESS;
+      }
+      CloseHandle(reopened);
+    }
+  }
+  return first;
+}
+
 static DWORD settle_reparse(HANDLE *handle) {
   FILE_ATTRIBUTE_TAG_INFO tag;
   if (!GetFileInformationByHandleEx(*handle, FileAttributeTagInfo, &tag, sizeof(tag))) {
@@ -272,11 +335,11 @@ static DWORD settle_reparse(HANDLE *handle) {
   BY_HANDLE_FILE_INFORMATION before;
   BY_HANDLE_FILE_INFORMATION after;
   if (!GetFileInformationByHandle(*handle, &before)) return GetLastError();
-  HANDLE reopened = ReOpenFile(*handle, FILE_GENERIC_READ, SHARE_ALL,
-                               FILE_FLAG_BACKUP_SEMANTICS);
-  if (reopened == INVALID_HANDLE_VALUE) return GetLastError();
+  HANDLE reopened = NULL;
+  DWORD err = reopen_same(*handle, FILE_GENERIC_READ, SHARE_ALL, 0, &reopened);
+  if (err != ERROR_SUCCESS) return err;
   if (!GetFileInformationByHandle(reopened, &after)) {
-    DWORD err = GetLastError();
+    err = GetLastError();
     CloseHandle(reopened);
     return err;
   }
@@ -564,9 +627,13 @@ static napi_value DirOpen(napi_env env, napi_callback_info info) {
   if (get_handle_arg(env, args[0], &handle) != 0) return NULL;
   int slot = next_dir_slot();
   if (slot < 0) return throw_info(env, "dirOpen", E_MFILE);
-  HANDLE directory = ReOpenFile(handle, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
-                                SHARE_ALL, FILE_FLAG_BACKUP_SEMANTICS);
-  if (directory == INVALID_HANDLE_VALUE) return throw_win32(env, "dirOpen", GetLastError());
+  HANDLE directory = NULL;
+  DWORD err = reopen_same(handle, FILE_LIST_DIRECTORY, SHARE_ALL, FILE_DIRECTORY_FILE, &directory);
+  if (err != ERROR_SUCCESS &&
+      !DuplicateHandle(GetCurrentProcess(), handle, GetCurrentProcess(), &directory, 0, FALSE,
+                       DUPLICATE_SAME_ACCESS)) {
+    return throw_win32(env, "dirOpen", err);
+  }
   unsigned char *buffer = malloc(DIR_BUFFER_SIZE);
   if (buffer == NULL) {
     CloseHandle(directory);
@@ -577,6 +644,7 @@ static napi_value DirOpen(napi_env env, napi_callback_info info) {
   dir_slots[slot].buffer = buffer;
   dir_slots[slot].offset = 0;
   dir_slots[slot].has_data = false;
+  dir_slots[slot].started = false;
   dir_slots[slot].done = false;
   napi_value result;
   napi_create_int32(env, slot, &result);
@@ -601,8 +669,10 @@ static napi_value DirRead(napi_env env, napi_callback_info info) {
         napi_get_null(env, &null_value);
         return null_value;
       }
-      if (!GetFileInformationByHandleEx(slot->handle, FileFullDirectoryInfo, slot->buffer,
-                                        DIR_BUFFER_SIZE)) {
+      FILE_INFO_BY_HANDLE_CLASS query =
+          slot->started ? FileFullDirectoryInfo : FileFullDirectoryRestartInfo;
+      slot->started = true;
+      if (!GetFileInformationByHandleEx(slot->handle, query, slot->buffer, DIR_BUFFER_SIZE)) {
         DWORD err = GetLastError();
         if (err == ERROR_NO_MORE_FILES) {
           slot->done = true;
@@ -866,10 +936,10 @@ static void git_execute(napi_env env, void *data) {
     request->cancelled_result = true;
     return;
   }
-  pin = ReOpenFile(request->dir, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                   FILE_FLAG_BACKUP_SEMANTICS);
-  if (pin == INVALID_HANDLE_VALUE) pin = NULL;
-  DWORD err = ERROR_SUCCESS;
+  DWORD err = reopen_same(request->dir, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          FILE_DIRECTORY_FILE, &pin);
+  if (err != ERROR_SUCCESS) pin = NULL;
+  err = ERROR_SUCCESS;
   cwd = final_path(pin != NULL ? pin : request->dir, &err);
   if (cwd == NULL) {
     fail_request(request, "GetFinalPathNameByHandle", err);

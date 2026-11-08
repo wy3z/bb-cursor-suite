@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/host";
 import { createFilesHostEntry } from "../host.js";
+import { NativeFileHostService } from "./service.js";
 import { nativeAssets } from "../generated/native-assets.js";
 const execFileAsync = promisify(execFile);
 const platform = `${process.platform}-${process.arch}`;
@@ -44,7 +45,7 @@ describe.runIf(platform in nativeAssets)(
     });
     afterAll(async () => {
       await harness?.experimental_dispose();
-      await rm(base, { recursive: true, force: true });
+      await rm(base, { recursive: true, force: true }).catch(() => undefined);
     });
     it("loads the addon", async () => {
       expect(await call("support", {})).toEqual({ kind: "supported" });
@@ -63,6 +64,23 @@ describe.runIf(platform in nativeAssets)(
         path: "src",
       })) as { entries: { name: string }[] };
       expect(nested.entries.map((entry) => entry.name)).toEqual(["hello.txt"]);
+    });
+    it("interleaves listings of one directory on a single binding", async () => {
+      const service = new NativeFileHostService();
+      try {
+        const { rootBindingId } = await service.bindRoot(workspace);
+        const [first, second] = await Promise.all([
+          service.listDirectory(rootBindingId, ""),
+          service.listDirectory(rootBindingId, ""),
+        ]);
+        expect(first.entries.map((entry) => entry.name)).toEqual([
+          "src",
+          "README.md",
+        ]);
+        expect(second).toEqual(first);
+      } finally {
+        await service.dispose();
+      }
     });
     it("refuses to walk through a link that leaves the root", async () => {
       await expect(
