@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 export const suiteUrl = "https://github.com/wy3z/bb-cursor-suite.git";
 export const sharedDir = "packages/suite-shared";
 export const sharedName = "@wy3z/bb-suite";
+export const sharedSpec = `file:../../${sharedDir}`;
 export const legacyStreams = {
   "cursor-sidebar": "^0.3.2",
   "ui-tweaks": "^0.30.0",
@@ -54,6 +55,25 @@ export function satisfiesCaret(versionText, range) {
   if (low.major > 0) return version.major === low.major;
   if (low.minor > 0) return version.major === 0 && version.minor === low.minor;
   return version.major === 0 && version.minor === 0 && version.patch === low.patch;
+}
+
+export function sharedSpecErrors(pkg, expected) {
+  const errors = [];
+  for (const field of ["peerDependencies", "optionalDependencies"]) {
+    if (pkg[field]?.[sharedName] !== undefined) errors.push(`${sharedName} is in ${field}; npm would fetch it from the registry`);
+  }
+  for (const field of ["bundleDependencies", "bundledDependencies"]) {
+    const bundled = pkg[field];
+    if (bundled === true || (Array.isArray(bundled) && bundled.includes(sharedName))) errors.push(`${sharedName} is bundled through ${field}`);
+  }
+  if (pkg.devDependencies?.[sharedName] !== undefined && pkg.dependencies?.[sharedName] === undefined) {
+    errors.push(`${sharedName} is only in devDependencies; it must be in dependencies so releases vendor it`);
+  }
+  for (const field of ["dependencies", "devDependencies"]) {
+    const spec = pkg[field]?.[sharedName];
+    if (spec !== undefined && spec !== expected) errors.push(`${sharedName} in ${field} is ${spec}, expected exactly ${expected}`);
+  }
+  return errors;
 }
 
 function readJson(root, path) {
@@ -134,11 +154,7 @@ export function checkVersions(root, overrides = {}) {
       if (git && line.range !== git.range) errors.push(`README.md: ${id} range ${line.range} differs from marketplace.json ${git.range}`);
     }
 
-    const sharedRange = pkg.dependencies?.[sharedName] ?? pkg.devDependencies?.[sharedName];
-    if (sharedRange !== undefined) {
-      if (!parseCaret(sharedRange)) errors.push(`${id}: ${sharedName} is ${sharedRange}, expected a ^x.y.z range`);
-      else if (!satisfiesCaret(shared.version, sharedRange)) errors.push(`${id}: ${sharedName} ${sharedRange} does not match ${sharedDir} ${shared.version}, so npm would look for it on the registry`);
-    }
+    for (const error of sharedSpecErrors(pkg, sharedSpec)) errors.push(`${id}: ${error}`);
   }
   return errors;
 }

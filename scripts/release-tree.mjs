@@ -39,6 +39,10 @@ export function releaseTree(base, dir) {
     delete sharedPkg.scripts;
     git(["update-index", "--add", "--cacheinfo", `100644,${blob(json(sharedPkg))},${dir}/${vendorDir}/package.json`], { env });
     const vendored = { ...pkg, dependencies: { ...pkg.dependencies, [sharedName]: `file:./${vendorDir}` } };
+    if (vendored.devDependencies?.[sharedName] !== undefined) {
+      vendored.devDependencies = { ...vendored.devDependencies };
+      delete vendored.devDependencies[sharedName];
+    }
     if (Array.isArray(vendored.files) && !vendored.files.includes("vendor")) vendored.files = [...vendored.files, "vendor"];
     git(["update-index", "--add", "--cacheinfo", `100644,${blob(json(vendored))},${dir}/package.json`], { env });
     return { tree: git(["write-tree"], { env }), vendored: true };
