@@ -1282,9 +1282,9 @@ function ThreadRow({
               aria-label={cloudHostTitle}
               title={cloudHostTitle}
               data-cloud-host={native.host?.id}
-              className="cs-thread-cloud pointer-events-none flex shrink-0 items-center"
+              className="cs-thread-cloud pointer-events-none flex size-3.5 shrink-0 items-center justify-center"
             >
-              <Icon name="Cloud" aria-hidden="true" className="size-3" />
+              <Icon name="Cloud" aria-hidden="true" className="size-3.5" />
             </span>
           ) : null}
           </div>
