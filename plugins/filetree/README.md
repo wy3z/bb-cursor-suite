@@ -23,3 +23,7 @@ Requires BB 0.49+. Includes a Linux x64 build; macOS requires a native build. Wi
 [Development and CLI](docs/development.md)
 
 File icons are [Symbols](https://github.com/miguelsolorio/vscode-symbols) by Miguel Solorio (MIT), with slate greys made neutral; see `vendor/symbols`. The bundled document viewers ship their own licences in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

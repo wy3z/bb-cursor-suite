@@ -220,3 +220,7 @@ that has the SDK installed.
 
 MIT, see [LICENSE](LICENSE). Portions adapted from bb-plugin-thread-inbox and
 T3 Code. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

@@ -168,5 +168,10 @@ bb plugin install . --yes   # first time; then: bb plugin reload pull-requests
 
 ## Licence
 
-MIT. Code ported from Zeron, and project icons from T3 Code; both notices are
-in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT, see [LICENSE](LICENSE). Code ported from Zeron, and project icons from
+T3 Code; both notices are in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.

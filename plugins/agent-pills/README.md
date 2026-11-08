@@ -153,3 +153,7 @@ bb plugin reload agent-pills
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
