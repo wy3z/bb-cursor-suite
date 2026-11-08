@@ -1,48 +1,14 @@
 import type { MouseEvent } from "react";
-import { experimental_useRpcKeyedQuery } from "@get-bb/plugin-sdk/app";
-import { z } from "zod";
-import { changeRequestLabel, type ChangeRequest } from "@wy3z/bb-suite/change-requests";
+import type { ChangeRequest } from "@wy3z/bb-suite/change-requests";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { requestOpenChangeRequest, useGitLabChangeRequest } from "./change-requests";
-
-/**
- * The bundled GitHub PR Status plugin's `pullRequests` read, copied from
- * references/frontend-pull-requests.md. Keys are environment ids, so rows
- * sharing a worktree share one read.
- *
- * A plain object, not `defineRpcContract`: that lives in the server SDK root,
- * which a clean install does not provide to the frontend bundle.
- */
-export const githubPrStatus = {
-  pullRequests: {
-    input: z.object({ keys: z.array(z.string()) }),
-    output: z.record(
-      z.string(),
-      z.discriminatedUnion("outcome", [
-        z.object({
-          outcome: z.literal("available"),
-          pullRequest: z.object({
-            number: z.number(),
-            title: z.string(),
-            url: z.string(),
-            state: z.enum(["draft", "open", "merged", "closed"]),
-            attention: z.string(),
-          }),
-        }),
-        z.object({ outcome: z.literal("absent") }),
-        z.object({ outcome: z.literal("unavailable"), message: z.string() }),
-      ]),
-    ),
-  },
-} as const;
+import { requestLabel, requestOpenChangeRequest, useSidebarRequest, type RequestView } from "./change-requests";
 
 type PullRequestState = "open" | "draft" | "merged" | "closed";
 
 interface Presentation {
   icon: IconName;
   tone: string;
-  label: string;
 }
 
 /**
@@ -52,86 +18,62 @@ interface Presentation {
  * checks are history. No PR means no mark — nothing is fabricated.
  */
 export const PRESENTATION: Record<PullRequestState, Presentation> = {
-  open: { icon: "GitPullRequest", tone: "text-success", label: "Open pull request" },
-  draft: {
-    icon: "GitPullRequestDraft",
-    tone: "text-muted-foreground",
-    label: "Draft pull request",
-  },
-  merged: { icon: "GitMerge", tone: "text-pr-merged", label: "Merged pull request" },
-  closed: {
-    icon: "GitPullRequestClosed",
-    tone: "text-destructive",
-    label: "Closed pull request",
-  },
+  open: { icon: "GitPullRequest", tone: "text-success" },
+  draft: { icon: "GitPullRequestDraft", tone: "text-muted-foreground" },
+  merged: { icon: "GitMerge", tone: "text-pr-merged" },
+  closed: { icon: "GitPullRequestClosed", tone: "text-destructive" },
 };
 
-/**
- * Reads the GitHub PR Status plugin's cached pull-request state for one row's
- * environment. The host owns the polling and staleness rules; a query error,
- * `absent` and `unavailable` all mean "nothing to show", never an error.
- */
 export function PullRequestMark({
   environmentId,
+  branch,
   threadId = null,
 }: {
   environmentId: string | null;
+  branch?: string | null;
   threadId?: string | null;
 }) {
-  const { data } = experimental_useRpcKeyedQuery({
-    pluginId: "bb--github-pr-status",
-    contract: githubPrStatus,
-    method: "pullRequests",
-    keys: environmentId === null ? [] : [environmentId],
-  });
-  const gitlab = useGitLabChangeRequest(environmentId);
-  if (gitlab.kind === "gitlab") {
-    return gitlab.changeRequest ? <MergeRequestMark changeRequest={gitlab.changeRequest} threadId={threadId} /> : null;
-  }
-  const row = environmentId === null ? undefined : data?.[environmentId];
-  if (row?.outcome !== "available") return null;
-  const pullRequest = row.pullRequest;
+  const status = useSidebarRequest(environmentId, branch);
+  if (status?.kind !== "available") return null;
+  const request = status.request;
+  if (request.openable) return <MergeRequestMark request={request} changeRequest={request.openable} threadId={threadId} />;
 
-  const presentation = PRESENTATION[pullRequest.state];
-  const failing =
-    pullRequest.attention === "checks_failed" &&
-    pullRequest.state !== "merged" &&
-    pullRequest.state !== "closed";
-  const label = failing ? `${presentation.label}, checks failing` : presentation.label;
+  const presentation = PRESENTATION[request.state];
+  const label = requestLabel(request);
 
   return (
     <span
       role="img"
       aria-label={label}
-      title={`#${pullRequest.number} · ${label.toLowerCase()}`}
+      title={`${request.label} · ${label.toLowerCase()}`}
       className="mr-1 flex size-3.5 shrink-0 items-center justify-center"
     >
       <Icon
         name={presentation.icon}
-        className={cn("size-3.5", failing ? "text-destructive" : presentation.tone)}
+        className={cn("size-3.5", request.ciFailing ? "text-destructive" : presentation.tone)}
       />
     </span>
   );
 }
 
-const MERGE_REQUEST_LABEL: Record<PullRequestState, string> = {
-  open: "Open merge request",
-  draft: "Draft merge request",
-  merged: "Merged merge request",
-  closed: "Closed merge request",
-};
-
 function openInBrowser(url: string) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-function MergeRequestMark({ changeRequest, threadId }: { changeRequest: ChangeRequest; threadId: string | null }) {
-  const state = changeRequest.state;
-  const presentation = PRESENTATION[state];
-  const failing = changeRequest.ci.state === "failed" && state !== "merged" && state !== "closed";
-  const label = failing ? `${MERGE_REQUEST_LABEL[state]}, pipeline failing` : MERGE_REQUEST_LABEL[state];
-  const number = changeRequestLabel(changeRequest.identity);
-  const url = changeRequest.identity.url;
+function MergeRequestMark({
+  request,
+  changeRequest,
+  threadId,
+}: {
+  request: RequestView;
+  changeRequest: ChangeRequest;
+  threadId: string | null;
+}) {
+  const presentation = PRESENTATION[request.state];
+  const failing = request.ciFailing;
+  const label = requestLabel(request);
+  const number = request.label;
+  const url = request.url;
 
   const open = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();

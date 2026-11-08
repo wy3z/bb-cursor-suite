@@ -11,7 +11,6 @@ import {
 import { toast } from "sonner";
 import { z } from "zod";
 import {
-  experimental_useRpcKeyedQuery,
   experimental_useSidebarThreads as useSidebarThreads,
   useRpc,
   useSdk,
@@ -34,7 +33,7 @@ import {
 import { ShelfList, PinnedList, collectLiftedPins, type LiftedPin, type TreeContext } from "./ThreadTree";
 import { openProjectBoard, useProjectBoards, useRemoveManager, type ProjectBoard } from "./project-boards";
 import { archiveMany } from "./row-extras";
-import { githubPrStatus } from "./PullRequestMark";
+import { environmentTargets, threadFilterState, useSidebarRequests } from "./change-requests";
 import type { ViewPrFilter } from "./sidebar-view";
 import { RowContextMenu } from "./RowContextMenu";
 import { useArchiveThread } from "./thread-actions";
@@ -540,33 +539,11 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
     [activeThreadId, familyRootOfId],
   );
   const projectsGrouping = view.groupBy === "workspace";
-  const prEnvironmentIds = useMemo(() => {
-    if (view.prFilter === null) return [];
-    const ids = new Set<string>();
-    for (const thread of visible) {
-      if (thread.environment?.id) ids.add(thread.environment.id);
-      if (ids.size >= 200) break;
-    }
-    return [...ids];
-  }, [view.prFilter, visible]);
-  const prStatus = experimental_useRpcKeyedQuery({
-    pluginId: "bb--github-pr-status",
-    contract: githubPrStatus,
-    method: "pullRequests",
-    keys: prEnvironmentIds,
-    enabled: prEnvironmentIds.length > 0,
-  });
+  const prTargets = useMemo(() => (view.prFilter === null ? [] : environmentTargets(visible)), [view.prFilter, visible]);
+  const prStatus = useSidebarRequests(prTargets);
   const prStateOf = useCallback(
-    (thread: PluginSidebarThread): ViewPrFilter | undefined => {
-      const environmentId = thread.environment?.id;
-      if (!environmentId) return "none";
-      const row = prStatus.data?.[environmentId];
-      if (row === undefined) return undefined;
-      if (row.outcome === "available") return row.pullRequest.state;
-      if (row.outcome === "absent") return "none";
-      return undefined;
-    },
-    [prStatus.data],
+    (thread: PluginSidebarThread): ViewPrFilter | undefined => threadFilterState(thread, prStatus),
+    [prStatus],
   );
   const viewVisible = useMemo(
     () =>

@@ -55,10 +55,11 @@ children.
 | **Project order** | Manual, or by worst status and then by the project used most recently. Projects grouping only |
 | **Group order** | Updated (most recent first), or Default (the grouping's own order). Every grouping except Projects and None |
 | **Threads per group** | How many inactive chats a section previews: 5, 10, 20, 50 or All. The default is 10 |
-| **Show** | Updated time, environment, branch, machine, the pull request mark and project icons on rows |
+| **Show** | Updated time, environment, branch, machine, the pull or merge request mark and project icons on rows |
 | **Status filter** | Needs your input, Failed, Unread, Working, Idle. All or None |
 | **Age filter** | Today, Yesterday, Last 7 days, Last 30 days, Older. All or None |
 | **Environment filter** | Which environments appear, including chats with none. All or None |
+| **PR / MR filter** | Draft, Open, Merged, Closed, No PR / MR. All or None. A row whose request is still loading, or can't be checked, stays visible |
 | **Expand All / Collapse All** | Every section and group at once |
 | **Mark All as Read** | Every loaded chat that is unread |
 

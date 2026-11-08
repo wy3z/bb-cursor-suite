@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
-import { experimental_useRpcKeyedQuery, useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { isWorking } from "./activity";
 import { HoverCard, HoverCardFacts, HoverCardStatus, HoverCardTitle, type HoverFact } from "./HoverCard";
 import type { ProjectIcon } from "./project-icons";
 import { ProjectIconMark } from "./ProjectIconMark";
-import { githubPrStatus } from "./PullRequestMark";
+import { environmentTargets, projectRequestSummary, useSidebarRequests } from "./change-requests";
 import { relativeTimeLabel } from "./relative-time";
 import { THREAD_STATUS_LABEL, aggregateSectionStatus, type ThreadStatusKind } from "./status";
 import { PROJECTS_PLUGIN, TASKS_PLUGIN, projectsContract, tasksContract } from "./suite-contracts";
@@ -182,22 +182,15 @@ function ProjectHoverBody({
   const repo = useLoaded(repoLoad);
   const board = useLoaded(boardLoad);
 
-  const environmentIds = useMemo(() => {
-    const seen = new Set<string>();
-    for (const thread of [...live].sort((left, right) => right.updatedAt - left.updatedAt)) {
-      const id = thread.environment?.id;
-      if (id) seen.add(id);
-      if (seen.size >= PR_KEY_LIMIT) break;
-    }
-    return [...seen].sort();
-  }, [live]);
-  const prs = experimental_useRpcKeyedQuery({
-    pluginId: "bb--github-pr-status",
-    contract: githubPrStatus,
-    method: "pullRequests",
-    keys: environmentIds,
-    enabled: environmentIds.length > 0,
-  });
+  const prTargets = useMemo(
+    () =>
+      environmentTargets(
+        [...live].sort((left, right) => right.updatedAt - left.updatedAt),
+        PR_KEY_LIMIT,
+      ).sort((left, right) => left.environmentId.localeCompare(right.environmentId)),
+    [live],
+  );
+  const prs = useSidebarRequests(prTargets);
 
   let working = 0;
   let input = 0;
@@ -212,17 +205,7 @@ function ProjectHoverBody({
     lastActivity = Math.max(lastActivity, thread.updatedAt);
   }
 
-  const openPrs = new Map<string, { number: number; draft: boolean }>();
-  let prsKnown = false;
-  for (const id of environmentIds) {
-    const row = prs.data?.[id];
-    if (row === undefined) continue;
-    if (row.outcome !== "unavailable") prsKnown = true;
-    if (row.outcome === "available" && (row.pullRequest.state === "open" || row.pullRequest.state === "draft")) {
-      openPrs.set(row.pullRequest.url, { number: row.pullRequest.number, draft: row.pullRequest.state === "draft" });
-    }
-  }
-  const drafts = [...openPrs.values()].filter((pr) => pr.draft).length;
+  const requests = projectRequestSummary(prTargets.map((target) => prs.get(target.environmentId)));
 
   const counts = [
     plural(live.length, "thread"),
@@ -243,10 +226,10 @@ function ProjectHoverBody({
       : []),
     { icon: "MessageSquare", key: "threads", text: counts.join(" · ") },
     ...(agents > 0 ? [{ icon: "Bot" as const, key: "agents", text: `${plural(agents, "agent")} running` }] : []),
-    ...(openPrs.size > 0
-      ? [{ icon: "GitPullRequest" as const, key: "prs", text: `${plural(openPrs.size, "open PR")}${drafts > 0 ? `, ${drafts} draft` : ""}`, detail: [...openPrs.values()].map((pr) => `#${pr.number}`).join(" ") }]
-      : prsKnown
-        ? [{ icon: "GitPullRequest" as const, key: "prs", text: "No open PRs" }]
+    ...(requests.open.length > 0
+      ? [{ icon: "GitPullRequest" as const, key: "prs", text: `${plural(requests.open.length, `open ${requests.noun}`)}${requests.drafts > 0 ? `, ${requests.drafts} draft` : ""}`, detail: requests.open.map((request) => request.label).join(" ") }]
+      : requests.known
+        ? [{ icon: "GitPullRequest" as const, key: "prs", text: `No open ${requests.noun}s` }]
         : []),
     ...(lastActivity > 0 ? [{ icon: "Clock" as const, key: "activity", text: `Last activity ${ago(lastActivity)}` }] : []),
   ];

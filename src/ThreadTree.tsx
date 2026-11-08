@@ -1023,7 +1023,7 @@ function ThreadRow({
             </>
           }
           facts={hoverFacts}
-          extra={native.environment?.id ? <ThreadGitFacts environmentId={native.environment.id} fallbackBranch={branch} /> : null}
+          extra={native.environment?.id ? <ThreadGitFacts environmentId={native.environment.id} environmentBranch={native.environment.branchName ?? null} fallbackBranch={branch} /> : null}
         >
         <div
           data-thread-row=""
@@ -1232,7 +1232,7 @@ function ThreadRow({
           </span>
 
 
-          {ctx.view.show.pr ? <PullRequestMark environmentId={thread.environment?.id ?? null} threadId={thread.id} /> : null}
+          {ctx.view.show.pr ? <PullRequestMark environmentId={thread.environment?.id ?? null} branch={thread.environment?.branchName ?? null} threadId={thread.id} /> : null}
 
           {ctx.view.show.providerIcons && native.providerId ? (
             <ProviderMark providerId={native.providerId} className="mr-1.5" />

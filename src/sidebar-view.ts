@@ -52,11 +52,11 @@ export const STATUS_FILTER_LABELS: Record<ViewStatusFilter, string> = { ...THREA
 export const VIEW_PR_FILTERS = ["draft", "open", "merged", "closed", "none"] as const;
 export type ViewPrFilter = (typeof VIEW_PR_FILTERS)[number];
 export const PR_FILTER_LABELS: Record<ViewPrFilter, string> = {
-  draft: "PR Draft",
-  open: "PR Open",
-  merged: "PR Merged",
-  closed: "PR Closed",
-  none: "No PR",
+  draft: "Draft",
+  open: "Open",
+  merged: "Merged",
+  closed: "Closed",
+  none: "No PR / MR",
 };
 
 /**

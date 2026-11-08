@@ -2,7 +2,8 @@ import { experimental_useRpcKeyedQuery } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { githubPrStatus, PRESENTATION } from "./PullRequestMark";
+import { requestFailureNote, useSidebarRequest } from "./change-requests";
+import { PRESENTATION } from "./PullRequestMark";
 
 const lineStats = z.object({
   lineStatsComplete: z.boolean(),
@@ -84,9 +85,11 @@ function Line({
 
 export function ThreadGitFacts({
   environmentId,
+  environmentBranch,
   fallbackBranch,
 }: {
   environmentId: string | null;
+  environmentBranch?: string | null;
   fallbackBranch: string | null;
 }) {
   const keys = environmentId === null ? [] : [environmentId];
@@ -96,31 +99,23 @@ export function ThreadGitFacts({
     method: "status",
     keys,
   });
-  const pr = experimental_useRpcKeyedQuery({
-    pluginId: "bb--github-pr-status",
-    contract: githubPrStatus,
-    method: "pullRequests",
-    keys,
-  });
+  const status = useSidebarRequest(environmentId, environmentBranch);
 
   const gitRow = environmentId === null ? undefined : git.data?.[environmentId];
   const parsedGit = availableStatus.safeParse(gitRow);
   const workspace = parsedGit.success ? parsedGit.data.workspace : null;
-  const prRow = environmentId === null ? undefined : pr.data?.[environmentId];
-  const pullRequest = prRow?.outcome === "available" ? prRow.pullRequest : null;
+  const pullRequest = status?.kind === "available" ? status.request : null;
+  const unknownMergeRequest = status?.kind === "unavailable" && status.provider === "gitlab" ? status.message : null;
 
   const branch = workspace?.branch.currentBranch ?? fallbackBranch;
   const base = workspace?.mergeBase ?? null;
   const tree = workspace?.workingTree ?? null;
   const latest = base?.commits.at(-1) ?? null;
 
-  if (branch === null && workspace === null && pullRequest === null) return null;
+  if (branch === null && workspace === null && pullRequest === null && unknownMergeRequest === null) return null;
 
   const prPresentation = pullRequest ? PRESENTATION[pullRequest.state] : null;
-  const prFailing =
-    pullRequest?.attention === "checks_failed" &&
-    pullRequest.state !== "merged" &&
-    pullRequest.state !== "closed";
+  const prFailing = pullRequest?.ciFailing === true;
 
   return (
     <ul className="grid gap-1 border-t border-border pt-2 text-xs text-muted-foreground">
@@ -170,11 +165,15 @@ export function ThreadGitFacts({
           iconClassName={prFailing ? "text-destructive" : prPresentation.tone}
           detail={pullRequest.title}
         >
-          <span>#{pullRequest.number}</span>
+          <span>{pullRequest.label}</span>
           <span className="ml-auto shrink-0 opacity-75">
             {pullRequest.state}
-            {prFailing ? " · checks failing" : ""}
+            {requestFailureNote(pullRequest)}
           </span>
+        </Line>
+      ) : unknownMergeRequest !== null ? (
+        <Line icon="GitPullRequest" detail={unknownMergeRequest}>
+          <span>Merge request unknown</span>
         </Line>
       ) : null}
     </ul>

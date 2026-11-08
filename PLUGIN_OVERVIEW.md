@@ -22,7 +22,7 @@ The `bb cursor-sidebar icon` command sets, reads and clears a project icon from 
 
 The toolbar holds the project switcher on the left and the view menu on the right. The switcher reads All projects, one project's name, or a count, and offers every project plus New project. Picking one project narrows every grouping and drops that project's heading under Projects grouping.
 
-The view menu sets the grouping, chat order, project order and group order. It also sets how many inactive chats a section previews: 5, 10, 20, 50 or All, with Show more for the next page. The Show section toggles the updated time, environment, branch, machine, pull request mark and project icons on rows. Filters cover status, age and environment. Expand All, Collapse All and Mark All as Read act on the loaded list.
+The view menu sets the grouping, chat order, project order and group order. It also sets how many inactive chats a section previews: 5, 10, 20, 50 or All, with Show more for the next page. The Show section toggles the updated time, environment, branch, machine, pull or merge request mark and project icons on rows. Filters cover status, age, environment and pull or merge request state. The mark, hover facts, filter and project counts read one shared status: Pull Requests decides whether a branch is on GitHub or GitLab, GitHub rows keep the builtin GitHub PR Status answer, and without Pull Requests the sidebar uses GitHub PR Status alone. Expand All, Collapse All and Mark All as Read act on the loaded list.
 
 A warning mark on the menu button means a view change has not reached the server. The notice inside the menu has a Retry button.
 

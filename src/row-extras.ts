@@ -5,6 +5,8 @@ import {
   experimental_saveFile,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import { changeRequestsContract, CHANGE_REQUESTS_PLUGIN, type ChangeRequestRow } from "@wy3z/bb-suite/change-requests";
+import { GITHUB_PR_STATUS_PLUGIN, githubPrStatus, resolveRequest, type GitHubStatusRow, type Source } from "./change-requests";
 import { threadDisplayTitle } from "./inbox";
 
 type Sdk = {
@@ -16,7 +18,6 @@ type Sdk = {
 };
 
 const transcriptOutput = z.object({ text: z.string() });
-const prStatusOutput = z.record(z.string(), z.unknown());
 
 async function copy(text: string, what: string) {
   const ok = await experimental_copyToClipboard({ text });
@@ -53,22 +54,28 @@ export async function copyPullRequestLink(sdk: Sdk, thread: PluginSidebarThread)
     toast.error("This thread has no environment");
     return;
   }
-  try {
-    const result = (await sdk.plugins.callRpc({
-      pluginId: "bb--github-pr-status",
-      method: "pullRequests",
-      input: { keys: [environmentId] },
-      outputSchema: prStatusOutput,
-    } as never)) as Record<string, { outcome?: string; pullRequest?: { url?: unknown } }>;
-    const row = result[environmentId];
-    const url = row?.outcome === "available" && typeof row.pullRequest?.url === "string" ? row.pullRequest.url : null;
-    if (!url) {
-      toast.error("No pull request for this thread's branch");
-      return;
+  const read = async <Row,>(pluginId: string, method: string, outputSchema: unknown): Promise<Source<Row>> => {
+    try {
+      const result = (await sdk.plugins.callRpc({ pluginId, method, input: { keys: [environmentId] }, outputSchema } as never)) as Record<string, Row>;
+      const row = result[environmentId];
+      return row === undefined ? { status: "missing" } : { status: "row", row };
+    } catch {
+      return { status: "missing" };
     }
-    await copy(url, "pull request link");
-  } catch (error) {
-    toast.error("Couldn't read the pull request", { description: error instanceof Error ? error.message : String(error) });
+  };
+  const [pullRequests, github] = await Promise.all([
+    read<ChangeRequestRow>(CHANGE_REQUESTS_PLUGIN, "changeRequests", changeRequestsContract.changeRequests.output),
+    read<GitHubStatusRow>(GITHUB_PR_STATUS_PLUGIN, "pullRequests", githubPrStatus.pullRequests.output),
+  ]);
+  const status = resolveRequest(pullRequests, github, thread.environment?.branchName ?? null);
+  if (status.kind === "available") {
+    await copy(status.request.url, `${status.request.noun} link`);
+  } else if (status.kind === "absent") {
+    toast.error(`No ${status.provider === "gitlab" ? "merge" : "pull"} request for this thread's branch`);
+  } else if (status.kind === "loading") {
+    toast.error("Still checking this thread's branch. Try again in a moment.");
+  } else {
+    toast.error(`Couldn't read the ${status.provider === "gitlab" ? "merge" : "pull"} request`, { description: status.message });
   }
 }
 
