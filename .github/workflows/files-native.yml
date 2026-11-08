@@ -46,6 +46,8 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Trust the checkout inside the container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build the addon
         working-directory: plugins/filetree
