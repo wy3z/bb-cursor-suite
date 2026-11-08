@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { nativeAssets } from "../generated/native-assets.js";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -33,6 +33,7 @@ export interface NativeFilesAddon {
   dirOpen(fd: number): number;
   dirRead(dirId: number): NativeAddonDirent | null;
   dup(fd: number): number;
+  fstat?(fd: number): NativeAddonStat;
   gitStatusAt(
     dirfd: number,
     file: string,
@@ -46,8 +47,12 @@ export interface NativeFilesAddon {
   };
   open(path: string, flags: number): number;
   openat(dirfd: number, name: string, flags: number): number;
+  read?(fd: number, size: number): Buffer;
   supportsOpenat2(): boolean;
 }
+export type NativeAddonSupport =
+  | { kind: "supported" }
+  | { kind: "unsupported"; platform: string; reason: string };
 const here = dirname(fileURLToPath(import.meta.url));
 const ADDON_CANDIDATES = [
   join(here, "native", "build", "Release", "host_native_files.node"),
@@ -58,34 +63,67 @@ const ADDON_CANDIDATES = [
 export function nativeFilesAddonCandidates(): readonly string[] {
   return ADDON_CANDIDATES;
 }
-export function loadNativeFilesAddon(): NativeFilesAddon | null {
+function loadCandidate(candidate: string): NativeFilesAddon {
   const require = createRequire(import.meta.url);
+  return require(candidate) as NativeFilesAddon;
+}
+export function loadNativeFilesAddon(): NativeFilesAddon | null {
   for (const candidate of ADDON_CANDIDATES) {
     if (!existsSync(candidate)) continue;
     try {
-      return require(candidate) as NativeFilesAddon;
+      return loadCandidate(candidate);
     } catch {
       continue;
     }
   }
   return null;
 }
-let prepared: Promise<void> | null = null;
-export function prepareNativeAddon(tempDir: string): Promise<void> {
-  prepared ??= (async () => {
-    const asset = nativeAssets[`${process.platform}-${process.arch}`];
+function sha256(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+function unsupported(platform: string, reason: string): NativeAddonSupport {
+  return { kind: "unsupported", platform, reason };
+}
+function firstLine(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
+  return (text.split(/\r?\n/u)[0] ?? "").trim().slice(0, 300);
+}
+async function extract(target: string, bytes: Buffer, digest: string) {
+  const existing = await readFile(target).catch(() => null);
+  if (existing !== null && sha256(existing) === digest) return;
+  await writeFile(target, bytes, { mode: 0o600 });
+}
+let prepared: Promise<NativeAddonSupport> | null = null;
+export function prepareNativeAddon(
+  tempDir: string,
+): Promise<NativeAddonSupport> {
+  prepared ??= (async (): Promise<NativeAddonSupport> => {
+    const platform = `${process.platform}-${process.arch}`;
+    const asset = nativeAssets[platform];
     if (!asset)
-      throw new Error(
-        `Files has no native addon for ${process.platform}-${process.arch}. Build the plugin for this host platform.`,
+      return unsupported(
+        platform,
+        `Files runs on macOS, Linux (x64 and Arm) and Windows x64. It can't browse this machine (${platform}) yet.`,
       );
     const bytes = Buffer.from(asset.base64, "base64");
-    if (createHash("sha256").update(bytes).digest("hex") !== asset.sha256)
-      throw new Error("Files native addon digest mismatch");
+    if (sha256(bytes) !== asset.sha256)
+      return unsupported(
+        platform,
+        `Files' native module for ${platform} is damaged. Reinstall the plugin.`,
+      );
     const target = join(tempDir, `files-${asset.sha256}.node`);
-    await writeFile(target, bytes, { mode: 0o600 });
+    try {
+      await extract(target, bytes, asset.sha256);
+      loadCandidate(target);
+    } catch (error) {
+      prepared = null;
+      return unsupported(
+        platform,
+        `Files couldn't load its native module on this machine (${platform}): ${firstLine(error)}`,
+      );
+    }
     ADDON_CANDIDATES.unshift(target);
-    if (loadNativeFilesAddon() === null)
-      throw new Error("Files native addon cannot load on this host");
+    return { kind: "supported" };
   })();
   return prepared;
 }

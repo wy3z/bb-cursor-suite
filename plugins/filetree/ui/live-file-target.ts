@@ -1,3 +1,4 @@
+import { joinHostPath } from "../contracts/host-path";
 import type { NativeFilesSelection } from "./native-files-ui-types";
 
 export type LiveFileTarget =
@@ -13,6 +14,9 @@ export function liveFileTarget(selection: NativeFilesSelection): LiveFileTarget 
       path,
     };
   }
-  const prefix = root.rootPath.endsWith("/") ? root.rootPath : `${root.rootPath}/`;
-  return { kind: "host", hostId: root.hostId, path: `${prefix}${path}` };
+  return {
+    kind: "host",
+    hostId: root.hostId,
+    path: joinHostPath(root.rootPath, path),
+  };
 }

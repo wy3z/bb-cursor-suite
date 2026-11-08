@@ -9,7 +9,12 @@ import {
   nativeFileGitStatusResultSchema,
   nativeFileRelativePathSchema,
 } from "./model.js";
-const rootPath = z.string().min(1).max(8192).startsWith("/");
+import { isAbsoluteHostPath } from "./host-path.js";
+const rootPath = z
+  .string()
+  .min(1)
+  .max(8192)
+  .refine(isAbsoluteHostPath, { message: "Root path must be absolute" });
 const root = z.object({ rootPath }).strict();
 export const hostContract = defineRpcContract({
   directory: {
@@ -26,6 +31,19 @@ export const hostContract = defineRpcContract({
     output: nativeFileSearchResultSchema,
   },
   gitStatus: { input: root, output: nativeFileGitStatusResultSchema },
+  support: {
+    input: z.object({}).strict(),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("supported") }).strict(),
+      z
+        .object({
+          kind: z.literal("unsupported"),
+          platform: z.string().max(100),
+          reason: z.string().max(1000),
+        })
+        .strict(),
+    ]),
+  },
   watch: {
     input: root
       .extend({

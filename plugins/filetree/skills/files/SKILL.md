@@ -22,4 +22,4 @@ Quote paths and queries containing spaces. Paths are normalized root-relative pa
 
 These operations do not modify workspace files. The UI opens from a thread's right-panel launcher and supports previews, word wrap, manual refresh, opening live files in BB’s preferred editor, copied paths/text, and downloads. File attachments are unavailable. The CLI read/list/search/git commands always retrieve fresh data; preview wrapping is a UI presentation setting.
 
-If a root becomes stale, list roots again. If the host reports a missing native addon, the plugin needs a build for that host's operating system and architecture; do not replace descriptor confinement with pathname checks.
+If a root becomes stale, list roots again. If Files says it can't browse a machine, that host's operating system or architecture has no native addon (it ships darwin-arm64, darwin-x64, linux-arm64, linux-x64 and win32-x64); do not replace descriptor confinement with pathname checks.

@@ -1,0 +1,4 @@
+/.github/workflows/files-native.yml @wy3z
+/plugins/filetree/generated/native-assets.ts @wy3z
+/plugins/filetree/host/native/ @wy3z
+/plugins/filetree/scripts/native-assets.mjs @wy3z

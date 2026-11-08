@@ -15,6 +15,7 @@ import {
   nativeFileRootIdSchema,
   nativeFileSearchResultSchema,
 } from "./model.js";
+import { isAbsoluteHostPath } from "./host-path.js";
 export {
   NATIVE_FILE_DIRECTORY_ENTRY_LIMIT,
   NATIVE_FILE_GIT_ENTRY_LIMIT,
@@ -30,7 +31,7 @@ const nativeFileRootPathSchema = z
   .string()
   .min(1)
   .max(NATIVE_FILE_ROOT_PATH_MAX_LENGTH)
-  .startsWith("/");
+  .refine(isAbsoluteHostPath, { message: "Root path must be absolute" });
 export const nativeFileRootReferenceSchema = z.discriminatedUnion("kind", [
   z
     .object({

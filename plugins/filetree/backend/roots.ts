@@ -6,8 +6,15 @@ import {
   type NativeFileRoot,
   type NativeFileRootReference,
 } from "../contracts/api.js";
+import {
+  hostPathFlavor,
+  normalizeWindowsHostPath,
+} from "../contracts/host-path.js";
 function normalizedAbsolutePath(value: string): string | null {
-  if (!path.posix.isAbsolute(value) || value.includes("\0")) return null;
+  if (value.includes("\0")) return null;
+  const flavor = hostPathFlavor(value);
+  if (flavor === "windows") return normalizeWindowsHostPath(value);
+  if (flavor !== "posix" || !path.posix.isAbsolute(value)) return null;
   return path.posix.normalize(value);
 }
 function rootIdFor(root: {

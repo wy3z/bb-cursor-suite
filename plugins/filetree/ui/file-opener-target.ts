@@ -1,6 +1,7 @@
 import type { PluginFileOpenerSource } from "@get-bb/plugin-sdk/app";
 import type { NativeFileRootsResponse } from "../contracts/api";
 import { nativeFilePathSchema } from "../contracts/model";
+import { isAbsoluteHostPath, relativeHostPath } from "../contracts/host-path";
 import type { NativeFilesSelection } from "./native-files-ui-types";
 
 export function resolveFileOpenerTarget(
@@ -29,7 +30,7 @@ export function resolveFileOpenerTarget(
     );
     return root ? { root, path: parsed.data } : null;
   }
-  if (!path.startsWith("/")) return null;
+  if (!isAbsoluteHostPath(path)) return null;
   const hostId =
     source.experimental_hostId ??
     response.roots.find(
@@ -44,11 +45,9 @@ export function resolveFileOpenerTarget(
     .filter((root) => root.hostId === hostId)
     .sort((left, right) => right.rootPath.length - left.rootPath.length);
   for (const root of roots) {
-    const prefix = root.rootPath.endsWith("/")
-      ? root.rootPath
-      : `${root.rootPath}/`;
-    if (!path.startsWith(prefix)) continue;
-    const parsed = nativeFilePathSchema.safeParse(path.slice(prefix.length));
+    const relative = relativeHostPath(root.rootPath, path);
+    if (relative === null) continue;
+    const parsed = nativeFilePathSchema.safeParse(relative);
     if (parsed.success) return { root, path: parsed.data };
   }
   return null;
