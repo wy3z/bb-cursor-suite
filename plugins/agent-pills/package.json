@@ -1,0 +1,56 @@
+{
+  "name": "bb-plugin-agent-pills",
+  "version": "0.1.0",
+  "description": "Compact Cursor-style pills for child threads and background tasks above the composer.",
+  "author": {
+    "name": "WYEZ",
+    "url": "https://github.com/wy3z"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wy3z/bb-plugin-agent-pills.git"
+  },
+  "homepage": "https://github.com/wy3z/bb-plugin-agent-pills#readme",
+  "type": "module",
+  "files": [
+    "README.md",
+    "app.css",
+    "app.tsx",
+    "dist",
+    "src",
+    "server.ts"
+  ],
+  "scripts": {
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.49",
+    "bbPluginSdk": ">=0.6.132"
+  },
+  "bb": {
+    "name": "Agent Pills",
+    "description": "Cursor-style pills for child threads and background tasks, plus a Cursor-looking composer.",
+    "branding": {
+      "icon": "MessageCircle"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "dependencies": {
+    "zod": "^4.3.6",
+    "@wy3z/bb-suite": "file:../bb-suite-shared",
+    "@get-bb/plugin-sdk": "0.6.132"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "better-sqlite3": "^12.0.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0"
+  }
+}
