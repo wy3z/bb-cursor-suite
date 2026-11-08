@@ -125,6 +125,7 @@ import {
 import { openHostAddProject } from "./open-host-add-project";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { ShowMoreButton } from "./ShowMoreButton";
+import { useSidebarFooterHeight } from "./sidebar-footer-height";
 
 
 /**
@@ -202,6 +203,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   // last visible row dissolves instead of meeting the next section with a cut.
   const listRef = useRef<HTMLDivElement | null>(null);
   const [listHasMore, setListHasMore] = useState(false);
+  useSidebarFooterHeight(listRef);
   useEffect(() => {
     const list = listRef.current;
     if (list === null) return;
