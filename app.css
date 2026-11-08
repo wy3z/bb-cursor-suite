@@ -9,6 +9,36 @@
   scrollbar-gutter: auto;
 }
 
+@media (max-width: 767px) {
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root])::-webkit-scrollbar { display: none; }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > [data-testid="app-sidebar-top-reserve-row"],
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > [data-sidebar="footer"] {
+    position: sticky;
+    z-index: 20;
+    background-color: var(--sidebar, var(--background));
+  }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > [data-testid="app-sidebar-top-reserve-row"] { top: 0; }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > [data-sidebar="footer"] { bottom: 0; }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > [data-sidebar="footer"]::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: -0.5rem;
+    height: 0.5rem;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--sidebar, var(--background)));
+  }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > :has(> [data-overflow-fade="above"]) { display: none; }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) > [data-sidebar="content"] { flex: 1 0 auto; overflow: visible; }
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) [data-cursor-sidebar-root],
+  [data-testid="app-sidebar-body"]:has(> nav[data-sidebar-navigation-placement="list"] + [data-sidebar="content"] [data-cursor-sidebar-root]) .cs-scroll { flex: 1 0 auto; overflow-y: visible; }
+}
+
 /* Scoped phone/touch affordances; fine-pointer desktop density is unchanged. */
 @media (max-width: 767px), (pointer: coarse) {
   [data-cursor-sidebar-root] { min-width: 0; overflow-x: clip; }
@@ -655,12 +685,6 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
 
 .cs-managers {
   margin-bottom: 28px;
-  max-height: 40%;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-.cs-managers::-webkit-scrollbar {
-  display: none;
 }
 .cs-board-row__rename {
   flex: 1 1 auto;
