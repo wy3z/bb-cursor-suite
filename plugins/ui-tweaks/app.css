@@ -168,3 +168,10 @@ html[data-bb-ui-hide-steer-labels="true"]
 [data-testid="app-layout-content-shell"] > button[aria-label^="Show right panel"]:is(:hover, :focus-visible) {
   color: var(--bbs-chrome-icon-active);
 }
+
+@media (max-width: 767px) {
+  body:has([data-sidebar="inset"][data-panel-shelf="full"][style*="translate"])
+    > [data-testid="secondary-panel-shelf"][data-state="full"] {
+    z-index: 0 !important;
+  }
+}
