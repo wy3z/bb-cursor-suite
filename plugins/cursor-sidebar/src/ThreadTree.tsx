@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -844,6 +845,23 @@ function ThreadRow({
     ctx.view.show.branch ? branch : null,
   ].filter(Boolean).join(" · ");
   const cloudHostTitle = cloudHostName !== null ? `Cloud machine: ${cloudHostName}` : null;
+  const titleLineRef = useRef<HTMLDivElement | null>(null);
+  const [titleOverflows, setTitleOverflows] = useState(false);
+  useEffect(() => {
+    const line = titleLineRef.current;
+    if (cloudHostTitle === null || line === null) {
+      setTitleOverflows(false);
+      return;
+    }
+    const title = line.querySelector<HTMLElement>(".cs-thread-title");
+    if (title === null) return;
+    const measure = () => setTitleOverflows(title.scrollWidth > title.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(line);
+    observer.observe(title);
+    return () => observer.disconnect();
+  }, [cloudHostTitle, thread.title]);
   // The resting slot speaks for the whole subtree, so a collapsed parent still
   // shows a running or attention-seeking descendant instead of hiding it.
   const statusThread = statusSourceForGroup(
@@ -1256,7 +1274,7 @@ function ThreadRow({
           ) : null}
 
           <div className={cn("pointer-events-none flex min-w-0 flex-1 flex-col items-start", secondary ? "gap-0 leading-none" : "gap-0")}>
-          <div className="cs-thread-titleline flex w-full min-w-0 items-center gap-1">
+          <div ref={titleLineRef} data-title-overflow={titleOverflows ? "" : undefined} className="cs-thread-titleline flex w-full min-w-0 items-center gap-1">
           <InlineThreadTitle
             thread={thread}
             editing={isRenaming}
