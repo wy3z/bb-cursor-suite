@@ -1097,7 +1097,7 @@ function ThreadRow({
           </span>
 
           <div className={cn("cs-row-text pointer-events-none flex min-w-0 flex-1 flex-col items-start", secondary ? "gap-0 leading-none" : "gap-0")}>
-          <div ref={titleLineRef} data-title-overflow={titleOverflows ? "" : undefined} className="cs-thread-titleline flex w-full min-w-0 items-center gap-1">
+          <div ref={titleLineRef} data-title-overflow={titleOverflows ? "" : undefined} className="cs-thread-titleline flex w-full min-w-0 items-center">
           <InlineThreadTitle
             thread={thread}
             editing={isRenaming}
@@ -1132,7 +1132,7 @@ function ThreadRow({
           {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{secondaryMobile}</span></span> : null}
           </div>
 
-          <div className="relative -ml-2 flex min-w-6 shrink-0 items-center justify-end gap-1">
+          <div className="cs-row-trail relative flex shrink-0 items-center justify-end">
             {shortcutKey !== null ? (
               /* While the guide is up the digit takes the row's right edge, so
                  the age and the hover actions clear out of its way. */
@@ -1145,43 +1145,41 @@ function ThreadRow({
             {/* The actions anchor to the age's left edge, so they cover the
                 active-child mark and the title's reserved padding but never
                 the time. */}
-            <span className="relative flex items-center self-stretch">
-              <span
-                data-thread-actions=""
-                className="cs-row-actions pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center gap-0.5 pr-0.5 opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-has-[:focus-visible]/row:opacity-100 focus-within:opacity-100"
-              >
-                {pinnedCapable ? (
-                  <button
-                    type="button"
-                    aria-label={rowPinned ? "Unpin" : "Pin"}
-                    title={rowPinned ? "Unpin" : "Pin"}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      ctx.onTogglePin(thread.id, !rowPinned);
-                    }}
-                    className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-[color:var(--bbs-text-secondary)] group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
-                  >
-                    <Icon name={rowPinned ? "PinOff" : "Pin"} className="size-3.5" />
-                  </button>
-                ) : null}
+            <span
+              data-thread-actions=""
+              className="cs-row-actions pointer-events-none absolute inset-y-0 z-20 flex items-center gap-0.5 pr-0.5 opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-has-[:focus-visible]/row:opacity-100 focus-within:opacity-100"
+            >
+              {pinnedCapable ? (
                 <button
                   type="button"
-                  aria-label="Archive"
-                  title="Archive"
+                  aria-label={rowPinned ? "Unpin" : "Pin"}
+                  title={rowPinned ? "Unpin" : "Pin"}
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    archiveThread();
+                    ctx.onTogglePin(thread.id, !rowPinned);
                   }}
                   className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-[color:var(--bbs-text-secondary)] group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
                 >
-                  <Icon name="Archive" className="size-3.5" />
+                  <Icon name={rowPinned ? "PinOff" : "Pin"} className="size-3.5" />
                 </button>
-              </span>
+              ) : null}
+              <button
+                type="button"
+                aria-label="Archive"
+                title="Archive"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  archiveThread();
+                }}
+                className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-[color:var(--bbs-text-secondary)] group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+              >
+                <Icon name="Archive" className="size-3.5" />
+              </button>
             </span>
             {hints}
-            <span className="cs-thread-time pointer-events-none tabular-nums text-xs text-sidebar-foreground/45">
+            <span className="cs-thread-time pointer-events-none tabular-nums text-xs">
               {activeChildCount > 0 ? (
                 /* While children are running, a light accent pill with their
                    count takes the time's place. */
