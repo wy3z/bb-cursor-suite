@@ -4,13 +4,14 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Shared contracts, project icons and picker, time formatting, design tokens and the sandbox machine-backend helper for the wy3z BB plugin suite.",
+  "description": "Shared contracts, project icons and picker, time formatting, settings rows, design tokens and the sandbox machine-backend helper for the wy3z BB plugin suite.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test test"
   },
   "exports": {
     "./time": "./src/time.ts",
+    "./settings": "./src/settings.tsx",
     "./contracts": "./src/contracts.ts",
     "./change-requests": "./src/change-requests.ts",
     "./project-icon": "./src/project-icon.ts",
@@ -19,7 +20,8 @@
     "./machine-backend": "./src/machine-backend.ts",
     "./machine-backend/server": "./src/machine-backend-server.ts",
     "./tokens.css": "./tokens.css",
-    "./project-icon.css": "./project-icon.css"
+    "./project-icon.css": "./project-icon.css",
+    "./settings.css": "./src/settings.css"
   },
   "peerDependencies": {
     "zod": "^4.3.6",

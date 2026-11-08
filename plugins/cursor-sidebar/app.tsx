@@ -5,6 +5,7 @@
 // bundled), so this file must be loaded by BB, not imported directly.
 import "@wy3z/bb-suite/tokens.css";
 import "@wy3z/bb-suite/project-icon.css";
+import "@wy3z/bb-suite/settings.css";
 import "./app.css";
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { CursorSidebar } from "./src/CursorSidebar";
@@ -14,6 +15,7 @@ import {
   CompactNavigationHeader,
 } from "./src/CompactNavigation";
 import { CursorNavigation } from "./src/CursorNavigation";
+import { SidebarSettings } from "./src/SidebarSettings";
 
 // Register only the sidebar replacement. It deliberately ships no thread
 // header actions, so it never duplicates the ones Inbox Sidebar adds.
@@ -55,5 +57,11 @@ export default definePluginApp((app) => {
     label: "Plugins",
     icon: "Plug02",
     component: CompactNavigationFooter,
+  });
+
+  app.slots.settingsSection({
+    id: "sidebar",
+    title: "Sidebar",
+    component: SidebarSettings,
   });
 });

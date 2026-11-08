@@ -1,6 +1,6 @@
 UI Tweaks collects the small interface changes that BB does not expose as
-settings. Everything sits in one section under **Settings → Plugins → UI
-Tweaks**, and most changes apply as you toggle them.
+settings. Everything sits under **Settings → Plugins → UI Tweaks**, in Interface,
+Icons and Open With sections, and most changes apply as you toggle them.
 
 ## What you get
 
@@ -17,7 +17,7 @@ types, selectors and `@media` queries apart, so code looks closer to Zed or VS
 Code. Off by default; your theme picks the colours.
 
 **Prompt placement.** Put the New thread composer at the top, center, or bottom
-of the empty thread. Set its starting height to default, two lines, or one
+of the empty thread. Set its starting height to standard, two lines, or one
 line. It still grows as you type.
 
 **Icon packs.** Switch BB's interface icons between BB Default, Lucide, Iconoir,
@@ -27,7 +27,7 @@ logos and brand marks are left alone.
 **Spinner.** Give the shared Loading and Spinner icons their own style, or let
 them follow the icon pack. Every other icon keeps the main pack.
 
-**Open With filter.** Hide workspace apps from the Open With menu and chat file
+**Open With.** Hide workspace apps from the Open With menu and chat file
 link context menus. Switch off a whole category (Default app, File managers,
 Editors & IDEs, Terminals, Other applications), or expand one and hide single
 apps. Hidden apps stay in the list so you can bring them back.

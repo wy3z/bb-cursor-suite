@@ -3,11 +3,13 @@
 // Compiled by `bb plugin build` into dist/app.js + dist/app.css. React and
 // @get-bb/plugin-sdk/app are provided by the BB app at load time.
 import "@wy3z/bb-suite/tokens.css";
+import "@wy3z/bb-suite/settings.css";
 import "./app.css";
 import {
   definePluginApp,
   experimental_THREAD_CONTEXT_SEGMENT_GROUPS,
 } from "@get-bb/plugin-sdk/app";
+import { DEVICE_ONLY, SettingsCard, SettingsToggleRow } from "@wy3z/bb-suite/settings";
 import { AgentPillsSummary } from "./src/PillRow";
 import { ChangesPill, useChanges } from "./src/ChangesPill";
 import { useActivity } from "./src/pill-data";
@@ -51,23 +53,14 @@ function PillsSettings() {
   const enabled = usePillsEnabled();
 
   return (
-    <div className="bb-agent-pills-settings">
-      <label className="bb-agent-pills-settings__row">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => writePillsEnabled(event.currentTarget.checked)}
-        />
-        <span className="bb-agent-pills-settings__copy">
-          <span className="bb-agent-pills-settings__title">Agent pills</span>
-          <span className="bb-agent-pills-settings__hint">
-            Adds pills above the composer for child threads, background tasks,
-            to-dos, the queue and changed files, in place of BB's full-width
-            cards. Turn off to keep BB's cards. On by default.
-          </span>
-        </span>
-      </label>
-    </div>
+    <SettingsCard>
+      <SettingsToggleRow
+        label="Agent pills"
+        description={`Pills above the composer for child threads, background tasks, to-dos, the queue and changed files, in place of BB's full-width cards. Off brings BB's cards back; the composer stays. On by default. ${DEVICE_ONLY}`}
+        checked={enabled}
+        onCheckedChange={writePillsEnabled}
+      />
+    </SettingsCard>
   );
 }
 

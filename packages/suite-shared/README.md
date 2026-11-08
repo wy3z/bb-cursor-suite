@@ -1,8 +1,8 @@
 # bb-suite
 
 Shared pieces for the wy3z BB plugin suite (agent-pills, pull-requests,
-cursor-sidebar, projects): RPC contracts and plugin ids, time formatting, and
-design tokens. Plugins depend on it as `"@wy3z/bb-suite": "file:../../packages/suite-shared"`
+cursor-sidebar, projects, filetree, ui-tweaks): RPC contracts and plugin ids,
+time formatting, the settings kit, and design tokens. Plugins depend on it as `"@wy3z/bb-suite": "file:../../packages/suite-shared"`
 and `bb plugin build` bundles it.
 
 - `@wy3z/bb-suite/contracts`: the Tasks plugin subset the suite reads, BB's git
@@ -100,6 +100,37 @@ and `bb plugin build` bundles it.
 - `@wy3z/bb-suite/time`: `shortAge` ("now", "5m", "3d", "2w", "1mo"),
   `duration` ("2h 5m") and `elapsed`.
 - `@wy3z/bb-suite/tokens.css`: the suite palette (`--bbs-*`) and pill metrics.
+- `@wy3z/bb-suite/settings`: the settings kit every plugin page uses, drawn to
+  match BB's own plugin settings card: `SettingsCard`, `SettingsRow` (label,
+  help text, control inline or `placement="below"`), `SettingsToggleRow`,
+  `SettingsSelectRow`, `SettingsSwitch`, `SettingsSelect`, `SettingsButton`,
+  `SettingsLinkButton` (an in-app link, such as `/settings/appearance`) and
+  `DEVICE_ONLY`. Import `@wy3z/bb-suite/settings.css` with it. It uses BB's
+  theme variables (`--border`, `--input`, `--surface-recessed`,
+  `--subtle-foreground`), not Tailwind classes, so it doesn't depend on which
+  classes BB's build happens to include.
+
+## Settings pages
+
+Every plugin has a page under Settings → Plugins, and they all look the same:
+
+- **Where a setting lives.** Anything the server or an agent reads, and
+  secrets, go in `bb.settings.define`; BB draws those rows itself. Looks that
+  only change this browser go in localStorage and their help text ends with
+  `DEVICE_ONLY` ("This device only."). View state (sorting, grouping, filters)
+  stays in the surface's own view menu.
+- **Layout.** One `SettingsCard` per `app.slots.settingsSection`. Give the
+  section a `title` when the page has more than one; leave it off for a single
+  card.
+- **Rows.** Booleans use `SettingsToggleRow`, never a bare checkbox. Three to
+  five choices use `SettingsSelectRow`. Visual choices (icon packs) may use
+  cards inside a `SettingsRow` with `placement="below"`.
+- **Labels.** Sentence case, units in brackets at the end: "Check every
+  (seconds)".
+- **Help text.** One or two sentences on what changes, ending with the default:
+  "On by default.", "60 by default."
+- **Nothing to set.** The page still has one row saying where the options live,
+  with a `SettingsLinkButton` when they live on another settings page.
 
 Each plugin's tsconfig maps `@get-bb/plugin-sdk` and `zod` to its own copy, so
 shared files type-check against the same SDK as the plugin.
