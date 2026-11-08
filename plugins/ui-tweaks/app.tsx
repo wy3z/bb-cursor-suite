@@ -1164,8 +1164,8 @@ function InterfaceSettings() {
             Clearer hierarchy
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Bolder thread titles, slightly larger chat prose, and semibold bold
-            text. Other sizes and weights stay put.
+            Bolder thread titles, slightly larger chat prose, semibold bold text
+            and quieter header and panel icons. Other sizes and weights stay put.
           </p>
         </div>
         <ToggleSwitch

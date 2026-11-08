@@ -1819,14 +1819,14 @@ header[data-bb-projects-tabs] [data-testid="app-page-header-content-row"] > div 
   margin-left: 2px;
 }
 .bbp-chip[data-pr-status="ci-failing"],
-[data-pr-status="ci-failing"] > svg,
-[data-pr-status="ci-failing"] > [data-icon-root],
+:where([data-bb-plugin="projects"], [class*="bbp-"]) [data-pr-status="ci-failing"] > svg,
+:where([data-bb-plugin="projects"], [class*="bbp-"]) [data-pr-status="ci-failing"] > [data-icon-root],
 .bbp-pr-stack__icons [data-pr-status="ci-failing"] {
   color: var(--bbp-red);
 }
 .bbp-chip[data-pr-status="conflict"],
-[data-pr-status="conflict"] > svg,
-[data-pr-status="conflict"] > [data-icon-root],
+:where([data-bb-plugin="projects"], [class*="bbp-"]) [data-pr-status="conflict"] > svg,
+:where([data-bb-plugin="projects"], [class*="bbp-"]) [data-pr-status="conflict"] > [data-icon-root],
 .bbp-pr-stack__icons [data-pr-status="conflict"] {
   color: var(--bbs-orange, var(--bbp-amber));
 }
@@ -2085,8 +2085,8 @@ a.bbp-menu__item {
   white-space: nowrap;
 }
 .bbp-chip[data-pr-status="changes-requested"],
-[data-pr-status="changes-requested"] > svg,
-[data-pr-status="changes-requested"] > [data-icon-root],
+:where([data-bb-plugin="projects"], [class*="bbp-"]) [data-pr-status="changes-requested"] > svg,
+:where([data-bb-plugin="projects"], [class*="bbp-"]) [data-pr-status="changes-requested"] > [data-icon-root],
 .bbp-pr-stack__icons [data-pr-status="changes-requested"] {
   color: var(--bbs-orange, var(--bbp-amber));
 }

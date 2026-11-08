@@ -88,7 +88,9 @@ function ComposerSettings() {
           </span>
           <span className="bb-agent-pills-settings__hint">
             Rounds the prompt box, moves the execution controls onto one row and
-            turns the send button into a round arrow. Pills stay on either way.
+            turns the send button into a round arrow. Pills stay on either way, and
+            they replace BB&apos;s own status cards above the prompt box; disable
+            Agent Pills to bring those back.
           </span>
         </span>
       </label>
