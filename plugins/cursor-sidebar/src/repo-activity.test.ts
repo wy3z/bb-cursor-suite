@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { buildSections } from "./forest";
-import { hasHiddenWork, renderedRowIds, repoActivityMembers } from "./repo-activity";
+import { buildSections, flattenShelf } from "./forest";
+import { hasHiddenWork, renderedIdsOf, repoActivityMembers, sameIds } from "./repo-activity";
 import { aggregateSectionStatus } from "./status";
 
 function thread(id: string, projectId: string, overrides: Partial<PluginSidebarThread> = {}): PluginSidebarThread {
@@ -58,44 +58,38 @@ test("pinned families stay out of the repo row's activity", () => {
   assert.deepEqual(repoActivityMembers(threads, "repo", rootOf(threads), new Set(["pinned"]), new Set()), []);
 });
 
-function section(threads: PluginSidebarThread[]) {
-  return buildSections(threads, [{ id: "repo", name: "Repo" }], () => "active", () => ({ compare: () => 0 }))[0]!;
+function rows(threads: PluginSidebarThread[]) {
+  const home = buildSections(threads, [{ id: "repo", name: "Repo" }], () => "active", () => ({ compare: () => 0 }))[0]!;
+  return flattenShelf(home, "active");
 }
 
-test("the corner spinner shows only when a working thread's row is hidden", () => {
-  const threads = [
-    thread("parent", "repo"),
-    thread("child", "repo", { parentThreadId: "parent", ...working }),
-    thread("top", "repo"),
-  ];
-  const home = section(threads);
-  const all = new Set(threads.map((item) => item.id));
-
-  const expanded = renderedRowIds(home, { open: true, expandedParents: new Set(["parent"]), keepIds: all, childLimit: 10 });
-  assert.equal(expanded.has("child"), true);
-  assert.equal(hasHiddenWork(threads, expanded), false);
-
-  const folded = renderedRowIds(home, { open: true, expandedParents: new Set(), keepIds: all, childLimit: 10 });
-  assert.equal(folded.has("child"), false);
-  assert.equal(hasHiddenWork(threads, folded), true);
-
-  const collapsed = renderedRowIds(home, { open: false, expandedParents: new Set(["parent"]), keepIds: new Set(), childLimit: 10 });
-  assert.equal(collapsed.size, 0);
-  assert.equal(hasHiddenWork(threads, collapsed), true);
-});
-
-test("a collapsed repo showing the selected working thread draws no spinner", () => {
-  const threads = [thread("parent", "repo"), thread("child", "repo", { parentThreadId: "parent", ...working })];
-  const path = new Set(["parent", "child"]);
-  const rendered = renderedRowIds(section(threads), { open: false, expandedParents: new Set(), keepIds: path, expandIds: path, childLimit: 10 });
-  assert.deepEqual([...rendered].sort(), ["child", "parent"]);
-  assert.equal(hasHiddenWork(threads, rendered), false);
-});
-
-test("work past the show-more page or filtered out of the list counts as hidden", () => {
-  const threads = [thread("a", "repo"), thread("b", "repo", working)];
-  const rendered = renderedRowIds(section(threads), { open: true, expandedParents: new Set(), keepIds: new Set(["a"]), childLimit: 10 });
-  assert.deepEqual([...rendered], ["a"]);
+test("rendered ids come from the blocks ShelfList draws: closed folders and paged-out rows are hidden", () => {
+  const threads = [thread("open-row", "repo"), thread("folder-row", "repo", working), thread("paged-out", "repo", working)];
+  const all = rows(threads);
+  const byId = (id: string) => all.filter((row) => row.thread.id === id);
+  const rendered = renderedIdsOf([
+    { open: true, rows: byId("open-row") },
+    { open: false, rows: byId("folder-row") },
+  ]);
+  assert.deepEqual([...rendered], ["open-row"]);
   assert.equal(hasHiddenWork(threads, rendered), true);
+  assert.equal(hasHiddenWork(threads, renderedIdsOf([{ open: true, rows: all }])), false);
+});
+
+test("a revealed nested child counts as on screen once ShelfList renders it", () => {
+  const threads = [thread("parent", "repo"), thread("child", "repo", { parentThreadId: "parent", ...working })];
+  const all = rows(threads);
+  assert.equal(hasHiddenWork(threads, renderedIdsOf([{ open: true, rows: all.filter((row) => row.thread.id === "parent") }])), true);
+  assert.equal(hasHiddenWork(threads, renderedIdsOf([{ open: true, rows: all }])), false);
+});
+
+test("a collapsed repo with nothing rendered shows hidden work", () => {
+  const threads = [thread("solo", "repo", working)];
+  assert.equal(hasHiddenWork(threads, new Set()), true);
   assert.equal(hasHiddenWork([thread("gone", "repo", { ...working, isArchived: true })], new Set()), false);
+});
+
+test("rendered id sets compare by content", () => {
+  assert.equal(sameIds(new Set(["a", "b"]), new Set(["b", "a"])), true);
+  assert.equal(sameIds(new Set(["a"]), new Set(["a", "b"])), false);
 });

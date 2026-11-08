@@ -10,6 +10,7 @@ import {
   type PointerEventHandler,
   Fragment,
 } from "react";
+import { renderedIdsOf } from "./repo-activity";
 import {
   experimental_useSidebarThreadSplit as useSidebarThreadSplit,
   type PluginSidebarThread,
@@ -257,10 +258,12 @@ export function ShelfList({
   keepIds,
   expandIds,
   grouped,
+  onRenderedIds,
 }: {
   section: ProjectSectionData;
   shelf: ThreadShelf;
   ctx: TreeContext;
+  onRenderedIds?: (ids: ReadonlySet<string>) => void;
   /** Presentation subset for a bounded project preview; omitted means all. */
   keepIds?: ReadonlySet<string>;
   /** Threads force-opened for this render only (a revealed collapsed path). */
@@ -496,29 +499,51 @@ export function ShelfList({
   const unfileActive =
     ctx.folderDropTarget === `folder:${UNFILED_GROUP_KEY}` ||
     ctx.folderDropTarget === "pin:unpin";
-  const renderGroup = (group: OrdinaryGroup) => {
-    const isDate = group.key.startsWith("updated:") && group.label !== null;
-    const collapseKey =
-      group.label === null
-        ? null
-        : isDate
-          ? ageGroupKey(section.id, group.label as AgeGroup)
-          : `group:${section.id}:${group.key}`;
-    // Every bucket defaults open: an allow-list of open buckets left a bucket
-    // with threads in it looking empty. Only an explicit fold closes one.
-    const open =
-      collapseKey === null
-        ? true
-        : isDate
-          ? !ctx.collapsedAgeGroups.has(collapseKey)
-          : !ctx.collapsedGroups.has(collapseKey);
-    const paged =
-      group.label === null && ctx.view.groupBy !== "none"
-        ? { shown: group.rows, hiddenConversations: 0 }
-        : pageGroupRows(group.rows, parentOf, {
-            activeThreadId: ctx.activeThreadId,
-            limit: groupPages.get(group.key) ?? pageSize,
-          });
+  const folderBlocks =
+    grouping && partition !== null && ctx.view.groupBy !== "none"
+      ? foldersForHome.map((folder) => {
+          const key = folderKey(folder.id);
+          return { folder, key, open: !ctx.collapsedGroups.has(key), rows: folderRowsById.get(folder.id) ?? [] };
+        })
+      : [];
+  const groupBlocks = groups
+    .filter((group) => group.rows.length > 0)
+    .map((group) => {
+      const isDate = group.key.startsWith("updated:") && group.label !== null;
+      const collapseKey =
+        group.label === null
+          ? null
+          : isDate
+            ? ageGroupKey(section.id, group.label as AgeGroup)
+            : `group:${section.id}:${group.key}`;
+      // Every bucket defaults open: an allow-list of open buckets left a bucket
+      // with threads in it looking empty. Only an explicit fold closes one.
+      const open =
+        collapseKey === null
+          ? true
+          : isDate
+            ? !ctx.collapsedAgeGroups.has(collapseKey)
+            : !ctx.collapsedGroups.has(collapseKey);
+      const paged =
+        group.label === null && ctx.view.groupBy !== "none"
+          ? { shown: group.rows, hiddenConversations: 0 }
+          : pageGroupRows(group.rows, parentOf, {
+              activeThreadId: ctx.activeThreadId,
+              limit: groupPages.get(group.key) ?? pageSize,
+            });
+      return { group, isDate, collapseKey, open, paged };
+    });
+  const renderedIds = renderedIdsOf([
+    ...folderBlocks.map((block) => ({ open: block.open, rows: block.rows })),
+    ...groupBlocks.map((block) => ({ open: block.open, rows: block.paged.shown })),
+  ]);
+  const renderedKey = [...renderedIds].join("\n");
+  const reportRendered = useRef(onRenderedIds);
+  reportRendered.current = onRenderedIds;
+  useEffect(() => {
+    reportRendered.current?.(new Set(renderedKey === "" ? [] : renderedKey.split("\n")));
+  }, [renderedKey]);
+  const renderGroup = ({ group, isDate, collapseKey, open, paged }: (typeof groupBlocks)[number]) => {
     return (
       <div key={group.key} className={group.label ? "mt-2 first:mt-0" : undefined}>
         {group.label !== null && collapseKey !== null ? (
@@ -575,12 +600,9 @@ export function ShelfList({
        slide the survivors up. Rows inside a surviving bucket animate in their
        own list. */
     <AnimatedList as="div" className="flex flex-col">
-      {grouping && partition !== null && ctx.view.groupBy !== "none" ? (
+      {folderBlocks.length > 0 ? (
         <>
-      {foldersForHome.map((folder) => {
-        const key = folderKey(folder.id);
-        const open = !ctx.collapsedGroups.has(key);
-        const rows = folderRowsById.get(folder.id) ?? [];
+      {folderBlocks.map(({ folder, key, open, rows }) => {
         return (
           <div key={folder.id} className="mt-2 first:mt-0">
             <FolderDivider
@@ -604,9 +626,7 @@ export function ShelfList({
       })}
         </>
       ) : null}
-      {groups
-        .filter((group) => group.rows.length > 0)
-        .map(renderGroup)}
+      {groupBlocks.map(renderGroup)}
     </AnimatedList>
   );
 }

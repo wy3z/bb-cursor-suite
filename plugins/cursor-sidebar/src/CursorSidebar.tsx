@@ -111,7 +111,7 @@ import type { ThreadShelf } from "./lifecycle";
 import { ageGroupKey, type AgeGroup } from "./age-groups";
 import { ProjectStatusGlyph, ProjectRowIcon, ACTIVITY_LABELS, glyphStateForStatus } from "./ProjectStatusGlyph";
 import { ProjectHoverCard } from "./ProjectHoverCard";
-import { hasHiddenWork, renderedRowIds, repoActivityMembers } from "./repo-activity";
+import { hasHiddenWork, repoActivityMembers, sameIds } from "./repo-activity";
 import { AnimatedList } from "./AnimatedList";
 import { Drawer } from "./Drawer";
 import { useShortcutGuide } from "./useShortcutGuide";
@@ -1731,6 +1731,8 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   );
 }
 
+const EMPTY_ROW_IDS: ReadonlySet<string> = new Set();
+
 function ManagerMenu({
   board,
   lead,
@@ -2147,18 +2149,12 @@ function ProjectSection({
     return () => window.clearTimeout(timeout);
   }, [keepException, showCollapsedSelection]);
 
-  const renderedIds = useMemo(
-    () =>
-      renderedRowIds(section, {
-        open: sectionOpen,
-        expandedParents: ctx.expandedParents,
-        keepIds: sectionOpen ? revealedConversations : exceptionIds,
-        expandIds: sectionOpen ? undefined : exceptionIds,
-        childLimit: pageSize,
-      }),
-    [ctx.expandedParents, exceptionIds, pageSize, revealedConversations, section, sectionOpen],
-  );
-  const hiddenWork = activityThreads !== undefined && hasHiddenWork(activityThreads, renderedIds);
+  const [reportedIds, setReportedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const onRenderedIds = useCallback((ids: ReadonlySet<string>) => {
+    setReportedIds((current) => (sameIds(current, ids) ? current : ids));
+  }, []);
+  const rowsOnScreen = sectionOpen || showCollapsedSelection;
+  const hiddenWork = activityThreads !== undefined && hasHiddenWork(activityThreads, rowsOnScreen ? reportedIds : EMPTY_ROW_IDS);
 
   const showMore = (
     <ShowMoreButton
@@ -2336,6 +2332,7 @@ function ProjectSection({
               grouped
               keepIds={sectionOpen ? revealedConversations : exceptionIds}
               expandIds={!sectionOpen ? exceptionIds : undefined}
+              onRenderedIds={onRenderedIds}
             />
             {sectionOpen ? showMore : null}
           </>

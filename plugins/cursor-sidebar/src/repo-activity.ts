@@ -1,6 +1,6 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { threadStatusFacts } from "./status";
-import { flattenShelf, type ProjectSectionData } from "./forest";
+import type { DisplayRow } from "./forest";
 
 export function repoActivityMembers(
   threads: readonly PluginSidebarThread[],
@@ -16,26 +16,19 @@ export function repoActivityMembers(
   });
 }
 
-export function renderedRowIds(
-  section: ProjectSectionData,
-  options: {
-    open: boolean;
-    expandedParents: ReadonlySet<string>;
-    keepIds: ReadonlySet<string>;
-    expandIds?: ReadonlySet<string> | undefined;
-    childLimit: number;
-  },
-): Set<string> {
-  const { open, expandedParents, keepIds, expandIds, childLimit } = options;
-  if (!open && (expandIds === undefined || expandIds.size === 0)) return new Set();
-  const rows = flattenShelf(
-    section,
-    "active",
-    (id) => expandedParents.has(id) || (expandIds?.has(id) ?? false),
-    (id) => keepIds.has(id),
-    (id) => (expandIds?.has(id) ? Number.POSITIVE_INFINITY : childLimit),
-  );
-  return new Set(rows.filter((row) => keepIds.has(row.thread.id)).map((row) => row.thread.id));
+export function renderedIdsOf(blocks: readonly { open: boolean; rows: readonly DisplayRow[] }[]): Set<string> {
+  const ids = new Set<string>();
+  for (const block of blocks) {
+    if (!block.open) continue;
+    for (const row of block.rows) ids.add(row.thread.id);
+  }
+  return ids;
+}
+
+export function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  if (left.size !== right.size) return false;
+  for (const id of left) if (!right.has(id)) return false;
+  return true;
 }
 
 export function hasHiddenWork(members: readonly PluginSidebarThread[], renderedIds: ReadonlySet<string>): boolean {
