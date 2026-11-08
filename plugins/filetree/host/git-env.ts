@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { dirname, join, win32 } from "node:path";
+import { posix, win32 } from "node:path";
 import {
   currentIdentity,
   knownGitDirs,
@@ -77,7 +77,7 @@ export function resolveTrustedGit(
   }
   const dirs = trustedGitDirs(pathValue, identity);
   for (const dir of dirs) {
-    const candidate = join(dir, "git");
+    const candidate = posix.join(dir, "git");
     if (trustworthyExecutable(dir, candidate, identity, probe, false))
       return candidate;
   }
@@ -85,7 +85,7 @@ export function resolveTrustedGit(
 }
 function posixTrustedPath(): string {
   try {
-    const dir = dirname(resolveTrustedGit(TRUSTED_GIT_PATH, "linux"));
+    const dir = posix.dirname(resolveTrustedGit(TRUSTED_GIT_PATH, "linux"));
     return TRUSTED_GIT_PATH.split(":").includes(dir)
       ? TRUSTED_GIT_PATH
       : `${TRUSTED_GIT_PATH}:${dir}`;
