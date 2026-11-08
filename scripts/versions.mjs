@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -89,19 +89,52 @@ function readJson(root, path) {
   return JSON.parse(readFileSync(join(root, path), "utf8"));
 }
 
-function readmeRanges(root) {
-  const ranges = new Map();
-  const text = readFileSync(join(root, "README.md"), "utf8");
-  const pattern = /bb plugin install git:(\S+?)@(\S+) --plugin (\S+) --tag-prefix (\S+)/g;
-  for (const match of text.matchAll(pattern)) ranges.set(match[3], { url: match[1], range: match[2], tagPrefix: match[4] });
-  return ranges;
+export const marketplaceAddLine = "bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace";
+
+function readmeLines(root, path) {
+  const text = readFileSync(join(root, path), "utf8");
+  const installs = [];
+  for (const match of text.matchAll(/bb plugin install git:(\S*github\.com\/\S*)([^\n`]*)/g)) {
+    const at = match[1].indexOf("@");
+    installs.push({
+      url: at === -1 ? match[1] : match[1].slice(0, at),
+      range: at === -1 ? undefined : match[1].slice(at + 1),
+      id: /--plugin (\S+)/.exec(match[2])?.[1],
+      tagPrefix: /--tag-prefix (\S+)/.exec(match[2])?.[1],
+    });
+  }
+  const adds = [...text.matchAll(/bb marketplace add [^\n`]*/g)].map((match) => match[0].trim());
+  return { installs, adds };
+}
+
+function checkReadme(root, path, required, plugins, ranges, errors) {
+  if (!existsSync(join(root, path))) {
+    errors.push(`${path}: missing`);
+    return;
+  }
+  const { installs, adds } = readmeLines(root, path);
+  if (!adds.length) errors.push(`${path}: no marketplace add line`);
+  for (const add of adds) if (add !== marketplaceAddLine) errors.push(`${path}: marketplace add line is "${add}", expected "${marketplaceAddLine}"`);
+  for (const line of installs) {
+    const label = `${path}: install line for ${line.id ?? "an unnamed plugin"}`;
+    if (!line.id) {
+      errors.push(`${label} has no --plugin`);
+      continue;
+    }
+    if (!plugins.some((plugin) => plugin.id === line.id)) errors.push(`${label}, which is not in .bb/plugins.json`);
+    if (line.url !== suiteUrl) errors.push(`${label} installs from ${line.url}, expected ${suiteUrl}`);
+    if (line.tagPrefix !== `${line.id}/`) errors.push(`${label} has tag prefix ${line.tagPrefix ?? "(none)"}, expected ${line.id}/`);
+    const range = ranges.get(line.id);
+    if (!line.range) errors.push(`${label} has no range, so it would track the default branch`);
+    else if (range && line.range !== range) errors.push(`${label} uses ${line.range}, marketplace.json says ${range}`);
+  }
+  for (const id of required) if (!installs.some((line) => line.id === id)) errors.push(`${path}: no install line for ${id}`);
 }
 
 export function checkVersions(root, overrides = {}) {
   const errors = [];
   const plugins = readJson(root, ".bb/plugins.json").plugins.map((entry) => ({ id: entry.name, dir: entry.source.replace(/^\.\//, "") }));
   const marketplace = readJson(root, "marketplace/marketplace.json").plugins;
-  const readme = readmeRanges(root);
   const lock = readJson(root, "package-lock.json").packages ?? {};
   const shared = readJson(root, join(sharedDir, "package.json"));
 
@@ -115,9 +148,9 @@ export function checkVersions(root, overrides = {}) {
   for (const entry of marketplace) {
     if (!plugins.some((plugin) => plugin.id === entry.id)) errors.push(`marketplace.json: ${entry.id} is not in .bb/plugins.json`);
   }
-  for (const id of readme.keys()) {
-    if (!plugins.some((plugin) => plugin.id === id)) errors.push(`README.md: install line for ${id}, which is not in .bb/plugins.json`);
-  }
+  const ranges = new Map(marketplace.map((entry) => [entry.id, entry.source?.git?.range]));
+  checkReadme(root, "README.md", plugins.map((plugin) => plugin.id), plugins, ranges, errors);
+  for (const { id, dir } of plugins) checkReadme(root, join(dir, "README.md"), [id], plugins, ranges, errors);
   for (const id of Object.keys(overrides)) {
     if (!plugins.some((plugin) => plugin.id === id)) errors.push(`${id} is not in .bb/plugins.json`);
   }
@@ -152,15 +185,6 @@ export function checkVersions(root, overrides = {}) {
       if (!low || low.pre) errors.push(`marketplace.json: ${id} range ${git.range} is not ^x.y.z`);
       else if (!satisfiesCaret(version, git.range)) errors.push(`marketplace.json: ${id} range ${git.range} would never offer ${version}`);
       else if (stream && !satisfiesCaret(`${low.major}.${low.minor}.${low.patch}`, stream)) errors.push(`marketplace.json: ${id} range ${git.range} is outside the legacy ${stream} stream`);
-    }
-
-    const line = readme.get(id);
-    if (!line) {
-      errors.push(`README.md: no install line for ${id}`);
-    } else {
-      if (line.url !== suiteUrl) errors.push(`README.md: ${id} installs from ${line.url}, expected ${suiteUrl}`);
-      if (line.tagPrefix !== `${id}/`) errors.push(`README.md: ${id} tag prefix is ${line.tagPrefix}, expected ${id}/`);
-      if (git && line.range !== git.range) errors.push(`README.md: ${id} range ${line.range} differs from marketplace.json ${git.range}`);
     }
 
     for (const error of sharedSpecErrors(pkg, sharedSpec)) errors.push(`${id}: ${error}`);
