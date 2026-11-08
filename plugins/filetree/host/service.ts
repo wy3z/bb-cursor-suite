@@ -20,7 +20,10 @@ import {
   type OpenatPrimitive,
 } from "./confinement.js";
 import { NativeFileHostError, remapFilesystemError } from "./errors.js";
-import { hostPathFlavor } from "../contracts/host-path.js";
+import {
+  hostPathFlavor,
+  isWindowsDriveHostPath,
+} from "../contracts/host-path.js";
 export { NativeFileHostError, type NativeFileHostErrorCode } from "./errors.js";
 const GIT_OUTPUT_LIMIT = 16 * 1024 * 1024;
 const GIT_TIMEOUT_MS = 15000;
@@ -233,13 +236,14 @@ export class NativeFileHostService {
   }> {
     const primitive = this.primitive();
     if (
-      hostPathFlavor(rootPath) !==
-        (process.platform === "win32" ? "windows" : "posix") ||
+      !(process.platform === "win32"
+        ? isWindowsDriveHostPath(rootPath)
+        : hostPathFlavor(rootPath) === "posix") ||
       rootPath.includes("\0")
     ) {
       throw new NativeFileHostError(
         "native_file_invalid_path",
-        "Root path must be absolute",
+        "Root path must be a local absolute path",
       );
     }
     let rootFd: number;

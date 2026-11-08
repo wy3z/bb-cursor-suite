@@ -123,5 +123,65 @@ describe.runIf(platform in nativeAssets)(
         ).rejects.toThrow();
       },
     );
+    it("treats device names and trailing dots or spaces as plain names", async () => {
+      const service = new NativeFileHostService();
+      try {
+        const { rootBindingId } = await service.bindRoot(workspace);
+        await expect(service.read(rootBindingId, "NUL", 1024)).rejects.toMatchObject({
+          code: "native_file_not_found",
+        });
+        await expect(
+          service.listDirectory(rootBindingId, "src."),
+        ).rejects.toMatchObject({ code: "native_file_not_found" });
+        await expect(
+          service.read(rootBindingId, "src/hello.txt ", 1024),
+        ).rejects.toMatchObject({ code: "native_file_not_found" });
+      } finally {
+        await service.dispose();
+      }
+    });
+    it.runIf(process.platform === "win32")(
+      "refuses alternate data streams",
+      async () => {
+        await writeFile(join(workspace, "README.md:secret"), "stream");
+        const service = new NativeFileHostService();
+        try {
+          const { rootBindingId } = await service.bindRoot(workspace);
+          for (const path of ["README.md:secret", "README.md::$DATA"]) {
+            await expect(
+              service.read(rootBindingId, path, 1024),
+            ).rejects.toMatchObject({ code: "native_file_invalid_path" });
+          }
+        } finally {
+          await service.dispose();
+        }
+      },
+    );
+    it.runIf(process.platform === "win32")(
+      "refuses UNC, device and drive-relative roots without opening them",
+      async () => {
+        const service = new NativeFileHostService();
+        try {
+          for (const root of [
+            "\\\\localhost\\C$\\Windows",
+            "\\\\?\\C:\\Windows",
+            "\\\\.\\pipe\\files-test",
+            "C:",
+          ]) {
+            await expect(service.bindRoot(root)).rejects.toMatchObject({
+              code: "native_file_invalid_path",
+            });
+          }
+          await expect(
+            call("directory", {
+              rootPath: "\\\\localhost\\C$\\Windows",
+              path: "",
+            }),
+          ).rejects.toThrow();
+        } finally {
+          await service.dispose();
+        }
+      },
+    );
   },
 );

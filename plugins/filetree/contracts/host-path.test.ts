@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hostPathFlavor,
   isAbsoluteHostPath,
+  isWindowsDriveHostPath,
   joinHostPath,
   normalizeWindowsHostPath,
   relativeHostPath,
@@ -13,15 +14,35 @@ describe("host paths", () => {
     expect(hostPathFlavor("C:\\Users\\me\\repo")).toBe("windows");
     expect(hostPathFlavor("c:/Users/me/repo")).toBe("windows");
     expect(hostPathFlavor("\\\\server\\share\\repo")).toBe("windows");
-    for (const value of ["repo", "C:repo", "\\repo", "", "/tmp\0x"])
+    expect(hostPathFlavor("//home/u/p")).toBe("posix");
+    for (const value of [
+      "repo",
+      "C:",
+      "C:repo",
+      "\\repo",
+      "",
+      "/tmp\0x",
+      "\\\\?\\C:\\repo",
+      "\\\\?\\GLOBALROOT\\Device",
+      "\\\\.\\pipe\\x",
+    ])
       expect(isAbsoluteHostPath(value)).toBe(false);
   });
 
+  it("only treats drive paths as local Windows roots", () => {
+    expect(isWindowsDriveHostPath("C:\\Users\\me")).toBe(true);
+    expect(isWindowsDriveHostPath("\\\\server\\share\\repo")).toBe(false);
+    expect(isWindowsDriveHostPath("/home/me")).toBe(false);
+  });
+
   it("normalises Windows roots the way BB stores them", () => {
-    expect(normalizeWindowsHostPath("c:/Users//me/./repo/")).toBe(
+    expect(normalizeWindowsHostPath("c:/Users//me/repo/")).toBe(
       "C:\\Users\\me\\repo",
     );
     expect(normalizeWindowsHostPath("C:\\")).toBe("C:\\");
+    expect(normalizeWindowsHostPath("C:\\a\\..\\b")).toBeNull();
+    expect(normalizeWindowsHostPath("C:\\a\\.\\b")).toBeNull();
+    expect(normalizeWindowsHostPath("\\\\server\\share\\repo")).toBeNull();
     expect(normalizeWindowsHostPath("/home/me")).toBeNull();
   });
 
@@ -42,6 +63,10 @@ describe("host paths", () => {
     );
     expect(relativeHostPath("/home/me/repo", "/home/me/repository/a.ts")).toBeNull();
     expect(relativeHostPath("/home/me/repo", "/home/me/repo")).toBeNull();
+    expect(relativeHostPath("/root", "/root/a/../b")).toBeNull();
+    expect(relativeHostPath("/root", "/root/./b")).toBeNull();
+    expect(relativeHostPath("/root", "/root//b")).toBeNull();
+    expect(relativeHostPath("/home/me/repo/", "/home/me/repo/a.ts")).toBe("a.ts");
     expect(
       relativeHostPath("C:\\Users\\me\\repo", "c:/users/ME/repo/src/A.ts"),
     ).toBe("src/A.ts");

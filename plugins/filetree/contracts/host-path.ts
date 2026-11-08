@@ -2,25 +2,13 @@ export type HostPathFlavor = "posix" | "windows";
 
 interface ParsedHostPath {
   flavor: HostPathFlavor;
+  drive: boolean;
   root: string;
   segments: string[];
 }
 
-const WINDOWS_DRIVE_PATH = /^([A-Za-z]):(?:[\\/]+|$)/u;
-const WINDOWS_UNC_PATH = /^[\\/]{2}([^\\/]+)[\\/]+([^\\/]+)(?:[\\/]+|$)/u;
-
-function collapse(segments: string[]): string[] {
-  const kept: string[] = [];
-  for (const segment of segments) {
-    if (segment.length === 0 || segment === ".") continue;
-    if (segment === "..") {
-      kept.pop();
-      continue;
-    }
-    kept.push(segment);
-  }
-  return kept;
-}
+const WINDOWS_DRIVE_PATH = /^([A-Za-z]):[\\/]+/u;
+const WINDOWS_UNC_PATH = /^\\\\([^\\/]+)[\\/]+([^\\/]+)(?:[\\/]+|$)/u;
 
 function parseHostPath(value: string): ParsedHostPath | null {
   if (value.includes("\0")) return null;
@@ -28,21 +16,37 @@ function parseHostPath(value: string): ParsedHostPath | null {
   if (drive) {
     return {
       flavor: "windows",
+      drive: true,
       root: `${(drive[1] ?? "").toUpperCase()}:\\`,
-      segments: collapse(value.slice(drive[0].length).split(/[\\/]+/u)),
+      segments: value.slice(drive[0].length).split(/[\\/]/u),
     };
   }
   const unc = WINDOWS_UNC_PATH.exec(value);
   if (unc) {
+    const server = unc[1] ?? "";
+    if (server === "?" || server === ".") return null;
     return {
       flavor: "windows",
-      root: `\\\\${unc[1] ?? ""}\\${unc[2] ?? ""}\\`,
-      segments: collapse(value.slice(unc[0].length).split(/[\\/]+/u)),
+      drive: false,
+      root: `\\\\${server}\\${unc[2] ?? ""}\\`,
+      segments: value.slice(unc[0].length).split(/[\\/]/u),
     };
   }
   if (value.startsWith("/"))
-    return { flavor: "posix", root: "/", segments: collapse(value.split("/")) };
+    return {
+      flavor: "posix",
+      drive: false,
+      root: "/",
+      segments: value.slice(1).split("/"),
+    };
   return null;
+}
+
+function rootSegments(parsed: ParsedHostPath): string[] | null {
+  const segments = parsed.segments.filter((segment) => segment.length > 0);
+  return segments.some((segment) => segment === "." || segment === "..")
+    ? null
+    : segments;
 }
 
 export function hostPathFlavor(value: string): HostPathFlavor | null {
@@ -53,10 +57,15 @@ export function isAbsoluteHostPath(value: string): boolean {
   return parseHostPath(value) !== null;
 }
 
+export function isWindowsDriveHostPath(value: string): boolean {
+  return parseHostPath(value)?.drive ?? false;
+}
+
 export function normalizeWindowsHostPath(value: string): string | null {
   const parsed = parseHostPath(value);
-  if (parsed?.flavor !== "windows") return null;
-  return `${parsed.root}${parsed.segments.join("\\")}`;
+  if (!parsed?.drive) return null;
+  const segments = rootSegments(parsed);
+  return segments === null ? null : `${parsed.root}${segments.join("\\")}`;
 }
 
 export function joinHostPath(rootPath: string, relativePath: string): string {
@@ -78,12 +87,20 @@ export function relativeHostPath(
   const candidate = parseHostPath(candidatePath);
   if (root === null || candidate === null || root.flavor !== candidate.flavor)
     return null;
+  const base = rootSegments(root);
+  if (base === null) return null;
+  if (
+    candidate.segments.some(
+      (segment) => segment === "" || segment === "." || segment === "..",
+    )
+  )
+    return null;
   const fold = (value: string) =>
     root.flavor === "windows" ? value.toLowerCase() : value;
   if (fold(root.root) !== fold(candidate.root)) return null;
-  if (candidate.segments.length <= root.segments.length) return null;
-  for (const [index, segment] of root.segments.entries()) {
+  if (candidate.segments.length <= base.length) return null;
+  for (const [index, segment] of base.entries()) {
     if (fold(segment) !== fold(candidate.segments[index] ?? "")) return null;
   }
-  return candidate.segments.slice(root.segments.length).join("/");
+  return candidate.segments.slice(base.length).join("/");
 }
