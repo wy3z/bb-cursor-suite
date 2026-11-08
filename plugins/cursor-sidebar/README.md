@@ -190,18 +190,27 @@ chats nest under their parent, and that row shows the workspace's name when it
 has one. Top-level chats that share a worktree count as one workspace too.
 Without that plugin nothing changes.
 
-## Compact navigation
+## Navigation
 
-An optional Zeron-style navigation surface, registered as
-`cursor-sidebar/compact`. It replaces the navigation rows with a header: back,
-forward and New thread on the left, and a menu of every navigation destination
-on the right. BB's own back and forward buttons are hidden while it is active;
-the header draws its own and leaves them out when the sidebar is too narrow.
-Pick **Compact** under Settings → Appearance, or run:
+Installing the plugin also adds two sidebar navigation layouts, **Compact**
+(`cursor-sidebar/compact`) and **Cursor** (`cursor-sidebar/cursor`). BB
+switches to the first navigation a plugin adds unless you've picked one, so
+after install your sidebar uses Compact instead of BB's own Rail or Top list.
+A note above the thread list says so until you dismiss it.
+
+Compact replaces the navigation rows with a header: Search beside BB's sidebar
+toggle, BB's back and forward on the right, and every other destination behind
+a **Plugins** button in the sidebar footer. Cursor keeps that header and lists
+the destinations as rows, like Cursor's New Chat, Automations and Customize.
+
+To go back to BB's navigation, pick **Rail** or **Top list** under
+Settings → Appearance → Navigation, or run:
 
 ```sh
-bb settings ui set sidebar.navigationProvider cursor-sidebar/compact
+bb settings ui set sidebar.navigationProvider navigation/rail
 ```
+
+Use `cursor-sidebar/compact` or `cursor-sidebar/cursor` to pick one of ours.
 
 ## Requirements
 
