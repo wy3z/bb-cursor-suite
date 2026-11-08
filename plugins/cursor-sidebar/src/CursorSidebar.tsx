@@ -31,7 +31,7 @@ import {
   type SiblingOrdering,
 } from "./forest";
 import { ShelfList, PinnedList, collectLiftedPins, type LiftedPin, type TreeContext } from "./ThreadTree";
-import { openProjectBoard, useProjectBoards, useRemoveManager, type ProjectBoard } from "./project-boards";
+import { openProjectBoard, useBoardIcons, useProjectBoards, useRemoveManager, type ProjectBoard } from "./project-boards";
 import { archiveMany } from "./row-extras";
 import { environmentTargets, threadFilterState, useSidebarRequests } from "./change-requests";
 import type { ViewPrFilter } from "./sidebar-view";
@@ -63,7 +63,7 @@ import { usePrimaryHost } from "./usePrimaryHost";
 import { useCloudHosts } from "./useCloudHosts";
 import { useProjectIcons } from "./useProjectIcons";
 import { ComposerProjectIcons } from "./ComposerProjectIcons";
-import { ProjectIconPicker } from "./ProjectIconPicker";
+import { ProjectIconPicker } from "@wy3z/bb-suite/project-icon/picker";
 import type { ProjectIcon } from "./project-icons";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { useThreadOrders } from "./useThreadOrders";
@@ -111,6 +111,7 @@ import type { ThreadShelf } from "./lifecycle";
 import { ageGroupKey, type AgeGroup } from "./age-groups";
 import { ProjectStatusGlyph, ProjectRowIcon, ACTIVITY_LABELS, glyphStateForStatus } from "./ProjectStatusGlyph";
 import { ProjectHoverCard } from "./ProjectHoverCard";
+import { hasHiddenWork, repoActivityMembers, sameIds } from "./repo-activity";
 import { AnimatedList } from "./AnimatedList";
 import { Drawer } from "./Drawer";
 import { useShortcutGuide } from "./useShortcutGuide";
@@ -255,7 +256,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; chats: number } | null>(null);
-  const [iconPicker, setIconPicker] = useState<{ projectId: string; name: string; anchor: HTMLElement | null } | null>(null);
+  const [iconPicker, setIconPicker] = useState<{ kind: "project" | "board"; id: string; anchor: HTMLElement | null } | null>(null);
   const iconPickerFrame = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -266,8 +267,8 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   // One dialog for every entry point: a heading, a thread row or the switcher.
   // The open is deferred a frame so the menu that asked for it has finished
   // closing (and restoring focus) before the dialog claims focus for itself.
-  const openIconPicker = useCallback(
-    (projectId: string, anchor?: HTMLElement | null) => {
+  const requestIconPicker = useCallback(
+    (kind: "project" | "board", id: string, anchor?: HTMLElement | null) => {
       if (iconPickerFrame.current !== null) cancelAnimationFrame(iconPickerFrame.current);
       const explicit = anchor ?? null;
       iconPickerFrame.current = requestAnimationFrame(() => {
@@ -275,14 +276,14 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         const restore =
           explicit ??
           (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-        setIconPicker({
-          projectId,
-          name: projectLabelById.get(projectId) ?? "",
-          anchor: restore,
-        });
+        setIconPicker({ kind, id, anchor: restore });
       });
     },
-    [projectLabelById],
+    [],
+  );
+  const openIconPicker = useCallback(
+    (projectId: string, anchor?: HTMLElement | null) => requestIconPicker("project", projectId, anchor),
+    [requestIconPicker],
   );
 
   const [announcement, setAnnouncement] = useState("");
@@ -461,6 +462,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
     [rawById],
   );
   const { boards: allProjectBoards, leadIds: projectLeadIds, reload: reloadProjectBoards } = useProjectBoards();
+  const boardIcons = useBoardIcons(allProjectBoards.length > 0);
   const projectBoards = useMemo(
     () => allProjectBoards.filter((board) => {
       const lead = board.leadThreadId ? rawById.get(board.leadThreadId) : undefined;
@@ -1385,11 +1387,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
     // must not also light the home they came from: a working pinned thread
     // would otherwise put a spinner on a closed project that is already
     // showing it. The same lifted set drives the status ordering above.
-    const sectionThreads = projectedThreads.filter(
-      (thread) =>
-        thread.projectId === section.id &&
-        !pinnedFamilyRoots.has(familyRootOfId(thread.id)),
-    );
+    const sectionThreads = repoActivityMembers(projectedThreads, section.id, familyRootOfId, pinnedFamilyRoots, projectLeadIds);
     // A collapsed project keeps the selected path on screen, so that row is
     // already drawing its own activity; the heading speaks only for the rows
     // the fold actually hides, or a working selection spins twice.
@@ -1412,6 +1410,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
         ctx={ctx}
         status={aggregate.status}
         statusLabel={aggregate.statusLabel}
+        activityThreads={sectionThreads}
         onNewThread={
           nativeId !== null && section.known
             ? () => {
@@ -1534,10 +1533,11 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
                           }}
                           onNavigate={onNavigate}
                           onSetIcon={
-                            board.bbProjectId
+                            boardIcons.available
                               ? () =>
-                                  openIconPicker(
-                                    board.bbProjectId!,
+                                  requestIconPicker(
+                                    "board",
+                                    board.id,
                                     document.querySelector<HTMLElement>(`[data-manager-row="${CSS.escape(board.id)}"]`),
                                   )
                               : undefined
@@ -1547,7 +1547,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
                         >
                         <ProjectBoardRow
                           board={board}
-                          icon={board.bbProjectId ? projectIcons.iconFor(board.bbProjectId) : null}
+                          icon={boardIcons.iconFor(board.id)}
                           active={board.leadThreadId !== null && board.leadThreadId === activeThreadId}
                           working={false}
                           familyStatus={(() => {
@@ -1637,12 +1637,14 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
               if (!next) setIconPicker(null);
             }}
             anchor={iconPicker?.anchor ?? null}
-            projectName={iconPicker?.name ?? ""}
-            current={iconPicker === null ? null : projectIcons.iconFor(iconPicker.projectId)}
-            onPick={(icon) => {
-              if (iconPicker !== null) projectIcons.setIcon(iconPicker.projectId, icon);
-              setIconPicker(null);
-            }}          />
+            label={iconPicker?.kind === "board" ? "Board icon picker" : "Project icon picker"}
+            value={iconPicker === null ? null : iconPicker.kind === "board" ? boardIcons.iconFor(iconPicker.id) : projectIcons.iconFor(iconPicker.id)}
+            onChange={(icon) => {
+              if (iconPicker === null) return;
+              if (iconPicker.kind === "board") boardIcons.setIcon(iconPicker.id, icon);
+              else projectIcons.setIcon(iconPicker.id, icon);
+            }}
+          />
           <AnimatedList
             as="div"
             key={view.groupBy}
@@ -1729,6 +1731,8 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   );
 }
 
+const EMPTY_ROW_IDS: ReadonlySet<string> = new Set();
+
 function ManagerMenu({
   board,
   lead,
@@ -1795,10 +1799,10 @@ function ManagerMenuInner({
       thread={lead}
       onOpen={onNavigate}
       onArchive={archive}
-      onSetProjectIcon={onSetIcon}
       swipeDisabled
       extraActions={[
         { label: "Rename", run: onRename },
+        ...(onSetIcon ? [{ label: "Set icon…", run: onSetIcon }] : []),
         { label: "Open board", run: () => openProjectBoard(board.id) },
         { label: expanded ? "Hide workers" : "Show workers", run: onToggle },
         {
@@ -1968,7 +1972,7 @@ function ProjectBoardRow({
     >
       <span className="cs-board-row__lead">
         <span className={cn("cs-board-row__icon", childCount > 0 && "cs-board-row__icon--swap")}>
-          <ProjectStatusGlyph open={false} icon={icon} label={board.name} status={familyStatus} />
+          <ProjectStatusGlyph open={false} icon={icon} fallback="board" label={board.name} status={familyStatus} />
         </span>
         {childCount > 0 ? (
           <button
@@ -2056,6 +2060,7 @@ function ProjectSection({
   onHeadingDragStart,
   status,
   statusLabel,
+  activityThreads,
   flat = false,
   empty,
   hoverDisabled = false,
@@ -2068,6 +2073,7 @@ function ProjectSection({
   hoverThreads?: () => readonly PluginSidebarThread[];
   status?: ThreadStatusKind | null;
   statusLabel?: string | undefined;
+  activityThreads?: readonly PluginSidebarThread[];
   ctx: TreeContext;
   sectionOpen: boolean;
   onToggleProject: () => void;
@@ -2142,6 +2148,13 @@ function ProjectSection({
     const timeout = window.setTimeout(() => setKeepException(false), COLLAPSED_ROW_EXIT_MS);
     return () => window.clearTimeout(timeout);
   }, [keepException, showCollapsedSelection]);
+
+  const [reportedIds, setReportedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const onRenderedIds = useCallback((ids: ReadonlySet<string>) => {
+    setReportedIds((current) => (sameIds(current, ids) ? current : ids));
+  }, []);
+  const rowsOnScreen = sectionOpen || showCollapsedSelection;
+  const hiddenWork = activityThreads !== undefined && hasHiddenWork(activityThreads, rowsOnScreen ? reportedIds : EMPTY_ROW_IDS);
 
   const showMore = (
     <ShowMoreButton
@@ -2244,6 +2257,7 @@ function ProjectSection({
                 icon={icon}
                 label={activityLabel}
                 status={status ?? "idle"}
+                hiddenWork={hiddenWork}
               />
             )}
           </span>
@@ -2318,6 +2332,7 @@ function ProjectSection({
               grouped
               keepIds={sectionOpen ? revealedConversations : exceptionIds}
               expandIds={!sectionOpen ? exceptionIds : undefined}
+              onRenderedIds={onRenderedIds}
             />
             {sectionOpen ? showMore : null}
           </>

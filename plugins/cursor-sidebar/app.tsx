@@ -4,6 +4,7 @@
 // @get-bb/plugin-sdk/app are provided by the BB app at load time (never
 // bundled), so this file must be loaded by BB, not imported directly.
 import "@wy3z/bb-suite/tokens.css";
+import "@wy3z/bb-suite/project-icon.css";
 import "./app.css";
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { CursorSidebar } from "./src/CursorSidebar";

@@ -1,4 +1,5 @@
 import "@wy3z/bb-suite/tokens.css";
+import "@wy3z/bb-suite/project-icon.css";
 import "./app.css";
 import { useEffect, useMemo, useState } from "react";
 import {

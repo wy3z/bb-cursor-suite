@@ -1,5 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { PROJECT_ICON_MAX_LENGTH } from "./project-icon-limits";
 
 export const TASKS_PLUGIN = "tasks";
 export const PULL_REQUESTS_PLUGIN = "pull-requests";
@@ -232,6 +233,15 @@ export const gitActionsContract = defineRpcContract({
 });
 
 export const META_CHANGED = "project-meta";
+export const BOARD_ICONS_CHANGED = "board-icons";
+export const BOARD_ICON_MAX_LENGTH = PROJECT_ICON_MAX_LENGTH;
+
+const compactGlyphElementSchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.union([z.string(), z.number()]))])]);
+export const PROJECT_ICON_GLYPHS_METHOD = {
+  input: z.object({ names: z.array(z.string().min(1).max(64)).max(1000).nullable() }),
+  output: z.object({ glyphs: z.record(z.string(), z.array(compactGlyphElementSchema)) }),
+};
+export const projectIconGlyphContract = defineRpcContract({ iconGlyphs: PROJECT_ICON_GLYPHS_METHOD });
 
 const metaSchema = z.object({
   focus: z.string().nullable(),
@@ -261,6 +271,8 @@ const inboxItemSchema = z.object({
 export type InboxItem = z.infer<typeof inboxItemSchema>;
 
 const projectIdSchema = z.string().trim().min(1).max(100);
+const boardIconRowSchema = z.object({ projectId: z.string(), icon: z.string() });
+export type BoardIconRow = z.infer<typeof boardIconRowSchema>;
 
 const COLUMN_VALUES = ["in_review", "in_progress", "todo", "done", "canceled"] as const;
 
@@ -341,4 +353,14 @@ export const projectsContract = defineRpcContract({
     input: z.object({ projectId: projectIdSchema }),
     output: reconcileSchema,
   },
+  listIcons: {
+    tags: () => ["icons"],
+    input: z.object({}),
+    output: z.object({ icons: z.array(boardIconRowSchema) }),
+  },
+  setIcon: {
+    input: z.object({ projectId: projectIdSchema, icon: z.string().min(1).max(BOARD_ICON_MAX_LENGTH).nullable() }),
+    output: z.object({ icons: z.array(boardIconRowSchema) }),
+  },
+  iconGlyphs: PROJECT_ICON_GLYPHS_METHOD,
 });

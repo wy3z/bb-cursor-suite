@@ -35,6 +35,8 @@ export const tasksContract = defineRpcContract({
   },
 });
 
+const boardIconRowSchema = z.object({ projectId: z.string(), icon: z.string() }).passthrough();
+
 const metaSchema = z.object({
   focus: z.string().nullable(),
   focusUpdatedAt: z.string().nullable(),
@@ -55,5 +57,14 @@ export const projectsContract = defineRpcContract({
   setLead: {
     input: z.object({ projectId: z.string().trim().min(1).max(100), threadId: z.string().startsWith("thr_").nullable() }),
     output: metaSchema,
+  },
+  listIcons: {
+    tags: () => ["icons"],
+    input: z.object({}),
+    output: z.object({ icons: z.array(boardIconRowSchema) }).passthrough(),
+  },
+  setIcon: {
+    input: z.object({ projectId: z.string().trim().min(1).max(100), icon: z.string().min(1).nullable() }),
+    output: z.object({ icons: z.array(boardIconRowSchema) }).passthrough(),
   },
 });
