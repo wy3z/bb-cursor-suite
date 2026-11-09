@@ -12,6 +12,7 @@ Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a tra
 | Projects | `plugins/projects` | Board and list views over BB Tasks, with live agents, pull requests and changes on every card. |
 | Pull Requests | `plugins/pull-requests` | GitHub pull requests and GitLab merge requests in BB, grouped by what each one needs. |
 | UI Tweaks | `plugins/ui-tweaks` | Small, configurable improvements to BB's interface. |
+| Docker Sandbox | `plugins/machine-docker` | Run threads in local Docker containers as BB machines, with limits and idle stop. |
 
 `packages/suite-shared` holds the contracts, time formatting and design tokens the plugins share. Release tags carry a vendored copy, so a plugin installed from Git never needs the rest of the repository.
 
@@ -32,9 +33,10 @@ bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugi
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin projects --tag-prefix projects/
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin pull-requests --tag-prefix pull-requests/
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plugin ui-tweaks --tag-prefix ui-tweaks/
+bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.1.0 --plugin machine-docker --tag-prefix machine-docker/
 ```
 
-Cursor Composer, Files, Projects and Pull Requests are on 1.x. Cursor Sidebar stays on 0.3.x and UI Tweaks on 0.30.x, so the installs already out there keep getting updates: moving them to a new range means a reinstall, which deletes their settings.
+Cursor Composer, Files, Projects and Pull Requests are on 1.x. Docker Sandbox is experimental and starts at 0.1.x; its caret range only follows patch releases until it reaches 1.0. Cursor Sidebar stays on 0.3.x and UI Tweaks on 0.30.x, so the installs already out there keep getting updates: moving them to a new range means a reinstall, which deletes their settings.
 
 Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range keep updating from the root-level `vX.Y.Z` tags on the `legacy/cursor-sidebar` branch. UI Tweaks keeps publishing to `wy3z/bb-plugin-ui-tweaks`.
 

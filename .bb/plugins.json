@@ -8,6 +8,7 @@
     { "name": "filetree", "source": "./plugins/filetree" },
     { "name": "projects", "source": "./plugins/projects" },
     { "name": "pull-requests", "source": "./plugins/pull-requests" },
-    { "name": "ui-tweaks", "source": "./plugins/ui-tweaks" }
+    { "name": "ui-tweaks", "source": "./plugins/ui-tweaks" },
+    { "name": "machine-docker", "source": "./plugins/machine-docker" }
   ]
 }

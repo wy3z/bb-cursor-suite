@@ -48,6 +48,7 @@ jobs:
           - plugin: ui-tweaks
           - plugin: ui-tweaks
             legacy: true
+          - plugin: machine-docker
     name: install ${{ matrix.plugin }}${{ matrix.legacy && ' (legacy layout)' || '' }}
     steps:
       - uses: actions/checkout@v4

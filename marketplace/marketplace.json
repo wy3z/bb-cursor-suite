@@ -159,6 +159,31 @@
           "tagPrefix": "ui-tweaks/"
         }
       }
+    },
+    {
+      "id": "machine-docker",
+      "displayName": "Docker Sandbox",
+      "description": "Run BB threads in local Docker containers, one per machine, with CPU and memory limits, no host mounts and idle stop. The free, local way to try cloud-style machines.",
+      "icon": {
+        "url": "./icons/machine-docker.svg"
+      },
+      "tags": [
+        "machines",
+        "sandbox",
+        "docker"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/machine-docker",
+          "range": "^0.1.0",
+          "tagPrefix": "machine-docker/"
+        }
+      }
     }
   ]
 }
