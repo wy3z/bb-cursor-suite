@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-agent-pills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Cursor-style composer for BB, with optional pills for child threads and background tasks above it.",
   "author": {
     "name": "WYEZ",

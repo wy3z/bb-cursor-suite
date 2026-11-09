@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-machine-boat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run BB threads in boat.dev cloud VMs, with idle suspend, a TTL backstop, a concurrency limit and a monthly spend cap.",
   "author": {
     "name": "WYEZ",
