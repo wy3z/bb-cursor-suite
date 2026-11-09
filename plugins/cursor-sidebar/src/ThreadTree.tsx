@@ -757,23 +757,6 @@ function ThreadRow({
     ctx.view.show.branch ? branch : null,
   ].filter(Boolean).join(" · ");
   const cloudHostTitle = cloudHostName !== null ? `Cloud machine: ${cloudHostName}` : null;
-  const titleLineRef = useRef<HTMLDivElement | null>(null);
-  const [titleOverflows, setTitleOverflows] = useState(false);
-  useEffect(() => {
-    const line = titleLineRef.current;
-    if (cloudHostTitle === null || line === null) {
-      setTitleOverflows(false);
-      return;
-    }
-    const title = line.querySelector<HTMLElement>(".cs-thread-title");
-    if (title === null) return;
-    const measure = () => setTitleOverflows(title.scrollWidth > title.clientWidth + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(line);
-    observer.observe(title);
-    return () => observer.disconnect();
-  }, [cloudHostTitle, thread.title]);
   // The resting slot speaks for the whole subtree, so a collapsed parent still
   // shows a running or attention-seeking descendant instead of hiding it.
   const statusThread = statusSourceForGroup(
@@ -894,6 +877,17 @@ function ThreadRow({
   const childLabel = nativeParent === undefined ? "Child thread" : `Child of ${threadDisplayTitle(nativeParent)}`;
   const hints = (
     <>
+      {cloudHostTitle !== null && !isRenaming ? (
+        <span
+          role="img"
+          aria-label={cloudHostTitle}
+          title={cloudHostTitle}
+          data-cloud-host={native.host?.id}
+          className="cs-thread-cloud pointer-events-none flex size-3.5 shrink-0 items-center justify-center"
+        >
+          <Icon name="Cloud" aria-hidden="true" className="size-3.5" />
+        </span>
+      ) : null}
       {ctx.view.show.pr ? <PullRequestMark environmentId={thread.environment?.id ?? null} branch={thread.environment?.branchName ?? null} threadId={thread.id} /> : null}
       {ctx.view.show.providerIcons && native.providerId ? <ProviderMark providerId={native.providerId} /> : null}
       {isChild ? (
@@ -1097,7 +1091,7 @@ function ThreadRow({
           </span>
 
           <div className={cn("cs-row-text pointer-events-none flex min-w-0 flex-1 flex-col items-start", secondary ? "gap-0 leading-none" : "gap-0")}>
-          <div ref={titleLineRef} data-title-overflow={titleOverflows ? "" : undefined} className="cs-thread-titleline flex w-full min-w-0 items-center">
+          <div className="cs-thread-titleline flex w-full min-w-0 items-center">
           <InlineThreadTitle
             thread={thread}
             editing={isRenaming}
@@ -1112,22 +1106,10 @@ function ThreadRow({
               open(event);
             }}
             className={cn(
-              "cs-thread-title min-w-0 overflow-hidden whitespace-nowrap text-sm",
-              cloudHostTitle === null || isRenaming ? "w-full" : "cs-thread-title--inline max-w-full",
+              "cs-thread-title min-w-0 overflow-hidden whitespace-nowrap text-sm w-full",
               thread.isUnread && "font-medium",
             )}
           />
-          {cloudHostTitle !== null && !isRenaming ? (
-            <span
-              role="img"
-              aria-label={cloudHostTitle}
-              title={cloudHostTitle}
-              data-cloud-host={native.host?.id}
-              className="cs-thread-cloud pointer-events-none flex size-3.5 shrink-0 items-center justify-center"
-            >
-              <Icon name="Cloud" aria-hidden="true" className="size-3.5" />
-            </span>
-          ) : null}
           </div>
           {secondary ? <span className="cs-thread-info mt-px block w-full overflow-hidden whitespace-nowrap text-2xs leading-none text-[color:var(--bbs-text-secondary)]" aria-label={secondaryTitle}><span className="cs-secondary-desktop">{secondary}</span><span className="cs-secondary-mobile hidden">{secondaryMobile}</span></span> : null}
           </div>
@@ -1142,12 +1124,12 @@ function ThreadRow({
               </>
             ) : (
               <>
-            {/* The actions anchor to the age's left edge, so they cover the
-                active-child mark and the title's reserved padding but never
-                the time. */}
+            <span data-thread-marks="" className="cs-row-marks flex items-center">
+              {hints}
+            </span>
             <span
               data-thread-actions=""
-              className="cs-row-actions pointer-events-none absolute inset-y-0 z-20 flex items-center gap-0.5 pr-0.5 opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-has-[:focus-visible]/row:opacity-100 focus-within:opacity-100"
+              className="cs-row-actions pointer-events-none relative z-20 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-has-[:focus-visible]/row:opacity-100 focus-within:opacity-100"
             >
               {pinnedCapable ? (
                 <button
@@ -1178,7 +1160,6 @@ function ThreadRow({
                 <Icon name="Archive" className="size-3.5" />
               </button>
             </span>
-            {hints}
             <span className="cs-thread-time pointer-events-none tabular-nums text-xs">
               {activeChildCount > 0 ? (
                 /* While children are running, a light accent pill with their

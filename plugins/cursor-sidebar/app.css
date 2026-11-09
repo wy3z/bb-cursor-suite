@@ -207,38 +207,30 @@ html.dark {
   stroke-width: 2.75;
 }
 
-/* Long titles fade into the timestamp at rest. On hover they reserve space
-   for pin/archive (padding) so those icons are not sitting on the glyphs. */
 [data-cursor-sidebar-root] [data-thread-row] .cs-thread-title,
 [data-cursor-sidebar-root] [data-thread-row] .cs-thread-info {
   mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
   -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
 }
-[data-cursor-sidebar-root] [data-thread-row]:hover .cs-thread-title,
-[data-cursor-sidebar-root] [data-thread-row]:focus-within .cs-thread-title,
-[data-cursor-sidebar-root] [data-thread-row]:hover .cs-thread-info,
-[data-cursor-sidebar-root] [data-thread-row]:focus-within .cs-thread-info {
-  padding-right: 2.75rem;
-  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
-}
 
-[data-cursor-sidebar-root] [data-thread-row] .cs-thread-title--inline,
-[data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-title--inline {
-  padding-right: 0;
-  mask-image: none;
-  -webkit-mask-image: none;
-}
-[data-cursor-sidebar-root] [data-thread-row] .cs-thread-titleline[data-title-overflow] .cs-thread-title--inline {
-  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
-}
 [data-cursor-sidebar-root] .cs-thread-titleline,
-[data-cursor-sidebar-root] .cs-row-trail {
+[data-cursor-sidebar-root] .cs-row-trail,
+[data-cursor-sidebar-root] .cs-row-marks {
   column-gap: var(--cs-trail-gap);
 }
-[data-cursor-sidebar-root] .cs-row-trail > .cs-row-actions {
-  right: 100%;
+[data-cursor-sidebar-root] .cs-row-marks:not(:has(> *)) {
+  display: none;
+}
+[data-cursor-sidebar-root] [data-thread-row] .cs-row-actions {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-row-marks {
+    display: none;
+  }
+  [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-row-actions {
+    display: flex;
+  }
 }
 .cs-status-dot {
   width: var(--cs-status-dot);
@@ -246,10 +238,6 @@ html.dark {
 }
 [data-cursor-sidebar-root] .cs-status-dot[data-seen] {
   background-color: color-mix(in srgb, var(--cs-icon-quaternary) 55%, transparent);
-}
-[data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-titleline:has(.cs-thread-title--inline) {
-  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
 }
 
 
