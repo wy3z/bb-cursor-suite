@@ -27,6 +27,8 @@ export interface BoatSandbox {
   desktopAvailable: boolean;
   stop: { id: string; status: string; error: string | null } | null;
   costUsd: number | null;
+  environment: string | null;
+  environmentVersion: number | null;
 }
 
 export interface BoatLimits {
@@ -60,7 +62,7 @@ export interface BoatEnvironment {
   passSecrets: boolean;
   passSandboxCredentials: boolean;
   passAgentsCredentials: boolean;
-  proxyAiCredentials: boolean;
+  latestVersionNumber: number | null;
 }
 
 export type CommandFrame =
@@ -136,6 +138,8 @@ export function toSandbox(raw: unknown): BoatSandbox {
     desktopAvailable: value.desktopAvailable === true,
     stop: stop && str(stop.id) ? { id: str(stop.id)!, status: str(stop.status) ?? "unknown", error: str(stop.error) } : null,
     costUsd: num(rec(value.cost)?.dollars),
+    environment: str(value.environment),
+    environmentVersion: num(value.environmentVersion),
   };
 }
 
@@ -171,7 +175,7 @@ export function toEnvironment(raw: unknown): BoatEnvironment {
     passSecrets: value.passSecrets === true,
     passSandboxCredentials: value.passSandboxCredentials === true,
     passAgentsCredentials: value.passAgentsCredentials === true,
-    proxyAiCredentials: value.proxyAiCredentials === true,
+    latestVersionNumber: num(value.latestVersionNumber),
   };
 }
 

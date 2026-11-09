@@ -14,6 +14,8 @@ export interface FakeSandbox {
   body: Record<string, unknown>;
   pollsUntilReady: number;
   pollsUntilArchived: number;
+  environment: string | null;
+  environmentVersion: number | null;
 }
 
 export interface Recorded {
@@ -84,6 +86,8 @@ export class FakeBoat {
       body: {},
       pollsUntilReady: 0,
       pollsUntilArchived: 0,
+      environment: null,
+      environmentVersion: null,
       ...partial,
     };
     this.sandboxes.set(sandbox.id, sandbox);
@@ -110,6 +114,8 @@ export class FakeBoat {
       desktopUrl: "https://desktop.example/stream.html?token=secretdesktoptoken",
       snapshotAvailable: true,
       snapshotCompletedAt: sandbox.stoppedAt,
+      environment: sandbox.environment,
+      environmentVersion: sandbox.environmentVersion,
       ...(cost ? { cost: { since: "2026-11-01T00:00:00Z", seconds: 1, dollars: sandbox.costUsd } } : {}),
     };
   }
@@ -198,6 +204,8 @@ export class FakeBoat {
         ttlSeconds: ttl as number | null,
         body: body ?? {},
         pollsUntilReady: 1,
+        environment: typeof body?.environment === "string" ? body.environment : null,
+        environmentVersion: typeof body?.environment === "string" ? 1 : null,
       });
       const key = headers.get("idempotency-key");
       if (key) this.idempotency.set(key, created);

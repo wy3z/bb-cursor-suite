@@ -7,7 +7,7 @@ import type {
   VendorSpendRefusal,
 } from "@wy3z/bb-suite/machine-backend/server";
 import { formatUsd, sandboxNameForKey, usageMonth } from "@wy3z/bb-suite/machine-backend/server";
-import { BoatApiError, LIVE_STATES, MAX_TTL_SECONDS, READY_STATES, isNotFound, type BoatApi, type BoatLimits, type BoatSandbox } from "./api.ts";
+import { BoatApiError, LIVE_STATES, MAX_TTL_SECONDS, READY_STATES, isNotFound, redactBoat, type BoatApi, type BoatEnvironment, type BoatLimits, type BoatSandbox } from "./api.ts";
 import { execInSandbox } from "./exec.ts";
 import { ENVIRONMENT_NAME, type BoatSettings } from "./settings.ts";
 
@@ -33,7 +33,7 @@ export interface BoatBackendOptions {
   stopTimeoutMs?: number;
   log?: { info(message: string): void; warn(message: string): void };
   afterReady?: (sandboxId: string, signal: AbortSignal) => Promise<void>;
-  shareLogins?: (sandboxId: string, restart: boolean, signal: AbortSignal) => Promise<string>;
+  shareLogins?: (sandboxId: string, restart: boolean, signal: AbortSignal) => Promise<{ message: string; variables: string[] }>;
 }
 
 export interface VendorSpend {
@@ -189,13 +189,44 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     return options.settings();
   }
 
+  async function warnAboutSwitches(name: string, signal: AbortSignal, report: SandboxProgress): Promise<void> {
+    if (name === "") return;
+    const warn = (note: string) => {
+      report.log(note);
+      options.log?.warn(note);
+    };
+    let environment: BoatEnvironment | undefined;
+    try {
+      environment = (await api.environments(signal)).find((entry) => entry.name === name);
+    } catch (error) {
+      signal.throwIfAborted();
+      warn(`${DISPLAY_NAME}: couldn't read boat environment "${name}" to check what it passes to the VM: ${redactBoat(message(error))}`);
+      return;
+    }
+    if (environment === undefined || environment.safeForThirdParties) return;
+    const extras: Array<[boolean, string]> = [
+      [environment.passGithub, "GitHub (boat's GitHub app token, a gh login, git credentials, its repositories and their setup scripts)"],
+      [environment.passSecrets, "Secrets (its variables and secret files)"],
+      [environment.passSandboxCredentials, "boat credentials (a boat API key that can snapshot, stop and resume the VM)"],
+    ];
+    for (const [on, what] of extras) {
+      if (on) warn(`${DISPLAY_NAME}: boat environment "${name}" passes ${what} to every new VM. Turn it off on boat.dev unless agents need it.`);
+    }
+  }
+
   async function prepare(sandbox: BoatSandbox, signal: AbortSignal, report: SandboxProgress, booted = true): Promise<BoatSandbox> {
     if (options.shareLogins !== undefined) {
       try {
-        report.log(await options.shareLogins(sandbox.id, booted, signal));
+        const shared = await options.shareLogins(sandbox.id, booted, signal);
+        report.log(shared.message);
+        if (shared.variables.length === 0 && sandbox.environment !== null) {
+          const note = `${DISPLAY_NAME}: ${sandbox.id} runs boat environment "${sandbox.environment}" but boat gave it no agent login, so agents on it can't sign in. Connect them on boat.dev (Agents & Proxying) and check that the environment passes Agents credentials.`;
+          report.log(note);
+          options.log?.warn(note);
+        }
       } catch (error) {
         signal.throwIfAborted();
-        const note = `${DISPLAY_NAME}: couldn't hand boat's agent logins to BB's daemon on ${sandbox.id}: ${message(error)}`;
+        const note = `${DISPLAY_NAME}: couldn't hand boat's agent logins to BB's daemon on ${sandbox.id}: ${redactBoat(message(error))}`;
         report.log(note);
         options.log?.warn(note);
       }
@@ -406,7 +437,9 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     },
 
     async create({ name, ttlMs, signal, report }) {
-      const ready = await createFrom(await settings(), name, ttlMs, signal, report);
+      const current = await settings();
+      await warnAboutSwitches(current.environment, signal, report);
+      const ready = await createFrom(current, name, ttlMs, signal, report);
       return handleOf(ready);
     },
 

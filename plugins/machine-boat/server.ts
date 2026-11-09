@@ -21,7 +21,7 @@ export default function plugin(bb: BbPluginApi) {
     api,
     settings: current,
     log: bb.log,
-    shareLogins: (sandboxId, restart, signal) => shareLogins(api, sandboxId, restart, AbortSignal.any([signal, AbortSignal.timeout(45_000)])),
+    shareLogins: (sandboxId, restart, signal) => shareLogins(api, sandboxId, restart, AbortSignal.any([signal, AbortSignal.timeout(90_000)])),
     afterReady: async (sandboxId, signal) => {
       await runScript({ api }, sandboxId, codexTimeoutScript(), AbortSignal.any([signal, AbortSignal.timeout(60_000)]));
     },
