@@ -413,6 +413,31 @@ html[data-bb-agent-pills-pills]
   color: var(--bbs-text-primary);
 }
 
+section[aria-label="Thread context before sending"]:has(.bb-agent-pills__pill[data-group="parent"])
+  :is(#thread-prompt-banner-parent-thread-toggle, #thread-prompt-banner-parent-thread-body),
+html[data-bb-agent-pills-pills] #thread-prompt-banner-parent-thread-body {
+  display: none !important;
+}
+
+html[data-bb-agent-pills-pills] #thread-prompt-banner-parent-thread-toggle::after {
+  content: attr(aria-label);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bb-agent-pills__pill[data-group="parent"] {
+  max-width: 300px;
+  gap: var(--bbs-gap-xs);
+}
+
+.bb-agent-pills__pill[data-group="parent"] [data-icon-root],
+.bb-agent-pills__pill[data-group="parent"] svg {
+  width: var(--bbs-icon);
+  height: var(--bbs-icon);
+  flex: 0 0 auto;
+}
+
 /* ── BB's full-width cards ─────────────────────────────────────────────── */
 
 /* Every card the pills replace is hidden by its section label. The parent
