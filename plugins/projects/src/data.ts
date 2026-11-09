@@ -9,6 +9,7 @@ import { z } from "zod";
 import { usePluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import {
   GIT_PLUGIN,
+  PROJECTS_PLUGIN,
   PULL_REQUESTS_PLUGIN,
   TASKS_PLUGIN,
   gitContract,
@@ -23,7 +24,7 @@ import {
 } from "./contracts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { projectsContract, type ReconcileView } from "./meta";
-import { COLUMNS, columnOf, type Column } from "./status";
+import { isComplete } from "./status";
 import { loadState, type LoadState } from "./moves";
 
 const REFRESH_MS = 15_000;
@@ -76,6 +77,44 @@ export function useProjectData(projectId: string | null): ProjectData {
       error,
     };
   }, [tasks.data, tasks.error, labels.data, meta.data, enabled]);
+}
+
+export function useCompletionTimes(projectId: string | null, tasks: readonly Task[]): ReadonlyMap<string, string> {
+  const sdk = useSdk();
+  const [times, setTimes] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const signature = useMemo(
+    () =>
+      tasks
+        .filter((task) => isComplete(task.status))
+        .map((task) => `${task.id}:${task.status}:${task.updatedAt}`)
+        .sort()
+        .join("|"),
+    [tasks],
+  );
+  useEffect(() => {
+    if (!projectId || signature === "") {
+      setTimes((current) => (current.size === 0 ? current : new Map()));
+      return;
+    }
+    let cancelled = false;
+    sdk.plugins
+      .callRpc({
+        pluginId: PROJECTS_PLUGIN,
+        method: "completionTimes",
+        input: { projectId },
+        outputSchema: projectsContract.completionTimes.output,
+      })
+      .then((result) => {
+        if (!cancelled) setTimes(new Map(Object.entries(result.times)));
+      })
+      .catch(() => {
+        if (!cancelled) setTimes((current) => (current.size === 0 ? current : new Map()));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sdk, projectId, signature]);
+  return times;
 }
 
 export function useTaskThreads(taskId: string, enabled: boolean): TaskThread[] {
@@ -246,13 +285,6 @@ export function useBoardMoves(tasks: readonly Task[]) {
   return { tasks: merged, move, error, clearError: () => setError(null) };
 }
 
-export function byColumn(tasks: readonly Task[]): Record<Column, Task[]> {
-  const groups = Object.fromEntries(COLUMNS.map((column) => [column, [] as Task[]])) as Record<Column, Task[]>;
-  for (const task of tasks) groups[columnOf(task.status)].push(task);
-  for (const column of COLUMNS) groups[column].sort((left, right) => left.position - right.position);
-  return groups;
-}
-
 export function childrenByParent(tasks: readonly Task[]): ReadonlyMap<string, Task[]> {
   const map = new Map<string, Task[]>();
   for (const task of tasks) {
@@ -312,6 +344,7 @@ export function usePullRequestSummaries(urls: readonly string[]): ReadonlyMap<st
 }
 
 export { PR_STATUS, prStatus, type PrStatus } from "./pr-status";
+export { byColumn } from "./order";
 
 const attachmentSchema = z
   .object({ id: z.string(), fileName: z.string(), mime: z.string(), sizeBytes: z.number(), isImage: z.boolean(), createdAt: z.string() })

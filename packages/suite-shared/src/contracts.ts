@@ -353,6 +353,10 @@ export const projectsContract = defineRpcContract({
     input: z.object({ projectId: projectIdSchema }),
     output: reconcileSchema,
   },
+  completionTimes: {
+    input: z.object({ projectId: projectIdSchema }),
+    output: z.object({ times: z.record(z.string(), z.string()) }),
+  },
   listIcons: {
     tags: () => ["icons"],
     input: z.object({}),
