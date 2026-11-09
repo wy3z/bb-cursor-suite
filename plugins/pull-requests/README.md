@@ -32,6 +32,13 @@ bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marke
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin pull-requests --tag-prefix pull-requests/
 ```
 
+To install the whole suite instead:
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+for p in cursor-sidebar agent-pills filetree projects pull-requests ui-tweaks machine-boat; do bb plugin install "$p@bb-cursor-suite"; done
+```
+
 Needs BB 0.49 or newer and `gh` on the BB server's machine, signed in to github.com (`gh auth login`). The active account is the one used; `gh auth switch` changes it.
 
 To keep one pull request pill above the composer, turn off GitHub PR Status's own:

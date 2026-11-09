@@ -38,6 +38,13 @@ bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marke
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.3.4 --plugin cursor-sidebar --tag-prefix cursor-sidebar/
 ```
 
+To install the whole suite instead:
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+for p in cursor-sidebar agent-pills filetree projects pull-requests ui-tweaks machine-boat; do bb plugin install "$p@bb-cursor-suite"; done
+```
+
 Needs BB 0.49 or newer with plugin SDK 0.6.132 or newer. It fills BB's experimental thread-list slot. Turn it off with `bb plugin disable cursor-sidebar`.
 
 To go back to BB's own navigation, pick **Rail** or **Top list** under Settings → Appearance → Navigation, or run:

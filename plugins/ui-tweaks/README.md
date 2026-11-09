@@ -32,6 +32,13 @@ bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marke
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plugin ui-tweaks --tag-prefix ui-tweaks/
 ```
 
+To install the whole suite instead:
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+for p in cursor-sidebar agent-pills filetree projects pull-requests ui-tweaks machine-boat; do bb plugin install "$p@bb-cursor-suite"; done
+```
+
 Needs BB `>=0.49` and plugin SDK `>=0.6.132 <0.7`. Workspace app discovery uses BB's local host daemon. In a client that can't reach it, the filter shows the last saved app list and says discovery is unavailable.
 
 ## For agents
