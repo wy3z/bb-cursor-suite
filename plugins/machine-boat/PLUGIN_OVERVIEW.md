@@ -59,7 +59,11 @@ The suite's vendor-neutral desktop contract (`DESKTOP_ROUTES` in `@wy3z/bb-suite
 
 - **Who can call.** Every route answers only requests that look like a BB app page's own `fetch`.
   - Through Connect, only a signed-in session passes: machine, OAuth and any other credential kind are refused. Connect sets that from the verified credential.
-  - Everything also needs the browser's same-origin fetch metadata. That shuts out the bb CLI, `bb plugin rpc call`, other plugins' servers and an agent on a cloud VM. From a boat VM, both routes answer 403 to the agent's bb proxy.
+  - Everything also needs the browser's same-origin fetch metadata. That shuts out the bb CLI, `bb plugin rpc call` and other plugins' servers.
+  - An agent on a cloud VM is shut out twice on its bb proxy:
+    - Without browser headers, the routes answer 403 (tested from a boat VM).
+    - With forged `Origin` or `Sec-Fetch-*`, BB's machine proxy itself refuses the request with an empty 403 before forwarding it (tested on live BB).
+  - An agent that skipped the proxy and called Connect with the machine's own credential would be stamped `machine` by Connect and refused. That case is from BB's code; it wasn't observed live.
   - Other plugins' frontends share BB's page, so their `fetch` is genuinely same-origin and can reach the routes.
   - This is not a boundary against software on the BB server machine that forges browser headers; BB gives that software the user's full access anyway.
 - **Scope.** A thread on another provider's machine, or on none, is refused.
