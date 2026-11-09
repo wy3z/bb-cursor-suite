@@ -101,7 +101,7 @@ Dispatch a cancelable, bubbling `bb-pull-requests:open` `CustomEvent` with `deta
 
 ### Realtime channels
 
-`links-changed` and `subscriptions-changed`, both with `{ threadId }`.
+`links-changed` and `subscriptions-changed`, both with `{ threadId }`, and `stars-changed` with `{ count }`, the number of starred pull requests after a star is toggled.
 
 ### Settings
 

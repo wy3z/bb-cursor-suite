@@ -8,12 +8,6 @@ People who spend their day in the prompt box and want it calm. The pills keep ch
 
 ## What it looks like
 
-![The restyled composer with a row of pills above it](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-composer.png)
-
-![The Agents tray: running child threads, one waiting for an answer, and recent ones](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-agents-tray.png)
-
-![The Changes tray: changed files, a commit message box and the commit, push and pull request buttons](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-changes-tray.png)
-
 - **The composer** becomes a rounded, opaque row: the paperclip, then permission mode, model and reasoning as plain text, and a round send button. Right-click the send button for BB's send options.
 - **Agents** collects child threads and background tasks in one tray. Answer, stop or open them from there.
 - **Changes** shows the checkout's changes with commit, push and pull request buttons. These need the Pull Requests plugin.
@@ -45,7 +39,7 @@ npm run build
 bb plugin reload agent-pills
 ```
 
-## License
+## Licence
 
 MIT, see [LICENSE](LICENSE).
 

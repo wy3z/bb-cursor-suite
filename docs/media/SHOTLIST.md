@@ -1,6 +1,6 @@
 # Shot list
 
-Every screenshot slot the READMEs reference. None of these files exist yet. Capture them from a demo workspace with fake data: invented project names, thread titles, repositories (`acme/web`, `acme/api`), people and pull request numbers. No real thread titles, client names, customer data, tokens or hostnames.
+Every screenshot slot the READMEs will show. None of these files exist yet, so the READMEs don't embed them; BCS-87 captures the shots and adds the embeds (plugin READMEs use absolute `https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/<name>.png` URLs, the root README a relative path). Capture them from a demo workspace with fake data: invented project names, thread titles, repositories (`acme/web`, `acme/api`), people and pull request numbers. No real thread titles, client names, customer data, tokens or hostnames.
 
 Common rules:
 

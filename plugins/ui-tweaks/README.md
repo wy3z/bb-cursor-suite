@@ -8,10 +8,6 @@ Anyone who uses BB every day and wants it to feel a little more like their own. 
 
 ## What it looks like
 
-![UI Tweaks' Interface settings](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/ui-tweaks-settings.png)
-
-![The Icons section with four icon packs and the spinner setting](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/ui-tweaks-icon-packs.png)
-
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger chat prose, semibold bold text, and quieter page-header and side-panel icons.
 - **Hide Steer labels in threads** (off by default): removes the Steer tag on messages that steered a running agent.
 - **Better syntax highlighting in the File Editor** (off by default): richer CSS, TypeScript and JavaScript tokenizers. Your theme still picks the colours.
@@ -25,7 +21,7 @@ Anyone who uses BB every day and wants it to feel a little more like their own. 
 
 Configure everything under **Settings → Plugins → UI Tweaks**. Settings are saved on the BB server, so every device signed in to the same BB shares them.
 
-## Installation
+## Install
 
 ```sh
 bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
@@ -58,7 +54,7 @@ packs stay in dev dependencies.
 
 Full notices ship in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## License
+## Licence
 
 [MIT](LICENSE)
 

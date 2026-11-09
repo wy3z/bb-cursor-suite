@@ -71,7 +71,7 @@ await sdk.plugins.callRpc({
 
 ### Realtime channels
 
-`thread-order` (`{ scope }`), `project-icon`, `sidebar-view`, `thread-sections` (`{ id }`) and `cloud-hosts`.
+`thread-order` (`{ scope }`), `project-icon` (`{ projectId }`), `sidebar-view`, `thread-sections` (`{ id }`) and `cloud-hosts`.
 
 ### What it reads from other plugins
 

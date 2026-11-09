@@ -8,12 +8,6 @@ People whose agents open pull requests and who would rather review them next to 
 
 ## What it looks like
 
-![The pull request board, grouped into Needs attention, Awaiting review, Approved and Drafts](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-board.png)
-
-![One pull request open in a thread's side panel](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-detail.png)
-
-![The PRs tray above the composer, with the Listening chip beside it](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-thread-tray.png)
-
 - **A board** for one repository at a time, opened from the **Pull requests** button in the sidebar footer. Authored, Reviewing and All views, search, sorting, and Needs you and Starred filters.
 - **A page for each pull request** with status, checks, an assessment, the description, every changed file as a diff, and the conversation with inline review threads. Comment, rename, mark ready, merge, close or reopen from there.
 - **Hand-offs** that start a new thread to review the PR, address feedback, fix failing checks or resolve conflicts. The prompt waits in the composer for you to read first.
@@ -46,7 +40,7 @@ That also drops its Mark ready and Merge buttons above the composer. Set it back
 
 Agents link pull requests to their thread with `bb pull-requests link` and follow them with `bb pull-requests subscribe` or the `pull_request_subscriptions` tool. Every command, the tool and the RPC methods are in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md#for-agents), and the `pull-requests` skill in [skills/pull-requests/SKILL.md](skills/pull-requests/SKILL.md) teaches them.
 
-## Develop
+## Development
 
 ```sh
 npm install

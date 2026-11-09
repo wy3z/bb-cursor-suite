@@ -39,8 +39,8 @@ Agents are named, not authenticated. Pick a stable `--as` name and use it on eve
 | `reply <project> <message...>` | `--to <req_...>`, `--for <agent>`, `--kind result\|question\|blocker\|update`, `--key <id>` | Lead only: answers a request, or sends news to every follower (or one with `--for`). Up to 4000 characters | `Reply` plus `duplicate` |
 | `replies [project]` | `--as <agent>`, `--all`, `--after <rep_...>`, `--limit <1-200>` (default 50) | Reads replies for one agent, oldest first, unacknowledged only unless `--all`. Without `--as`, an overview of every agent's replies | `{ as, pending, replies: Reply[] }` |
 | `ack <project> <rep_...>...` | `--as <agent>` (required) | Acknowledges up to 200 replies. Safe to repeat | `{ as, acked, alreadyAcked, unknown, otherProject, notYours }`. Exits 1 if any id was refused |
-| `consumers <project>` | `--forget <agent>` | Lists the agents following the project, or removes one and clears what it was owed | `{ project, consumers: { name, since, lastSeen, repliesPending }[] }` |
-| `notify` | `--test` | Shows the webhook wake-up state, or sends one now | `{ enabled, configured, authHeader, configError, pending, consumers, wake, test? }` |
+| `consumers <project>` | `--forget <agent>` | Lists the agents following the project, or removes one and clears what it was owed | `{ project, consumers: { name, since, lastSeen, repliesPending }[] }`, plus `forgot` (the name) and `cleared` (replies it was owed) with `--forget` |
+| `notify` | `--test` | Shows the webhook wake-up state, or sends one now | `{ enabled, configured, authHeader, configError, pending, consumers, wake, test? }`. With `--test`, exits 1 when the wake-up failed |
 
 `Request` is `{ id, project, source, ref, key, createdAt, state, delivery, deliveredTo, deliveredAt, attempts, nextAttemptAt, lastError, failures, confirmedAt, failedAt }`.
 
@@ -110,7 +110,7 @@ Under Settings → Plugins → Projects. The URL and the header value are secret
 | `wakeUrl` | secret string | | Where the wake-up goes. https, or plain http to loopback only |
 | `wakeHeaderName` | string | empty | Auth header name |
 | `wakeHeaderValue` | secret string | | Auth header value |
-| `wakeRemindMinutes` | number | 60 | Reminder interval while replies stay unacknowledged |
+| `wakeRemindMinutes` | number | 60 | Reminder interval while replies stay unacknowledged. Values under 15 are raised to 15; 0 or empty means 60 |
 
 ### Background services
 

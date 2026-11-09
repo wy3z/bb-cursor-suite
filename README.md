@@ -10,8 +10,6 @@ People who like how Cursor lays out agent work and want that layout in BB, with 
 
 ## What it looks like
 
-![BB with the suite: Cursor Sidebar, the Cursor Composer with its pills, and the Files tab](docs/media/suite-hero.png)
-
 | Plugin | Folder | What it does |
 |---|---|---|
 | [Cursor Sidebar](plugins/cursor-sidebar) | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
@@ -50,7 +48,7 @@ Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range k
 
 Each plugin's `PLUGIN_OVERVIEW.md` lists every `bb` CLI command, agent tool, RPC method and setting it adds, with arguments, output and an example. Files, Projects and Pull Requests also ship a skill under `skills/`. [packages/suite-shared/README.md](packages/suite-shared/README.md) documents the shared modules.
 
-## Develop
+## Development
 
 Node 22 or newer, npm, bun (for the bun test suites) and the `bb` CLI on PATH.
 

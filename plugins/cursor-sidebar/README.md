@@ -8,12 +8,6 @@ Anyone who runs several agents at once and wants to see, at a glance, which ones
 
 ## What it looks like
 
-![The sidebar in Projects grouping, with pinned chats, child chats and a working count](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-projects.png)
-
-![The view menu: grouping, ordering, threads per group, what each row shows, and filters](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-view-menu.png)
-
-![The project icon picker: search, ten colours, Cursor's icon grid and an image upload](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-icon-picker.png)
-
 - **Five groupings:** Projects, Updated, Status, Environment or None. One at a time.
 - **Child chats** sit right under their parent. A parent with working children shows a small count where its age would be.
 - **A view menu** for ordering, how many chats each group previews, what each row shows, and filters by status, age, environment and pull request state.
@@ -55,7 +49,7 @@ bb plugin reload cursor-sidebar
 
 Keep the backend out of the app bundle. Frontend modules take realtime channel names from `src/channels.ts` and may only `import type` from `src/server.ts`. A value import of `./server` pulls the backend and its server-only imports into `app.js`.
 
-## License
+## Licence
 
 MIT, see [LICENSE](LICENSE). Portions adapted from bb-plugin-thread-inbox and
 T3 Code. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -8,12 +8,6 @@ People who hand real work to agents and need to see where it stands: what is run
 
 ## What it looks like
 
-![The Projects board: For Review, In Progress, Queued and Done columns](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-board.png)
-
-![A card up close: agents, changes, a pull request chip and sub-task progress](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-card.png)
-
-![The project pill above a composer and the compact list it opens](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-lead-panel.png)
-
 - **Board and List views** of a tracker project, in Cursor's order: For Review, In Progress, Queued, Done and Canceled (hidden by default). Drag cards between and within columns, and filter by title or key.
 - **Live cards** with labels, priority, a chip for every agent and its live time, the agent's changes, pull request chips with review and CI state, sub-task progress, attachments, and the commit that landed the work.
 - **Derived status.** Each card works out what its evidence says (a merged PR, a running agent, an idle agent with an open PR) and shows a "behind" hint when the stored status disagrees. The board never writes Done itself.
@@ -39,7 +33,7 @@ Needs BB 0.49 or newer, plugin SDK 0.6.132 or newer, and the built-in Tasks plug
 
 `bb projects` has 16 commands: board status, focus, icons, the lead, notes, the loop, reconcile and the outer-loop mailbox. Every command, option and output shape is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md#for-agents). Lead threads should load the `projects` skill in [skills/projects/SKILL.md](skills/projects/SKILL.md).
 
-## Develop
+## Development
 
 ```sh
 npm install
@@ -49,7 +43,7 @@ bb plugin install path:$PWD --yes
 bb plugin reload projects
 ```
 
-## License
+## Licence
 
 MIT, see [LICENSE](LICENSE).
 
