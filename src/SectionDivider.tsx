@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * owns those.
  */
 export const SECTION_HEADING_ROW =
-  "cs-heading group/section flex min-h-6 items-center gap-1 rounded pl-3 pr-1.5 max-md:min-h-9 pointer-coarse:min-h-9";
+  "cs-heading group/section flex min-h-6 items-center gap-1 rounded max-md:min-h-9 pointer-coarse:min-h-9";
 
 /** The one label style every section heading shares. */
 export const SECTION_HEADING_LABEL =
@@ -39,19 +39,19 @@ export function SectionHeading({
   actions?: ReactNode;
 }) {
   return (
-    <div className={cn(SECTION_HEADING_ROW, className)}>
+    <div className={cn(SECTION_HEADING_ROW, icon && "cs-heading--icon", className)}>
       <button
         type="button"
         data-shelf-toggle={shelfKey}
         aria-label={label}
         aria-expanded={open}
         onClick={onToggle}
-        className="flex min-h-6 min-w-0 flex-1 items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:min-h-9 pointer-coarse:min-h-9"
+        className="cs-heading-button flex min-h-6 min-w-0 flex-1 items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:min-h-9 pointer-coarse:min-h-9"
       >
         {icon ? (
           <Icon name={icon} aria-hidden="true" strokeWidth={2} className="size-3.5 shrink-0" />
         ) : null}
-        <span className={SECTION_HEADING_LABEL}>{label}</span>
+        <span className={cn(SECTION_HEADING_LABEL, icon && "cs-row-text")}>{label}</span>
         <Icon
           name="ChevronRight"
           aria-hidden="true"
@@ -72,5 +72,5 @@ export function SectionDivider({ label, icon, open, onToggle, shelfKey }: {
   /** Stable key for the fold assertion the view controller reads. */
   shelfKey?: string;
 }) {
-  return <SectionHeading label={label} icon={icon} open={open} onToggle={onToggle} shelfKey={shelfKey} className="pl-4" />;
+  return <SectionHeading label={label} icon={icon} open={open} onToggle={onToggle} shelfKey={shelfKey} />;
 }

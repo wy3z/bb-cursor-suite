@@ -4,6 +4,74 @@
   --cs-pink: #e5577f;
 }
 
+:root {
+  --cs-row-inset: 8px;
+  --cs-highlight-inset: 4px;
+  --cs-left-extra: 4px;
+  --cs-row-pad-l: 5px;
+  --cs-row-pad-r: 6px;
+  --cs-heading-pad: 6px;
+  --cs-row-gutter-l: calc(var(--cs-row-pad-l) + var(--cs-row-inset) + var(--cs-left-extra) - var(--cs-highlight-inset));
+  --cs-row-gutter-r: calc(var(--cs-row-pad-r) + var(--cs-row-inset) - var(--cs-highlight-inset));
+  --cs-heading-gutter-l: calc(var(--cs-heading-pad) + var(--cs-row-inset) + var(--cs-left-extra) - var(--cs-highlight-inset));
+  --cs-heading-gutter-r: calc(var(--cs-heading-pad) + var(--cs-row-inset) - var(--cs-highlight-inset));
+  --cs-icon: 14px;
+  --cs-icon-gap: 6px;
+  --cs-text-pad: 2px;
+  --cs-text-x: calc(var(--cs-row-gutter-l) + var(--cs-icon) + var(--cs-icon-gap) + var(--cs-text-pad));
+  --cs-trail-gap: var(--cs-icon-gap);
+  --cs-status-dot: 6px;
+  --cs-time-color: #737373;
+  --cs-chrome-button: 24px;
+  --cs-chrome-gap: 8px;
+  --cs-chrome-inset: var(--cs-row-inset);
+}
+html.dark {
+  --cs-time-color: #929292;
+}
+@media (max-width: 767px) and (pointer: coarse) {
+  :root {
+    --cs-chrome-button: 36px;
+    --cs-chrome-gap: 4px;
+    --cs-chrome-inset: calc(var(--cs-row-pad-l) + var(--cs-row-inset) + var(--cs-icon) / 2 - var(--cs-chrome-button) / 2);
+  }
+}
+.cs-row,
+.cs-heading.cs-project-heading {
+  padding-left: var(--cs-row-gutter-l);
+  padding-right: var(--cs-row-gutter-r);
+  column-gap: var(--cs-icon-gap);
+}
+.cs-heading {
+  padding-left: var(--cs-heading-gutter-l);
+  padding-right: var(--cs-heading-gutter-r);
+}
+.cs-heading.cs-heading--icon {
+  padding-left: var(--cs-row-gutter-l);
+  padding-right: var(--cs-row-gutter-r);
+}
+.cs-heading--icon .cs-heading-button {
+  column-gap: var(--cs-icon-gap);
+}
+.cs-row-text {
+  padding-left: var(--cs-text-pad);
+}
+.cs-row-note {
+  padding-left: var(--cs-text-x);
+  padding-right: var(--cs-row-gutter-r);
+}
+.cs-row-inset {
+  padding-left: var(--cs-highlight-inset);
+  padding-right: var(--cs-highlight-inset);
+}
+.cs-nav-icon {
+  width: var(--cs-icon);
+  height: var(--cs-icon);
+}
+[data-cursor-sidebar-root] .cs-nest-line {
+  left: var(--cs-text-x);
+}
+
 /* The plugin owns scrolling; the host's reserved gutter adds an extra right inset. */
 [data-sidebar="content"]:has([data-cursor-sidebar-root]) {
   scrollbar-gutter: auto;
@@ -44,8 +112,6 @@
   .cs-move-dialog select { min-height: 44px; touch-action: manipulation; }
   [data-cursor-sidebar-root] button:has(> :is(svg, [data-icon-root]):only-child):not(.cs-icon-btn):not(.cs-new-project):not(.cs-row-action):not(.cs-board-row__toggle) { min-width: 44px; }
   [data-cursor-sidebar-root] button[aria-expanded]:not(.cs-board-row__toggle) { opacity: 1; }
-  [data-cursor-sidebar-root] [data-reorder-kind="project"] { gap: var(--bbs-gap-xs, 4px); }
-  [data-cursor-sidebar-root] .cs-project-glyph { width: var(--bbs-icon-toolbar, 16px); height: 16px; }
   [data-cursor-sidebar-root] .cs-project-name {
     white-space: normal; overflow-wrap: anywhere; font-size: 13px;
   }
@@ -101,15 +167,12 @@
   [data-cursor-sidebar-root] .cs-row-action { display: none; }
 }
 
-/* The project heading's glyph in the reserved leading slot: a fixed 16px box
-   left of the name (with a gap before the label). Native projects always use
-   a folder; live work is drawn on thread rows, never here. */
 .cs-project-glyph {
   display: inline-flex;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: var(--bbs-icon-toolbar, 16px);
-  height: var(--bbs-icon-toolbar, 16px);
+  width: var(--cs-icon);
+  height: var(--cs-icon);
   align-items: center;
   justify-content: center;
   overflow: visible;
@@ -119,15 +182,12 @@
   display: block;
 }
 
-/* One reserved left slot for Core/Project identity and thread status.
-   Threads draw a status circle (or spinner) here; Core status is a badge
-   on the glyph. Idle chats keep the box so titles stay aligned. */
 .cs-status-slot {
   display: inline-flex;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: var(--bbs-icon-toolbar, 16px);
-  height: var(--bbs-icon-toolbar, 16px);
+  width: var(--cs-icon);
+  height: var(--cs-icon);
   align-items: center;
   justify-content: center;
   pointer-events: none;
@@ -152,41 +212,48 @@
   stroke-width: 2.75;
 }
 
-/* Long titles fade into the timestamp at rest. On hover they reserve space
-   for pin/archive (padding) so those icons are not sitting on the glyphs. */
 [data-cursor-sidebar-root] [data-thread-row] .cs-thread-title,
 [data-cursor-sidebar-root] [data-thread-row] .cs-thread-info {
   mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
   -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent);
 }
-[data-cursor-sidebar-root] [data-thread-row]:hover .cs-thread-title,
-[data-cursor-sidebar-root] [data-thread-row]:focus-within .cs-thread-title,
-[data-cursor-sidebar-root] [data-thread-row]:hover .cs-thread-info,
-[data-cursor-sidebar-root] [data-thread-row]:focus-within .cs-thread-info {
-  padding-right: 2.75rem;
-  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 2.75rem - 28px), transparent calc(100% - 2.75rem), transparent);
-}
 
-[data-cursor-sidebar-root] [data-thread-row] .cs-thread-title--inline,
-[data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-title--inline {
-  padding-right: 0;
-  mask-image: none;
-  -webkit-mask-image: none;
-  text-overflow: ellipsis;
+[data-cursor-sidebar-root] .cs-thread-titleline,
+[data-cursor-sidebar-root] .cs-row-trail,
+[data-cursor-sidebar-root] .cs-row-marks {
+  column-gap: var(--cs-trail-gap);
 }
-[data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-thread-titleline:has(.cs-thread-title--inline) {
-  padding-right: 2.75rem;
+[data-cursor-sidebar-root] .cs-row-marks:not(:has(> *)) {
+  display: none;
+}
+[data-cursor-sidebar-root] [data-thread-row] .cs-row-actions {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-row-marks {
+    display: none;
+  }
+  [data-cursor-sidebar-root] [data-thread-row]:is(:hover, :focus-within) .cs-row-actions {
+    display: flex;
+  }
+}
+.cs-status-dot {
+  width: var(--cs-status-dot);
+  height: var(--cs-status-dot);
+}
+[data-cursor-sidebar-root] .cs-status-dot[data-seen] {
+  background-color: color-mix(in srgb, var(--cs-icon-quaternary) 55%, transparent);
 }
 
 
 [data-cursor-sidebar-root],
-[aria-label="Sidebar navigation"],
-[data-testid="app-sidebar-trigger-overlay"],
-[data-testid="app-sidebar-top-reserve-row"] {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"],
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"],
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] {
   --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
   --bbs-text-secondary: color-mix(in srgb, var(--bbs-text-primary) 74%, transparent);
   --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
+  --cs-icon-quaternary: color-mix(in srgb, var(--bbs-text-primary) 28%, transparent);
 }
 [data-cursor-sidebar-root] .cs-heading-label {
   color: var(--bbs-text-tertiary);
@@ -198,10 +265,13 @@
 }
 [data-cursor-sidebar-root] [data-thread-shelf="settled"] .cs-thread-title,
 [data-cursor-sidebar-root] .cs-thread-info,
-[data-cursor-sidebar-root] .cs-thread-time,
 [data-cursor-sidebar-root] .cs-thread-cloud,
 [data-cursor-sidebar-root] .cs-board-row__meta {
   color: var(--bbs-text-tertiary);
+}
+[data-cursor-sidebar-root] .cs-thread-time,
+[data-cursor-sidebar-root] .cs-age {
+  color: var(--cs-time-color);
 }
 [data-cursor-sidebar-root] .cs-heading:is(:hover, :focus-within) .cs-heading-label,
 [data-cursor-sidebar-root] .cs-board-row:is(:hover, :focus-within, [data-active]),
@@ -292,8 +362,7 @@
 
 /* Radix anchored surfaces grow from the point that opened them. */
 .cs-context-actions,
-.cs-new-project-dialog,
-.cs-project-icon-picker {
+.cs-new-project-dialog {
   transform-origin: var(--radix-popover-content-transform-origin, center);
 }
 .cs-view-menu {
@@ -306,7 +375,7 @@
   0%, 100% { opacity: 0.45; transform: scale(0.92); }
   50% { opacity: 1; transform: scale(1.06); }
 }
-.animate-shine-icon {
+:is([data-cursor-sidebar-root], [data-bb-plugin="cursor-sidebar"]) .animate-shine-icon {
   animation: cs-shine-icon 1.6s ease-in-out infinite;
 }
 
@@ -334,18 +403,18 @@
   --cs-nav-shade: 87%;
   --cs-nav-shade-emphasis: 100%;
 }
-[aria-label="Sidebar navigation"] :is(button, a),
-[data-testid="app-sidebar-trigger-overlay"] button,
-[data-testid="app-sidebar-top-reserve-row"] button {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button {
   color: color-mix(in oklab, var(--sidebar-foreground) var(--cs-nav-shade), transparent);
 }
-[aria-label="Sidebar navigation"] :is(button, a):hover,
-[aria-label="Sidebar navigation"] :is(button, a):focus-visible,
-[aria-label="Sidebar navigation"] :is(button, a)[aria-current="page"],
-[data-testid="app-sidebar-trigger-overlay"] button:hover,
-[data-testid="app-sidebar-trigger-overlay"] button:focus-visible,
-[data-testid="app-sidebar-top-reserve-row"] button:hover,
-[data-testid="app-sidebar-top-reserve-row"] button:focus-visible {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):hover,
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):focus-visible,
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a)[aria-current="page"],
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button:hover,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button:focus-visible,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button:hover,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button:focus-visible {
   color: color-mix(in oklab, var(--sidebar-foreground) var(--cs-nav-shade-emphasis), transparent);
 }
 
@@ -389,13 +458,6 @@
   mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
 }
 
-/* Section headings share one right edge. The phone/touch layout adds a little
-   right padding above these rows, so pull the row flush with the top-bar
-   controls there; the desktop sidebar needs no change. */
-@media (max-width: 767px) and (pointer: coarse) {
-  [data-cursor-sidebar-root] .cs-heading { margin-right: -8px; }
-}
-
 /* While BB's keybind guide is up, a row shows the digit that opens it, in the
    host's own chip shape. */
 .cs-shortcut-key {
@@ -417,31 +479,6 @@
   white-space: nowrap;
 }
 
-/* A connector rail runs behind the glyph it meets. The disc hugs the glyph, so
-   a spinner's gaps show the list surface rather than the line, and the row's
-   own hover tint is barely touched. */
-[data-cursor-sidebar-root] .cs-status-glyph::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  z-index: 0;
-  border-radius: var(--bbs-pill-radius, 9999px);
-  background-color: var(--sidebar);
-}
-/* The disc has to follow the row's own surface: on a hovered or selected row a
-   list-coloured disc reads as a dark halo behind the glyph. Accent at 60% over
-   the list is the opaque equivalent of the hover tint the row paints. */
-[data-cursor-sidebar-root] [data-thread-row]:hover .cs-status-glyph::before {
-  background-color: color-mix(in oklab, var(--sidebar-accent) 60%, var(--sidebar));
-}
-[data-cursor-sidebar-root] [data-thread-row]:has(a[aria-current="true"]) .cs-status-glyph::before {
-  background-color: var(--sidebar-accent);
-}
-[data-cursor-sidebar-root] .cs-status-glyph > * {
-  position: relative;
-  z-index: 1;
-}
-
 /* The lifted row clone is purely visual: nothing inside it may take a hit, or
    the drop target under the pointer would resolve to the ghost. */
 .cs-drag-ghost,
@@ -458,7 +495,7 @@
     animation: none !important;
     transition: none !important;
   }
-  .animate-shine-icon {
+  :is([data-cursor-sidebar-root], [data-bb-plugin="cursor-sidebar"]) .animate-shine-icon {
     animation: none !important;
   }
   .cs-drag-ghost {
@@ -472,53 +509,6 @@
   }
 }
 
-/*
- * Project-icon colours, ported from T3 Code's projectIconColors.ts.
- * `color` is the glyph/monogram ink (600 in light, 400 in dark);
- * `--cs-pi-swatch` is the picker's 500-weight dot. BB marks dark mode with
- * `html.dark`, which Tailwind's default `dark:` variant (prefers-color-scheme)
- * does not follow, so the switch is a plain descendant rule.
- */
-.cs-pi-gray { --cs-pi-fg: oklch(44.6% 0.03 256.802); --cs-pi-swatch: oklch(55.1% 0.027 264.364); color: var(--cs-pi-fg); }
-.cs-pi-red { --cs-pi-fg: oklch(57.7% 0.245 27.325); --cs-pi-swatch: oklch(63.7% 0.237 25.331); color: var(--cs-pi-fg); }
-.cs-pi-orange { --cs-pi-fg: oklch(64.6% 0.222 41.116); --cs-pi-swatch: oklch(70.5% 0.213 47.604); color: var(--cs-pi-fg); }
-.cs-pi-amber { --cs-pi-fg: oklch(66.6% 0.179 58.318); --cs-pi-swatch: oklch(76.9% 0.188 70.08); color: var(--cs-pi-fg); }
-.cs-pi-yellow { --cs-pi-fg: oklch(68.1% 0.162 75.834); --cs-pi-swatch: oklch(79.5% 0.184 86.047); color: var(--cs-pi-fg); }
-.cs-pi-lime { --cs-pi-fg: oklch(64.8% 0.2 131.684); --cs-pi-swatch: oklch(76.8% 0.233 130.85); color: var(--cs-pi-fg); }
-.cs-pi-green { --cs-pi-fg: oklch(62.7% 0.194 149.214); --cs-pi-swatch: oklch(72.3% 0.219 149.579); color: var(--cs-pi-fg); }
-.cs-pi-emerald { --cs-pi-fg: oklch(59.6% 0.145 163.225); --cs-pi-swatch: oklch(69.6% 0.17 162.48); color: var(--cs-pi-fg); }
-.cs-pi-teal { --cs-pi-fg: oklch(60% 0.118 184.704); --cs-pi-swatch: oklch(70.4% 0.14 182.503); color: var(--cs-pi-fg); }
-.cs-pi-cyan { --cs-pi-fg: oklch(60.9% 0.126 221.723); --cs-pi-swatch: oklch(71.5% 0.143 215.221); color: var(--cs-pi-fg); }
-.cs-pi-sky { --cs-pi-fg: oklch(58.8% 0.158 241.966); --cs-pi-swatch: oklch(68.5% 0.169 237.323); color: var(--cs-pi-fg); }
-.cs-pi-blue { --cs-pi-fg: oklch(54.6% 0.245 262.881); --cs-pi-swatch: oklch(62.3% 0.214 259.815); color: var(--cs-pi-fg); }
-.cs-pi-indigo { --cs-pi-fg: oklch(51.1% 0.262 276.966); --cs-pi-swatch: oklch(58.5% 0.233 277.117); color: var(--cs-pi-fg); }
-.cs-pi-violet { --cs-pi-fg: oklch(54.1% 0.281 293.009); --cs-pi-swatch: oklch(60.6% 0.25 292.717); color: var(--cs-pi-fg); }
-.cs-pi-purple { --cs-pi-fg: oklch(55.8% 0.288 302.321); --cs-pi-swatch: oklch(62.7% 0.265 303.9); color: var(--cs-pi-fg); }
-.cs-pi-fuchsia { --cs-pi-fg: oklch(59.1% 0.293 322.896); --cs-pi-swatch: oklch(66.7% 0.295 322.15); color: var(--cs-pi-fg); }
-.cs-pi-pink { --cs-pi-fg: oklch(59.2% 0.249 0.584); --cs-pi-swatch: oklch(65.6% 0.241 354.308); color: var(--cs-pi-fg); }
-.cs-pi-rose { --cs-pi-fg: oklch(58.6% 0.253 17.585); --cs-pi-swatch: oklch(64.5% 0.246 16.439); color: var(--cs-pi-fg); }
-
-html.dark .cs-pi-gray { --cs-pi-fg: oklch(70.7% 0.022 261.325); }
-html.dark .cs-pi-red { --cs-pi-fg: oklch(70.4% 0.191 22.216); }
-html.dark .cs-pi-orange { --cs-pi-fg: oklch(75% 0.183 55.934); }
-html.dark .cs-pi-amber { --cs-pi-fg: oklch(82.8% 0.189 84.429); }
-html.dark .cs-pi-yellow { --cs-pi-fg: oklch(85.2% 0.199 91.936); }
-html.dark .cs-pi-lime { --cs-pi-fg: oklch(84.1% 0.238 128.85); }
-html.dark .cs-pi-green { --cs-pi-fg: oklch(79.2% 0.209 151.711); }
-html.dark .cs-pi-emerald { --cs-pi-fg: oklch(76.5% 0.177 163.223); }
-html.dark .cs-pi-teal { --cs-pi-fg: oklch(77.7% 0.152 181.912); }
-html.dark .cs-pi-cyan { --cs-pi-fg: oklch(78.9% 0.154 211.53); }
-html.dark .cs-pi-sky { --cs-pi-fg: oklch(74.6% 0.16 232.661); }
-html.dark .cs-pi-blue { --cs-pi-fg: oklch(70.7% 0.165 254.624); }
-html.dark .cs-pi-indigo { --cs-pi-fg: oklch(67.3% 0.182 276.935); }
-html.dark .cs-pi-violet { --cs-pi-fg: oklch(70.2% 0.183 293.541); }
-html.dark .cs-pi-purple { --cs-pi-fg: oklch(71.4% 0.203 305.504); }
-html.dark .cs-pi-fuchsia { --cs-pi-fg: oklch(74% 0.238 322.16); }
-html.dark .cs-pi-pink { --cs-pi-fg: oklch(71.8% 0.202 349.761); }
-html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
-
-.cs-pi-swatch { background-color: var(--cs-pi-swatch); }
-
 /* The composer's project label and New thread project button draw the
    sidebar's project icon (src/ComposerProjectIcons.tsx); hide BB's folder
    beside it. */
@@ -530,10 +520,10 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--bbs-gap-icon, 6px);
+  gap: var(--cs-icon-gap);
   width: 100%;
   min-height: 1.75rem;
-  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  padding: 0.25rem var(--cs-row-gutter-r) 0.25rem var(--cs-row-gutter-l);
   border: 0;
   border-radius: 0.375rem;
   background: transparent;
@@ -560,6 +550,7 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
 .cs-board-row__name {
   flex: 1 1 auto;
   min-width: 0;
+  padding-left: var(--cs-text-pad);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -600,8 +591,8 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 1rem;
-  height: 1rem;
+  width: var(--cs-icon);
+  height: var(--cs-icon);
 }
 .cs-board-row__icon {
   display: inline-flex;
@@ -753,38 +744,71 @@ html.dark .cs-pi-rose { --cs-pi-fg: oklch(71.2% 0.194 13.428); }
   .cs-board-row:has(.cs-board-row__archive):is(:hover, :focus-within) .cs-board-row__name { padding-right: 0; }
 }
 
-[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child),
-[data-testid="app-sidebar-trigger-overlay"] button,
-[data-testid="app-sidebar-top-reserve-row"] button {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] {
+  padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-inset) + var(--cs-left-extra));
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child > button {
+  width: var(--cs-chrome-button);
+  height: var(--cs-chrome-button);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] {
+  padding-left: calc(var(--cs-chrome-inset) + var(--cs-left-extra));
+  padding-right: var(--cs-chrome-inset);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :first-child {
+  padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-button) + var(--cs-chrome-gap));
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child {
+  gap: var(--cs-chrome-gap);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] {
+  padding-left: calc(var(--cs-chrome-inset) + var(--cs-left-extra));
+  padding-right: var(--cs-chrome-inset);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu"] {
+  gap: var(--cs-chrome-gap);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-item"] {
+  min-width: var(--cs-chrome-button);
+}
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu-button"] {
+  width: var(--cs-chrome-button);
+  height: var(--cs-chrome-button);
+}
+
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button {
   color: var(--bbs-text-tertiary);
 }
-[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child):is(:hover, :focus-visible),
-[data-testid="app-sidebar-trigger-overlay"] button:is(:hover, :focus-visible),
-[data-testid="app-sidebar-top-reserve-row"] button:is(:hover, :focus-visible) {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child):is(:hover, :focus-visible),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button:is(:hover, :focus-visible),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button:is(:hover, :focus-visible) {
   color: var(--bbs-text-primary);
 }
 
-[aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child) > :is(svg, [data-icon-root]),
-[data-testid="app-sidebar-trigger-overlay"] button :is(svg, [data-icon-root]),
-[data-testid="app-sidebar-top-reserve-row"] button :is(svg, [data-icon-root]) {
+:where(:root:has([data-cursor-sidebar-root])) [aria-label="Sidebar navigation"] :is(button, a):has(> :is(svg, [data-icon-root]):only-child) > :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] button :is(svg, [data-icon-root]) {
   width: var(--bbs-icon, 14px);
   height: var(--bbs-icon, 14px);
 }
 
-[data-testid^="plugin-sidebar-footer-item-"] > :is(svg, [data-icon-root]),
-a[aria-label^="Settings"][data-sidebar="menu-button"] :is(svg, [data-icon-root]),
-button[aria-label="More footer actions"] > :is(svg, [data-icon-root]) {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid^="plugin-sidebar-footer-item-"] > :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) a[aria-label^="Settings"][data-sidebar="menu-button"] :is(svg, [data-icon-root]),
+:where(:root:has([data-cursor-sidebar-root])) button[aria-label="More footer actions"] > :is(svg, [data-icon-root]) {
   width: var(--bbs-icon, 14px);
   height: var(--bbs-icon, 14px);
 }
-[data-testid^="plugin-sidebar-footer-item-"],
-a[aria-label^="Settings"][data-sidebar="menu-button"],
-button[aria-label="More footer actions"] {
+:where(:root:has([data-cursor-sidebar-root])) [data-testid^="plugin-sidebar-footer-item-"],
+:where(:root:has([data-cursor-sidebar-root])) a[aria-label^="Settings"][data-sidebar="menu-button"],
+:where(:root:has([data-cursor-sidebar-root])) button[aria-label="More footer actions"] {
   --bbs-text-primary: oklch(from var(--sidebar-foreground) min(1, calc(l + 0.14)) c h);
   --bbs-text-tertiary: color-mix(in srgb, var(--bbs-text-primary) 60%, transparent);
   color: var(--bbs-text-tertiary);
 }
-:is([data-testid^="plugin-sidebar-footer-item-"], a[aria-label^="Settings"][data-sidebar="menu-button"], button[aria-label="More footer actions"]):is(:hover, :focus-visible) {
+:where(:root:has([data-cursor-sidebar-root])) :is([data-testid^="plugin-sidebar-footer-item-"], a[aria-label^="Settings"][data-sidebar="menu-button"], button[aria-label="More footer actions"]):is(:hover, :focus-visible) {
   color: var(--bbs-text-primary);
 }
 

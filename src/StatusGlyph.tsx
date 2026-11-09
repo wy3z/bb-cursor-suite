@@ -24,7 +24,7 @@ export function hasStatusGlyph(
   return isActivityIndicator(indicator) || isTrailingStatusIndicator(indicator);
 }
 
-/** Live work shown in the row's left slot, matching Cursor's activity column. */
+/** Live work shown in the row's left slot. */
 export function isActivityIndicator(
   indicator: PluginSidebarThreadIndicator,
 ): boolean {

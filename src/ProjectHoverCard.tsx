@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { isWorking } from "./activity";
 import { HoverCard, HoverCardFacts, HoverCardStatus, HoverCardTitle, type HoverFact } from "./HoverCard";
 import type { ProjectIcon } from "./project-icons";
-import { ProjectIconMark } from "./ProjectIconMark";
+import { BOARD_FALLBACK, ProjectIconMark } from "./ProjectIconMark";
 import { environmentTargets, projectRequestSummary, useSidebarRequests } from "./change-requests";
 import { relativeTimeLabel } from "./relative-time";
 import { THREAD_STATUS_LABEL, aggregateSectionStatus, type ThreadStatusKind } from "./status";
@@ -242,7 +242,7 @@ function ProjectHoverBody({
     <>
       <HoverCardTitle>
         <span className="flex min-w-0 items-center gap-2">
-          <ProjectIconMark icon={personal ? null : icon} fallback={personal ? "MessageSquare" : "Folder"} className="size-4 shrink-0" mutedClassName="text-muted-foreground" />
+          <ProjectIconMark icon={personal ? null : icon} fallback={personal ? "MessageSquare" : boardId !== null ? BOARD_FALLBACK : "Folder"} className="size-4 shrink-0" mutedClassName="text-muted-foreground" />
           <span className="min-w-0 [overflow-wrap:anywhere]">{name}</span>
         </span>
       </HoverCardTitle>

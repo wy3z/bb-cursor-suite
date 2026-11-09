@@ -1,8 +1,14 @@
 {
   "name": "bb-plugin-cursor-sidebar",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wy3z/bb-cursor-suite.git",
+    "directory": "plugins/cursor-sidebar"
+  },
+  "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/cursor-sidebar#readme",
   "scripts": {
     "build": "bb plugin build",
     "typecheck": "tsc --noEmit",
@@ -43,6 +49,10 @@
     "@radix-ui/react-popover": "^1.3.1",
     "clsx": "^2.1.1",
     "sonner": "^1.7.4",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.0.1",
+    "@types/jsdom": "^28.0.3"
   }
 }

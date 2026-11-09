@@ -1,5 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { PROJECT_ICON_MAX_LENGTH } from "./project-icon-limits";
 
 export const TASKS_PLUGIN = "tasks";
 export const PULL_REQUESTS_PLUGIN = "pull-requests";
@@ -232,6 +233,15 @@ export const gitActionsContract = defineRpcContract({
 });
 
 export const META_CHANGED = "project-meta";
+export const BOARD_ICONS_CHANGED = "board-icons";
+export const BOARD_ICON_MAX_LENGTH = PROJECT_ICON_MAX_LENGTH;
+
+const compactGlyphElementSchema = z.union([z.string(), z.tuple([z.string(), z.record(z.string(), z.union([z.string(), z.number()]))])]);
+export const PROJECT_ICON_GLYPHS_METHOD = {
+  input: z.object({ names: z.array(z.string().min(1).max(64)).max(1000).nullable() }),
+  output: z.object({ glyphs: z.record(z.string(), z.array(compactGlyphElementSchema)) }),
+};
+export const projectIconGlyphContract = defineRpcContract({ iconGlyphs: PROJECT_ICON_GLYPHS_METHOD });
 
 const metaSchema = z.object({
   focus: z.string().nullable(),
@@ -241,6 +251,7 @@ const metaSchema = z.object({
   sweepWorkingHours: z.boolean(),
   sweepLastAt: z.string().nullable(),
   followPrs: z.boolean(),
+  driftPings: z.boolean(),
 });
 export type ProjectMeta = z.infer<typeof metaSchema>;
 
@@ -260,6 +271,39 @@ const inboxItemSchema = z.object({
 export type InboxItem = z.infer<typeof inboxItemSchema>;
 
 const projectIdSchema = z.string().trim().min(1).max(100);
+const boardIconRowSchema = z.object({ projectId: z.string(), icon: z.string() });
+export type BoardIconRow = z.infer<typeof boardIconRowSchema>;
+
+const COLUMN_VALUES = ["in_review", "in_progress", "todo", "done", "canceled"] as const;
+
+const landingSchema = z.object({ sha: z.string(), subject: z.string(), at: z.string(), ref: z.string(), url: z.string().nullable() });
+
+const driftSchema = z.object({
+  taskId: z.string(),
+  key: z.string(),
+  title: z.string(),
+  stored: z.enum(STATUSES),
+  suggested: z.enum(COLUMN_VALUES),
+  rule: z.string(),
+  reason: z.string(),
+  applicable: z.boolean(),
+});
+
+const reconcileSchema = z.object({
+  checkedAt: z.string(),
+  drifts: z.array(driftSchema),
+  held: z.array(driftSchema),
+  flags: z.array(z.object({ taskId: z.string(), key: z.string(), title: z.string(), kind: z.string(), text: z.string() })),
+  evidence: z.array(
+    z.object({
+      taskId: z.string(),
+      lastActivityAt: z.string().nullable(),
+      landing: landingSchema.nullable(),
+      hold: z.object({ status: z.enum(COLUMN_VALUES), rule: z.string(), since: z.string() }).nullable(),
+    }),
+  ),
+});
+export type ReconcileView = z.infer<typeof reconcileSchema>;
 
 export const projectsContract = defineRpcContract({
   getMeta: {
@@ -286,6 +330,7 @@ export const projectsContract = defineRpcContract({
       sweepMinutes: z.number().int().min(30).max(1440).nullable().optional(),
       sweepWorkingHours: z.boolean().optional(),
       followPrs: z.boolean().optional(),
+      driftPings: z.boolean().optional(),
     }),
     output: metaSchema,
   },
@@ -303,4 +348,23 @@ export const projectsContract = defineRpcContract({
     input: z.object({ projectId: projectIdSchema }),
     output: z.object({ items: z.array(inboxItemSchema) }),
   },
+  reconcile: {
+    tags: (input: { projectId: string }) => [`reconcile:${input.projectId}`],
+    input: z.object({ projectId: projectIdSchema }),
+    output: reconcileSchema,
+  },
+  completionTimes: {
+    input: z.object({ projectId: projectIdSchema }),
+    output: z.object({ times: z.record(z.string(), z.string()) }),
+  },
+  listIcons: {
+    tags: () => ["icons"],
+    input: z.object({}),
+    output: z.object({ icons: z.array(boardIconRowSchema) }),
+  },
+  setIcon: {
+    input: z.object({ projectId: projectIdSchema, icon: z.string().min(1).max(BOARD_ICON_MAX_LENGTH).nullable() }),
+    output: z.object({ icons: z.array(boardIconRowSchema) }),
+  },
+  iconGlyphs: PROJECT_ICON_GLYPHS_METHOD,
 });

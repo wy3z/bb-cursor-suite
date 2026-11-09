@@ -80,12 +80,17 @@ export function concurrencyRefusal(displayName: string, running: number, maxConc
   return `${displayName}: ${running} of ${maxConcurrent} ${noun} already running (max concurrent ${maxConcurrent}). Suspend or remove one, or raise the limit in the plugin settings.`;
 }
 
+export interface VendorSpendRefusal {
+  reason: "cap" | "unreadable";
+  message: string;
+}
+
 export function missingRateMessage(displayName: string, capUsd: number): string {
   return `${displayName}: set an hourly rate so the ${formatUsd(capUsd)} monthly cap can be enforced.`;
 }
 
 const SECRET_KEY = /(token|secret|password|passwd|api[-_]?key|authorization|cookie|credential|private[-_]?key)/i;
-const SECRET_VALUE = /(sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/=-]{12,})/;
+const SECRET_VALUE = /(sk-ant-[A-Za-z0-9_-]{8,}|\b(?:boat|box)_[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/=-]{12,})/;
 
 export function findSecretLike(value: unknown, path = "$"): string | null {
   if (typeof value === "string") return SECRET_VALUE.test(value) ? path : null;
@@ -109,6 +114,7 @@ export function findSecretLike(value: unknown, path = "$"): string | null {
 const REDACTIONS: Array<[RegExp, string]> = [
   [/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]"],
   [/sk-ant-[A-Za-z0-9_-]+/g, "[redacted]"],
+  [/\b(?:boat|box)_[A-Za-z0-9_-]{20,}/g, "[redacted]"],
   [/sk-[A-Za-z0-9_-]{16,}/g, "[redacted]"],
   [/gh[pousr]_[A-Za-z0-9]{20,}/g, "[redacted]"],
   [/github_pat_[A-Za-z0-9_]{20,}/g, "[redacted]"],
@@ -124,6 +130,7 @@ export function redactSecrets(text: string): string {
 export type CloudLoginRequirement =
   | { kind: "machine-env"; name: string }
   | { kind: "pool"; provider: string }
+  | { kind: "machine-login"; login: string }
   | { kind: "built-in-git" };
 
 export interface CloudLoginRule {
@@ -146,15 +153,19 @@ export const DEFAULT_CLOUD_LOGIN_RULES: CloudLoginRules = {
       anyOf: [
         { kind: "machine-env", name: "CLAUDE_CODE_OAUTH_TOKEN" },
         { kind: "pool", provider: "claude" },
+        { kind: "machine-login", login: "claude" },
       ],
       problem: "Claude Code has no login for cloud machines",
-      fix: "run `claude setup-token` on the server machine, then `bb machine env set CLAUDE_CODE_OAUTH_TOKEN` (value on stdin), or route Claude through the Account Pooler",
+      fix: "let the cloud machine supply one (Boat Sandbox: connect Claude on boat.dev and name a boat environment that passes Agents credentials), or route Claude through the Account Pooler",
     },
     {
       providerIds: ["codex"],
-      anyOf: [{ kind: "pool", provider: "codex" }],
-      problem: "Codex has no pooled login for cloud machines (copying ~/.codex/auth.json is not supported)",
-      fix: "enable the Account Pooler, add a Codex account with `bb pool account add --provider codex --login`, and turn Codex routing on",
+      anyOf: [
+        { kind: "pool", provider: "codex" },
+        { kind: "machine-login", login: "codex" },
+      ],
+      problem: "Codex has no login for cloud machines (copying ~/.codex/auth.json is not supported)",
+      fix: "let the cloud machine supply one (Boat Sandbox: connect ChatGPT on boat.dev and name a boat environment that passes Agents credentials), or enable the Account Pooler, add a Codex account with `bb pool account add --provider codex --login`, and turn Codex routing on",
     },
     {
       providerIds: ["acp-opencode", "pi"],
@@ -181,6 +192,7 @@ export interface CloudLoginFacts {
   envNames: readonly string[];
   builtInGit: boolean;
   pool: { routing: Readonly<Record<string, boolean>>; usableProviders: readonly string[] } | null;
+  machineLogins?: readonly string[];
 }
 
 export type CloudLoginVerdict = { ok: true } | { ok: false; message: string };
@@ -189,16 +201,23 @@ export function cloudLoginRuleFor(providerId: string, rules: CloudLoginRules = D
   return rules.providers.find((rule) => rule.providerIds.includes(providerId)) ?? null;
 }
 
+export function ruleNeeds(
+  rule: CloudLoginRule,
+  kind: CloudLoginRequirement["kind"],
+  facts: Pick<CloudLoginFacts, "envNames" | "builtInGit">,
+): boolean {
+  const offline: CloudLoginFacts = { ...facts, pool: null, machineLogins: [] };
+  return rule.anyOf.some((requirement) => requirement.kind === kind) && !rule.anyOf.some((requirement) => requirementMet(requirement, offline));
+}
+
 export function ruleNeedsPool(rule: CloudLoginRule, facts: Omit<CloudLoginFacts, "pool">): boolean {
-  return (
-    rule.anyOf.some((requirement) => requirement.kind === "pool") &&
-    !rule.anyOf.some((requirement) => requirement.kind !== "pool" && requirementMet(requirement, { ...facts, pool: null }))
-  );
+  return ruleNeeds(rule, "pool", facts);
 }
 
 function requirementMet(requirement: CloudLoginRequirement, facts: CloudLoginFacts): boolean {
   if (requirement.kind === "machine-env") return facts.envNames.includes(requirement.name);
   if (requirement.kind === "built-in-git") return facts.builtInGit;
+  if (requirement.kind === "machine-login") return (facts.machineLogins ?? []).includes(requirement.login);
   return (
     facts.pool !== null &&
     facts.pool.routing[requirement.provider] === true &&
@@ -206,15 +225,17 @@ function requirementMet(requirement: CloudLoginRequirement, facts: CloudLoginFac
   );
 }
 
-function blocked(problem: string, fix: string, providerId: string): CloudLoginVerdict {
+function blocked(problem: string, fix: string, providerId: string, note: string | null = null): CloudLoginVerdict {
   const fill = (text: string) => text.replaceAll("{provider}", providerId);
-  return { ok: false, message: `Cloud thread blocked: ${fill(problem)}. Fix: ${fill(fix)}.` };
+  const why = note === null || note.trim() === "" ? "" : ` ${note.trim().replace(/\.?$/, ".")}`;
+  return { ok: false, message: `Cloud thread blocked: ${fill(problem)}. Fix: ${fill(fix)}.${why}` };
 }
 
 export function evaluateCloudLogin(
   providerId: string,
   facts: CloudLoginFacts,
   rules: CloudLoginRules = DEFAULT_CLOUD_LOGIN_RULES,
+  machineNote: string | null = null,
 ): CloudLoginVerdict {
   const rule = cloudLoginRuleFor(providerId, rules);
   if (rule === null) {
@@ -224,7 +245,8 @@ export function evaluateCloudLogin(
   }
   for (const candidate of [rule, ...rules.always]) {
     if (!candidate.anyOf.some((requirement) => requirementMet(requirement, facts))) {
-      return blocked(candidate.problem, candidate.fix, providerId);
+      const note = candidate.anyOf.some((requirement) => requirement.kind === "machine-login") ? machineNote : null;
+      return blocked(candidate.problem, candidate.fix, providerId, note);
     }
   }
   return { ok: true };

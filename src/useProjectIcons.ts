@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { PROJECT_ICON_CHANNEL } from "./channels";
 import type { cursorSidebarRpcContract } from "./server";
@@ -51,8 +52,8 @@ export function useProjectIcons(): ProjectIcons {
       else next.set(projectId, stored);
       return next;
     });
-    void rpc.call("setProjectIcon", { projectId, icon: stored }).catch(() => {
-      // A lost write must not stick; re-read the shared truth.
+    void rpc.call("setProjectIcon", { projectId, icon: stored }).catch((cause: unknown) => {
+      toast.error("Couldn't save the project icon", { description: cause instanceof Error ? cause.message : String(cause) });
       void load();
     });
   }, [rpc, load]);
