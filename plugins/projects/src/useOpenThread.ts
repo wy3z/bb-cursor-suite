@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { experimental_useRpcQuery, experimental_useSidebarThreads, useBbContext, useBbNavigate } from "@get-bb/plugin-sdk/app";
+import { openThreadAsTab } from "@wy3z/bb-suite/thread-tabs";
 import { projectsContract } from "./meta";
-import { applyOpenPlan, conversationHidden, findLead, planThreadOpen } from "./thread-tabs";
 
 export function useOpenThread(): (threadId: string, options?: { split?: boolean }) => void {
   const { threadId: current } = useBbContext();
@@ -13,15 +13,7 @@ export function useOpenThread(): (threadId: string, options?: { split?: boolean 
 
   return useCallback(
     (target: string, options?: { split?: boolean }) => {
-      const leadId = findLead(target, byId, leadIds);
-      const plan = planThreadOpen({
-        target,
-        current,
-        leadId,
-        split: options?.split ?? false,
-        conversationHidden: leadId !== null && current === leadId && conversationHidden(),
-      });
-      applyOpenPlan(plan, navigate);
+      openThreadAsTab({ target, current, byId, leadIds, split: options?.split ?? false, navigate });
     },
     [byId, current, leadIds, navigate],
   );

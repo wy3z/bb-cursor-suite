@@ -25,6 +25,7 @@
     "./git-safety": "./src/git-safety.ts",
     "./testing/hostile-git": "./test/hostile-git.ts",
     "./menu-keyboard": "./src/menu-keyboard.ts",
+    "./thread-tabs": "./src/thread-tabs.ts",
     "./tokens.css": "./tokens.css",
     "./project-icon.css": "./project-icon.css",
     "./settings.css": "./src/settings.css"
