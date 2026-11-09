@@ -44,6 +44,14 @@ Cursor Composer, Files, Projects and Pull Requests are on 1.x. Cursor Sidebar st
 
 Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range keep updating from the root-level `vX.Y.Z` tags on the `legacy/cursor-sidebar` branch. UI Tweaks keeps publishing to `wy3z/bb-plugin-ui-tweaks`.
 
+## Cloud agents
+
+On a new thread, Cursor Composer's environment picker sits under the prompt box. Like Cursor's, it offers **Cloud**, **This Computer** and the worktree options. Cloud runs the thread on a machine that a machine provider plugin creates, with a fresh clone of the project, so the work carries on while your computer sleeps.
+
+Cloud lists every environment provider that runs on a machine provider, the ones with a `machineProviderId` in `bb environment providers --json`. BB includes one, Modal Sandbox (experimental), which needs a Modal account. With no cloud provider set up, Cloud is shown greyed out with a link to this section.
+
+Choosing Cloud only changes the selection. A machine starts when you send the first message, and the provider charges for it until it pauses or is removed.
+
 ## For agents
 
 Each plugin's `PLUGIN_OVERVIEW.md` lists every `bb` CLI command, agent tool, RPC method and setting it adds, with arguments, output and an example. Files, Projects and Pull Requests also ship a skill under `skills/`. [packages/suite-shared/README.md](packages/suite-shared/README.md) documents the shared modules.

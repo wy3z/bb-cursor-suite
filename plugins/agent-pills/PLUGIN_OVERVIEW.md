@@ -59,6 +59,7 @@ await sdk.plugins.callRpc({
 
 - Pull Requests (`pull-requests`): `gitCommit`, `gitPush`, `gitCreatePullRequest` and `gitApplyLocally`, the git actions behind the Changes tray and Apply locally. The contract is `gitActionsContract` in `@wy3z/bb-suite/contracts`. Without Pull Requests installed and enabled, those buttons are disabled and say "Needs Pull Requests".
 - BB's git plugin (`bb--git`): `status`, for the Changes pill, and its Diff tab.
+- BB's environments API: `environments.listProviders({ projectId })` and `environments.list({ projectId, environmentProviderId: "git-worktree", status: "ready" })`, for the environment picker.
 
 ### Browser storage
 
@@ -73,6 +74,12 @@ The composer restyle and the pills setting live in this browser only. Keys: `bb-
 - **Hidden:** the dictation button, the collapse button and **New thread in this environment**. BB's send options menu (Save draft, Send later and plugins' send items) opens by right-clicking the send button. The button dims while the draft is empty and shows a stop square while a turn runs.
 - **Prompt height.** UI Tweaks' One line and Two lines settings win. When `data-bb-ui-prompt-height` is set, the composer drops its own 48 px floor.
 - **Under the box:** the project and environment on the left, the context ring and percentage on the right.
+- **Environment picker (new threads).** BB's Environment button under the box is replaced with Cursor's picker. The trigger shows the location's icon and name ("This Computer", "New Worktree", "Worktree: <branch>", "Cloud", or another provider's name). Its menu has two sections:
+  - **Run on:** **Cloud**, then **This Computer**.
+  - **Worktrees:** existing worktrees for the project, newest first. Three or fewer are listed inline; with more, a **Worktree...** submenu holds them. Then **New Worktree**, then any other local environment provider (Btrfs Cow, for example).
+- **Cloud.** It lists every environment provider whose `machineProviderId` is set. With several, each gets its own Cloud row named after the provider. With none, Cloud is greyed out and a Learn more link opens the suite README's [Cloud agents](../../README.md#cloud-agents) section. A provider that reports it needs setup, or is unavailable, is greyed out with its message.
+- **Selecting.** A choice is applied through `useComposer().setSelection({ environment })`, so BB's own state, its branch picker and the send stay in charge. Choosing Cloud starts nothing; the machine is created when the thread is sent.
+- **Fallback.** The picker only replaces BB's button when it finds exactly one `button[aria-label="Environment"][data-promptbox-shrinkable-control]` next to the single project control in the new-thread footer. If BB changes that markup, nothing is hidden: the picker moves into the box's action row and both pickers show. Projectless threads keep BB's picker.
 - **Surface.** Opaque, like Cursor's: the theme's foreground at 6% over its background, a 1 px outline at 8% (12% with focus), no blur. The transcript fades out just above the box.
 - **Touch screens.** Controls keep a 28 px line. The unfocused phone box drops the paperclip's gap and truncates long model names.
 
