@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Shared contracts, project icons and picker, time formatting, settings rows, design tokens, a git lookup for non-FHS hosts, git invocations that keep repository config from running code, keyboard handling for menus and the sandbox machine-backend helper for the wy3z BB plugin suite.",
+  "description": "Shared contracts, project icons and picker, time formatting, settings rows, design tokens, a git lookup for non-FHS hosts, git invocations that keep repository config from running code, keyboard handling for menus, the sandbox machine-backend helper and the desktop contract for the wy3z BB plugin suite.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test test"
@@ -21,6 +21,8 @@
     "./project-icon/server": "./src/project-icon-glyph-server.ts",
     "./machine-backend": "./src/machine-backend.ts",
     "./machine-backend/server": "./src/machine-backend-server.ts",
+    "./desktop": "./src/desktop.ts",
+    "./desktop/server": "./src/desktop-server.ts",
     "./git": "./src/git-binary.ts",
     "./git-safety": "./src/git-safety.ts",
     "./testing/hostile-git": "./test/hostile-git.ts",

@@ -140,6 +140,31 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   an installed CLI is remembered for 5 minutes so most messages skip the
   status read. `@wy3z/bb-suite/testing/sandbox-fakes`
   exports the fake BB and backend the helper's own tests use. Server-only.
+- `@wy3z/bb-suite/desktop`: the vendor-neutral contract for a thread's
+  computer. `desktopRpcContract` has three methods every desktop vendor
+  serves: `desktop.status` (`{ threadId }` to state `ready`, `starting`,
+  `stopped` or `unavailable`, whether the stream takes input, whether the
+  agent can be paused, and who holds control), `desktop.view` (`{ threadId,
+  theme? }` to a fresh https view URL and the time it must be opened by) and
+  `desktop.control` (`{ threadId, clientId, action: "take" | "renew" |
+  "release" }`). `DESKTOP_PROVIDERS` maps a machine provider id to the plugin
+  that serves its desktop (`boat-sandbox` to `machine-boat`); a new vendor adds
+  one line there and implements the contract. Plus the lease timings
+  (`DESKTOP_LEASE_MS` 2 minutes, `DESKTOP_RENEW_MS` 30 seconds) and the iframe
+  `allow` list. Frontend-safe.
+- `@wy3z/bb-suite/desktop/server`: `registerDesktopProvider(bb, vendor)`
+  serves that contract for a vendor plugin. The vendor supplies `probe`,
+  `view`, and optionally `pauseAgent` and `resumeAgent`; the helper does the
+  rest: it resolves the thread to its host and refuses threads on another
+  provider's machine or none, serves `view` and `control` only to the BB app
+  (another plugin calling through `callRpc` is refused), registers the methods
+  as not discoverable, caches `probe` for 15 seconds, and keeps one control
+  lease per host. Taking control calls `pauseAgent`; the holder's window
+  renews it every 30 seconds, and the lease runs out after 2 minutes without a
+  renewal, when the machine stops, or when the plugin stops, each of which
+  calls `resumeAgent`. Another window can take over. Nothing is stored: leases
+  live in memory, and the view URL is passed straight back to the caller.
+  Server-only.
 - `@wy3z/bb-suite/git-safety`: every git call the suite makes inside a
   checkout goes through this module, so a repository's own config can't run
   code where nobody asked for it. Files, Pull Requests and Projects share it.
