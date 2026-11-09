@@ -8,7 +8,7 @@
     {
       "id": "cursor-sidebar",
       "displayName": "Cursor Sidebar",
-      "description": "A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. Also switches the sidebar navigation to its Compact layout; change it under Settings → Appearance → Navigation.",
+      "description": "A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. Also switches the sidebar navigation to its Compact layout; change it under Settings \u2192 Appearance \u2192 Navigation.",
       "icon": {
         "url": "./icons/cursor-sidebar.svg"
       },
@@ -157,6 +157,31 @@
           "subdir": "plugins/ui-tweaks",
           "range": "^0.30.1",
           "tagPrefix": "ui-tweaks/"
+        }
+      }
+    },
+    {
+      "id": "machine-boat",
+      "displayName": "Boat Sandbox",
+      "description": "Run BB threads in boat.dev cloud VMs: a real Ubuntu machine with root, Docker, systemd and Chrome per thread, with idle suspend, a TTL backstop, a concurrency limit and a monthly spend cap.",
+      "icon": {
+        "url": "./icons/machine-boat.svg"
+      },
+      "tags": [
+        "machines",
+        "sandbox",
+        "cloud"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/machine-boat",
+          "range": "^0.1.0",
+          "tagPrefix": "machine-boat/"
         }
       }
     }

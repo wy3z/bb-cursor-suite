@@ -27,9 +27,16 @@ import {
   type SandboxUsage,
 } from "./machine-backend";
 import { createCloudLaunchCheck, type CloudLaunchCheckOptions } from "./cloud-launch-server";
+import {
+  chainDispatchChecks,
+  createProviderCliCheck,
+  type DispatchCheck,
+  type ProviderCliCheckOptions,
+} from "./provider-cli-check-server";
 
 export * from "./machine-backend";
 export * from "./cloud-launch-server";
+export * from "./provider-cli-check-server";
 
 export type SandboxInputsSchema = PluginMachineProviderDeclaration["inputs"];
 type Declaration<S extends SandboxInputsSchema> = PluginMachineProviderDeclaration<S>;
@@ -111,11 +118,14 @@ export interface SandboxPluginApi {
   readonly storage: { readonly kv: PluginKvStorage };
   readonly background: Pick<BbPluginApi["background"], "schedule">;
   readonly events: BbPluginApi["events"];
-  readonly experimental_hooks: Pick<BbPluginApi["experimental_hooks"], "on">;
+  readonly experimental_hooks: Pick<BbPluginApi["experimental_hooks"], "on" | "recheck">;
   readonly experimental_machines: Pick<BbPluginApi["experimental_machines"], "register" | "bootstrap" | "getResource">;
   readonly experimental_environments: Pick<BbPluginApi["experimental_environments"], "register">;
   readonly sdk: {
-    readonly hosts: Pick<PluginBbSdk["hosts"], "list" | "get" | "experimental_suspend" | "experimental_reconcile">;
+    readonly hosts: Pick<
+      PluginBbSdk["hosts"],
+      "list" | "get" | "experimental_suspend" | "experimental_reconcile" | "providerCliStatus" | "installProviderCli"
+    >;
     readonly environments: Pick<PluginBbSdk["environments"], "get">;
     readonly projects: Pick<PluginBbSdk["projects"], "machineEnvironment">;
     readonly plugins: Pick<PluginBbSdk["plugins"], "callRpc">;
@@ -129,6 +139,7 @@ export interface SandboxRegistrationOptions {
   scheduleName?: string;
   vendorTimeoutMs?: number;
   launchCheck?: CloudLaunchCheckOptions | false;
+  providerCliCheck?: ProviderCliCheckOptions | false;
 }
 
 export interface SandboxBackendRegistration {
@@ -1149,9 +1160,12 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
 
   bb.background.schedule(options.scheduleName ?? "sandbox-sweep", "* * * * *", sweep);
 
-  if (options.launchCheck !== false) {
-    bb.experimental_hooks.on("message.dispatch", createCloudLaunchCheck(bb, backend.id, options.launchCheck ?? {}));
+  const checks: DispatchCheck[] = [];
+  if (options.launchCheck !== false) checks.push(createCloudLaunchCheck(bb, backend.id, options.launchCheck ?? {}));
+  if (options.providerCliCheck !== false) {
+    checks.push(createProviderCliCheck(bb, backend.id, { label, ...options.providerCliCheck }));
   }
+  if (checks.length > 0) bb.experimental_hooks.on("message.dispatch", chainDispatchChecks(checks));
 
   return {
     sweep,
