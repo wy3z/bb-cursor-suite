@@ -112,6 +112,28 @@ Two ways to start a worker on a task:
 2. Fire and forget: `bb tasks dispatch <KEY> --preset "<preset name>"`. The
    worker reports back on the task, but you get no lifecycle notification.
 
+### Workers in the cloud
+
+A local worktree is the default. A worker can run on a cloud machine instead:
+`bb environment providers --json` lists the composed providers, the ones with a
+`machineProviderId` set (such as `boat-sandbox`). Pass one as
+`--environment-provider` and fill its branch inputs:
+
+```sh
+bb thread spawn --parent-self --project <id> --environment-provider boat-sandbox \
+  --environment-inputs '{"branch":{"kind":"new","baseBranch":"main"}}' \
+  --provider claude-code --model claude-opus-5-5 --prompt-file brief.md
+```
+
+Choose it when the user asks, the work needs a desktop or a browser with
+computer use, it is long-running or heavy, or it should not touch the user's
+machine. Cloud machines cost money: stay inside the vendor plugin's caps (its
+monthly spend and concurrency limits) and say so when you pick one.
+
+A cloud worker proves the work the same way: `bb tasks attachment add` works
+from the VM, and the Desktop tab shows its screen. With no cloud provider
+installed there is nothing to offer: keep workers local and do not pitch it.
+
 ## Answering a blocked worker
 
 When a worker asks a question, you get `@thread:<id> needs help. Blocked on
