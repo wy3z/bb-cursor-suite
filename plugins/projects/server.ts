@@ -9,7 +9,8 @@ import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
 import { createLoop } from "./src/outer-loop";
 import { createMessaging } from "./src/messaging";
 import { TASKS_PLUGIN, tasksContract, type Project, type Task } from "./src/contracts";
-import { COLUMNS, COLUMN_LABEL, columnOf } from "./src/status";
+import { COLUMNS, COLUMN_LABEL, columnOf, isComplete } from "./src/status";
+import { enteredStatusAt, mapLimited } from "./src/completion";
 import { createBoard } from "./src/board";
 import { describeDrift } from "./src/reconcile";
 import { leadInstructions } from "./src/lead-instructions";
@@ -32,6 +33,7 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   const leadPrefixes = new Map<string, string>();
+  const completionCache = new Map<string, string>();
 
   const icons = createBoardIcons(
     bb.storage.kv,
@@ -219,6 +221,23 @@ export default function plugin(bb: BbPluginApi) {
       const project = (await projects()).find((item) => item.id === projectId);
       if (!project) return { checkedAt: new Date().toISOString(), drifts: [], held: [], flags: [], evidence: [] };
       return board.reconcile(project);
+    },
+    completionTimes: async ({ projectId }) => {
+      const closed = (await tasksOf(projectId)).filter((task) => isComplete(task.status));
+      const times = await mapLimited(closed, 8, async (task) => {
+        const key = `${task.id}:${task.status}:${task.updatedAt}`;
+        const cached = completionCache.get(key);
+        if (cached !== undefined) return [task.id, cached] as const;
+        const comments = await bb.sdk.plugins
+          .callRpc({ pluginId: TASKS_PLUGIN, method: "listComments", input: { taskId: task.id }, outputSchema: tasksContract.listComments.output })
+          .then((result) => result.comments)
+          .catch(() => []);
+        const at = enteredStatusAt(task, comments);
+        if (completionCache.size >= 10_000) completionCache.clear();
+        completionCache.set(key, at);
+        return [task.id, at] as const;
+      });
+      return { times: Object.fromEntries(times) };
     },
     listIcons: async () => ({ icons: await icons.list() }),
     setIcon: ({ projectId, icon }) => writeIcon(projectId, icon),

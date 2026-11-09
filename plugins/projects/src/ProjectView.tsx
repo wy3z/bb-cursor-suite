@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } 
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import type { Project, Task } from "./contracts";
 import { TaskCard, type CardContext } from "./Card";
-import { byColumn, childrenByParent, useBoardMoves, useNow, usePresets, useProjectData, useReconcile, useThreadIndex, type MoveTask } from "./data";
+import { byColumn, childrenByParent, useBoardMoves, useCompletionTimes, useNow, usePresets, useProjectData, useReconcile, useThreadIndex, type MoveTask } from "./data";
 import { FilterIcon, StatusGlyph } from "./glyphs";
 import { COLUMNS, COLUMN_LABEL, columnOf, type Column } from "./status";
 import { anchorsFor } from "./moves";
@@ -115,7 +115,8 @@ export function ProjectView({
   const boardIcon = boardIcons.iconFor(projectId);
 
   const visible = useMemo(() => tasks.filter((task) => matches(task, query.trim())), [tasks, query]);
-  const groups = useMemo(() => byColumn(visible), [visible]);
+  const completedAt = useCompletionTimes(projectId, data.tasks);
+  const groups = useMemo(() => byColumn(visible, completedAt), [visible, completedAt]);
   const children = useMemo(() => childrenByParent(tasks), [tasks]);
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const reconcile = useReconcile(projectId);
