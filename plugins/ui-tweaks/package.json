@@ -26,7 +26,8 @@
     "app.tsx",
     "dist",
     "lib",
-    "server.ts"
+    "server.ts",
+    "vendor"
   ],
   "scripts": {
     "build": "bb plugin build",
@@ -49,7 +50,7 @@
     "app": "./app.tsx"
   },
   "dependencies": {
-    "@wy3z/bb-suite": "file:../../packages/suite-shared"
+    "@wy3z/bb-suite": "file:./vendor/bb-suite"
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "0.6.132",

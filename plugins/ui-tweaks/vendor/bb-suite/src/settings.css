@@ -1,0 +1,228 @@
+.bbs-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius, 0.5rem) - 2px);
+  background: color-mix(in oklab, var(--surface-recessed, var(--muted)) 70%, transparent);
+}
+
+.bbs-settings-row {
+  container: bbs-settings-row / inline-size;
+  width: 100%;
+  min-width: 0;
+}
+
+.bbs-settings-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.bbs-settings-row__body[data-pinned] {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.bbs-settings-row__body[data-pinned][data-described] {
+  align-items: flex-start;
+}
+
+.bbs-settings-row__text {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.bbs-settings-row__label {
+  margin: 0;
+  min-width: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 400;
+  line-height: var(--text-sm--line-height, calc(1.25 / 0.875));
+}
+
+.bbs-settings-row__description {
+  margin: 0.125rem 0 0;
+  color: color-mix(in oklab, var(--subtle-foreground, var(--muted-foreground)) 75%, transparent);
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.375;
+}
+
+.bbs-settings-row__description a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bbs-settings-row__control {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.bbs-settings-row__body[data-placement="below"] .bbs-settings-row__control {
+  width: 100%;
+}
+
+@container bbs-settings-row (min-width: 36rem) {
+  .bbs-settings-row__body[data-placement="inline"] {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .bbs-settings-row__body[data-placement="inline"][data-described] {
+    align-items: flex-start;
+  }
+
+  .bbs-settings-row__body[data-placement="inline"] .bbs-settings-row__control {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .bbs-settings-row__body[data-placement="inline"] .bbs-settings-select {
+    width: 16rem;
+  }
+}
+
+.bbs-settings-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  width: 1.75rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background: var(--input);
+  box-shadow: var(--shadow-xs, 0 1px 2px 0 rgb(0 0 0 / 0.05));
+  cursor: pointer;
+  outline: none;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.bbs-settings-switch[data-state="checked"] {
+  background: var(--foreground);
+}
+
+.bbs-settings-switch[data-state="unchecked"] {
+  border-color: var(--input);
+  background: var(--muted);
+}
+
+.bbs-settings-switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+.bbs-settings-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.bbs-settings-switch__thumb {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: var(--background);
+  pointer-events: none;
+  transition: transform 150ms;
+}
+
+.bbs-settings-switch__thumb[data-state="checked"] {
+  transform: translateX(0.75rem);
+}
+
+.bbs-settings-switch__thumb[data-state="unchecked"] {
+  background: var(--foreground);
+  transform: translateX(0);
+}
+
+.bbs-settings-select {
+  width: 100%;
+  height: 1.75rem;
+  padding: 0 0.5rem 0 0.75rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius, 0.5rem) - 2px);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--text-xs, 0.75rem);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.bbs-settings-select option {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.bbs-settings-select:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.bbs-settings-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.bbs-settings-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius, 0.5rem) - 2px);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 150ms;
+}
+
+.bbs-settings-button:hover {
+  background: var(--state-hover, color-mix(in oklab, var(--foreground) 6%, transparent));
+}
+
+.bbs-settings-button:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.bbs-settings-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 767px) and (pointer: coarse) {
+  .bbs-settings-select {
+    height: 2.5rem;
+    font-size: 1rem;
+  }
+
+  .bbs-settings-button {
+    height: 2.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbs-settings-switch,
+  .bbs-settings-switch__thumb,
+  .bbs-settings-select,
+  .bbs-settings-button {
+    transition: none;
+  }
+}
