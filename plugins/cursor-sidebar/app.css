@@ -6,6 +6,7 @@
 
 :root {
   --cs-row-inset: 8px;
+  --cs-left-extra: 4px;
   --cs-row-pad-l: 5px;
   --cs-row-pad-r: 6px;
   --cs-icon: 14px;
@@ -55,7 +56,7 @@ html.dark {
   padding-right: var(--cs-row-pad-r);
 }
 .cs-row-inset {
-  padding-left: var(--cs-row-inset);
+  padding-left: calc(var(--cs-row-inset) + var(--cs-left-extra));
   padding-right: var(--cs-row-inset);
 }
 .cs-nav-icon {
@@ -758,7 +759,7 @@ html.dark {
 }
 
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] {
-  padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-inset));
+  padding-left: calc(env(safe-area-inset-left) + var(--cs-chrome-inset) + var(--cs-left-extra));
 }
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-trigger-overlay"] button,
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :last-child > button {
@@ -766,7 +767,7 @@ html.dark {
   height: var(--cs-chrome-button);
 }
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] {
-  padding-left: var(--cs-chrome-inset);
+  padding-left: calc(var(--cs-chrome-inset) + var(--cs-left-extra));
   padding-right: var(--cs-chrome-inset);
 }
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-top-reserve-row"] > :first-child {
@@ -776,7 +777,7 @@ html.dark {
   gap: var(--cs-chrome-gap);
 }
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] {
-  padding-left: var(--cs-chrome-inset);
+  padding-left: calc(var(--cs-chrome-inset) + var(--cs-left-extra));
   padding-right: var(--cs-chrome-inset);
 }
 :where(:root:has([data-cursor-sidebar-root])) [data-testid="app-sidebar-body"] > [data-sidebar="footer"] [data-sidebar="menu"] {
