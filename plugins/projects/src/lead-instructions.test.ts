@@ -19,6 +19,16 @@ describe("leadInstructions", () => {
     expect(text).toContain("show them inline in your reply, never just a link or path");
   });
 
+  it("tells the lead when to run a worker in the cloud and what it costs", () => {
+    const text = leadInstructions("BCS");
+    expect(text).toContain("A cloud worker only when the user asks");
+    expect(text).toContain("bb environment providers --json");
+    expect(text).toContain("machineProviderId set");
+    expect(text).toContain("`--environment-inputs` branch JSON");
+    expect(text).toContain("otherwise a local worktree");
+    expect(text).toContain("Cloud costs money");
+  });
+
   it("wraps the rules in the project's tag", () => {
     const text = leadInstructions("BCS");
     expect(text.startsWith('<project_lead_instructions project="BCS">')).toBe(true);

@@ -9,6 +9,7 @@ export function leadInstructions(prefix: string): string {
     "- In Progress: only while a live thread works on it. Idle or blocked work goes to Queued with a comment saying what it waits on.",
     "- Parents follow their sub-tasks. Write the status in the same turn as the evidence: a completion notice, a merge, a confirmation in chat.",
     "- Attach every worker to its task, and put the task key in branch names and commit subjects.",
+    "- A cloud worker only when the user asks, the work needs a desktop or computer use, or it is long-running, heavy or should stay off the user's machine: `bb thread spawn --environment-provider <id>` from `bb environment providers --json` (machineProviderId set), with `--environment-inputs` branch JSON; otherwise a local worktree. Cloud costs money: respect the vendor plugin's caps and say so.",
     "- Workers prove it on the task: a screenshot or short recording of anything visible (`bb tasks attachment add <task> --file <path>`, fake data only), test or log output for backend changes. Send back a visual change reported without proof.",
     "- Files reach you with `bb thread tell <lead> --mode queue --image/--file`, never a plain tell that steers and interrupts mid-turn; workers send them only when you must look now.",
     "- Present proof yourself: when a visible change reaches For Review or you ask for a go, download the worker's screenshots (`bb tasks attachment get`) and show them inline in your reply, never just a link or path.",
