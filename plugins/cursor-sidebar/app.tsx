@@ -1,8 +1,3 @@
-// bb-plugin-cursor-sidebar — a project-grouped sidebar replacement.
-//
-// Compiled by `bb plugin build` into dist/app.js + dist/app.css. React and
-// @get-bb/plugin-sdk/app are provided by the BB app at load time (never
-// bundled), so this file must be loaded by BB, not imported directly.
 import "@wy3z/bb-suite/tokens.css";
 import "@wy3z/bb-suite/project-icon.css";
 import "@wy3z/bb-suite/settings.css";
@@ -17,8 +12,6 @@ import {
 import { CursorNavigation } from "./src/CursorNavigation";
 import { SidebarSettings } from "./src/SidebarSettings";
 
-// Register only the sidebar replacement. It deliberately ships no thread
-// header actions, so it never duplicates the ones Inbox Sidebar adds.
 export default definePluginApp((app) => {
   app.slots.experimental_threadList({
     id: "cursor-sidebar",
@@ -28,19 +21,6 @@ export default definePluginApp((app) => {
     component: CursorSidebar,
   });
 
-  // Compact header: Search and + on the left beside BB's sidebar toggle,
-  // BB's own back/forward on the right, and no navigation rows. The other
-  // destinations live behind a Plugins button in the sidebar footer.
-  app.slots.experimental_sidebarNavigation({
-    id: "compact",
-    title: "Compact",
-    description:
-      "Search and New thread in the header, back/forward on the right, other destinations behind a Plugins footer button; no navigation rows.",
-    placement: "list",
-    component: CompactNavigation,
-    headerComponent: CompactNavigationHeader,
-  });
-
   app.slots.experimental_sidebarNavigation({
     id: "cursor",
     title: "Cursor",
@@ -48,6 +28,16 @@ export default definePluginApp((app) => {
       "Compact header, then BB's navigation destinations as rows like Cursor's New Chat, Automations and Customize.",
     placement: "list",
     component: CursorNavigation,
+    headerComponent: CompactNavigationHeader,
+  });
+
+  app.slots.experimental_sidebarNavigation({
+    id: "compact",
+    title: "Compact",
+    description:
+      "Search and New thread in the header, back/forward on the right, other destinations behind a Plugins footer button; no navigation rows.",
+    placement: "list",
+    component: CompactNavigation,
     headerComponent: CompactNavigationHeader,
   });
 
