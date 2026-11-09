@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { applyOpenPlan, findLead, openThreadAsTab, planThreadOpen, sharedThreadTabs, shownThread, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "../src/thread-tabs";
+import { applyOpenPlan, findLead, currentShownThread, hostStore, openThreadAsTab, planThreadOpen, registerTabHost, sharedThreadTabs, shownThread, tabHostReady, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "../src/thread-tabs";
 
 const LEAD = "thr_lead";
 const WORKER = "thr_worker";
@@ -37,6 +37,7 @@ function open(target: string, current: string | null, options: { split?: boolean
 beforeEach(() => {
   tabStore.set({});
   viewStore.set({});
+  hostStore.set(0);
 });
 
 describe("findLead", () => {
@@ -190,5 +191,46 @@ describe("shownThread", () => {
   it("falls back to the lead when the viewed tab was closed or its thread is gone", () => {
     expect(shownThread(LEAD, leads, { [LEAD]: [NESTED] }, { [LEAD]: WORKER }, exists)).toBe(LEAD);
     expect(shownThread(LEAD, leads, { [LEAD]: ["thr_gone"] }, { [LEAD]: "thr_gone" }, exists)).toBe(LEAD);
+  });
+});
+
+describe("tab hosts", () => {
+  it("counts each mounted host once and is ready only while one is registered", () => {
+    expect(tabHostReady()).toBe(false);
+    const first = registerTabHost();
+    const second = registerTabHost();
+    expect(hostStore.get()).toBe(2);
+    first();
+    first();
+    expect(hostStore.get()).toBe(1);
+    expect(tabHostReady()).toBe(true);
+    second();
+    expect(tabHostReady()).toBe(false);
+  });
+
+  it("shows the route, not a stale worker view, when no host is registered", () => {
+    tabStore.set({ [LEAD]: [WORKER] });
+    viewStore.set({ [LEAD]: WORKER });
+    const exists = (id: string) => byId.has(id);
+    expect(currentShownThread(LEAD, leads, exists)).toBe(LEAD);
+    const stop = registerTabHost();
+    expect(currentShownThread(LEAD, leads, exists)).toBe(WORKER);
+    stop();
+    expect(currentShownThread(LEAD, leads, exists)).toBe(LEAD);
+  });
+
+  it("adds the host counter to a page object made by an earlier build", async () => {
+    const key = Symbol.for("@wy3z/bb-suite/thread-tabs/v1");
+    const page = globalThis as unknown as Record<symbol, Record<string, unknown>>;
+    const saved = page[key];
+    const views = saved!.views;
+    page[key] = { tabs: saved!.tabs, views };
+    try {
+      const copy = await import(`../src/thread-tabs.ts?earlier=${Date.now()}`);
+      expect(copy.sharedThreadTabs().views).toBe(views);
+      expect(copy.tabHostReady()).toBe(false);
+    } finally {
+      page[key] = saved!;
+    }
   });
 });

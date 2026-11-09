@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { beforeEach, describe, test } from "node:test";
-import { shownThread, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "@wy3z/bb-suite/thread-tabs";
+import { afterEach, beforeEach, describe, test } from "node:test";
+import { currentShownThread, hostStore, registerTabHost, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "@wy3z/bb-suite/thread-tabs";
 import { openSidebarThread, type ThreadRouting } from "./lead-tabs";
 
 const LEAD = "thr_lead";
@@ -31,10 +31,16 @@ function click(target: string, current: string | null, options?: { split?: boole
   return calls;
 }
 
+let unregister: () => void = () => undefined;
+
 beforeEach(() => {
   tabStore.set({});
   viewStore.set({});
+  hostStore.set(0);
+  unregister = registerTabHost();
 });
+
+afterEach(() => unregister());
 
 describe("opening a thread from the sidebar", () => {
   test("opens a worker as a tab of its lead from another thread", () => {
@@ -101,7 +107,7 @@ describe("opening a thread from the sidebar", () => {
 
 describe("the highlighted row", () => {
   const leadIds = new Set([LEAD]);
-  const shown = (current: string | null) => shownThread(current, leadIds, tabStore.get(), viewStore.get(), (id) => byId.has(id));
+  const shown = (current: string | null) => currentShownThread(current, leadIds, (id) => byId.has(id));
 
   test("follows the worker tab while it shows, then the lead once its tab is clicked", () => {
     assert.equal(shown(LEAD), LEAD);
@@ -113,9 +119,40 @@ describe("the highlighted row", () => {
     assert.equal(shown(LEAD), LEAD);
   });
 
+  test("leaves the board row active only while the lead's own tab shows", () => {
+    const boardActive = () => shown(LEAD) === LEAD;
+    assert.equal(boardActive(), true);
+    click(WORKER, LEAD, { split: false });
+    assert.equal(boardActive(), false);
+    click(LEAD, LEAD, { split: false });
+    assert.equal(boardActive(), true);
+  });
+
+  test("stays on the lead when Projects has no tab host to show the worker", () => {
+    click(WORKER, LEAD, { split: false });
+    unregister();
+    assert.equal(shown(LEAD), LEAD);
+  });
+
   test("stays on the routed thread away from a lead", () => {
     click(WORKER, LEAD, { split: false });
     assert.equal(shown(OTHER), OTHER);
     assert.equal(shown(null), null);
+  });
+});
+
+describe("without a Projects tab host", () => {
+  beforeEach(() => unregister());
+
+  test("opens a worker on its own route, as an older Projects build expects", () => {
+    assert.deepEqual(click(WORKER, LEAD, { split: false }), [[WORKER, { split: false }]]);
+    assert.deepEqual(tabStore.get(), {});
+    assert.deepEqual(viewStore.get(), {});
+  });
+
+  test("opens the lead plainly and leaves its views alone", () => {
+    viewStore.set({ [LEAD]: WORKER });
+    assert.deepEqual(click(LEAD, OTHER, { split: false }), [[LEAD, { split: false }]]);
+    assert.deepEqual(viewStore.get(), { [LEAD]: WORKER });
   });
 });

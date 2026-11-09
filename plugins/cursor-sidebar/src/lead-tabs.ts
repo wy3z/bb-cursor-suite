@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import { openThreadAsTab, type ThreadNavigate, type ThreadNode } from "@wy3z/bb-suite/thread-tabs";
+import { openThreadAsTab, tabHostReady, type ThreadNavigate, type ThreadNode } from "@wy3z/bb-suite/thread-tabs";
 
 export interface ThreadRouting {
   current: string | null;
@@ -18,7 +18,7 @@ export function openSidebarThread(
 ): void {
   const parentThreadId = routing?.byId.get(target)?.parentThreadId ?? null;
   const isLead = routing?.leadIds.has(target) ?? false;
-  if (routing === null || (parentThreadId === null && (!isLead || options?.split === true))) {
+  if (routing === null || !tabHostReady() || (parentThreadId === null && (!isLead || options?.split === true))) {
     navigate.toThread(target, options);
     return;
   }

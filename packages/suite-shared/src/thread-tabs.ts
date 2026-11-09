@@ -35,6 +35,7 @@ interface SharedStore<T> {
 interface SharedTabs {
   tabs: SharedStore<TabStore>;
   views: SharedStore<Record<string, string>>;
+  hosts: SharedStore<number>;
 }
 
 const SHARED_KEY = Symbol.for("@wy3z/bb-suite/thread-tabs/v1");
@@ -65,9 +66,12 @@ function persistTabs(next: TabStore) {
 }
 
 export function sharedThreadTabs(): SharedTabs {
-  const host = globalThis as typeof globalThis & { [SHARED_KEY]?: SharedTabs };
-  host[SHARED_KEY] ??= { tabs: createSharedStore(readStore(), persistTabs), views: createSharedStore({}) };
-  return host[SHARED_KEY];
+  const host = globalThis as typeof globalThis & { [SHARED_KEY]?: Partial<SharedTabs> };
+  const shared = (host[SHARED_KEY] ??= {});
+  shared.tabs ??= createSharedStore(readStore(), persistTabs);
+  shared.views ??= createSharedStore({});
+  shared.hosts ??= createSharedStore(0);
+  return shared as SharedTabs;
 }
 
 function bindStore<T>(store: SharedStore<T>) {
@@ -81,6 +85,22 @@ function bindStore<T>(store: SharedStore<T>) {
 export const tabStore = bindStore(sharedThreadTabs().tabs);
 
 export const viewStore = bindStore(sharedThreadTabs().views);
+
+export const hostStore = bindStore(sharedThreadTabs().hosts);
+
+export function registerTabHost(): () => void {
+  hostStore.set(hostStore.get() + 1);
+  let registered = true;
+  return () => {
+    if (!registered) return;
+    registered = false;
+    hostStore.set(Math.max(0, hostStore.get() - 1));
+  };
+}
+
+export function tabHostReady(): boolean {
+  return hostStore.get() > 0;
+}
 
 export function setView(leadId: string, id: string | null) {
   const next = { ...viewStore.get() };
@@ -146,8 +166,15 @@ export function shownThread(
   return view;
 }
 
+export function currentShownThread(current: string | null, leadIds: ReadonlySet<string>, exists: (threadId: string) => boolean): string | null {
+  return tabHostReady() ? shownThread(current, leadIds, tabStore.get(), viewStore.get(), exists) : current;
+}
+
 export function useShownThread(current: string | null, leadIds: ReadonlySet<string>, exists: (threadId: string) => boolean): string | null {
-  return shownThread(current, leadIds, tabStore.use(), viewStore.use(), exists);
+  tabStore.use();
+  viewStore.use();
+  hostStore.use();
+  return currentShownThread(current, leadIds, exists);
 }
 
 export function openThreadAsTab({

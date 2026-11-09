@@ -13,7 +13,7 @@ import { ProjectIconArt } from "@wy3z/bb-suite/project-icon/picker";
 import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
 import { projectsContract } from "./meta";
 import { useBoardIcons } from "./BoardIcon";
-import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, shownThread, tabStore, viewStore } from "@wy3z/bb-suite/thread-tabs";
+import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, registerTabHost, shownThread, tabStore, viewStore } from "@wy3z/bb-suite/thread-tabs";
 
 const HOST_ATTR = "data-bb-projects-tabs";
 const CHAT_ATTR = "data-bb-projects-chat";
@@ -285,6 +285,9 @@ export function ManagerTabs() {
 
   const tabHost = useMountedHost(leadId !== null, `${leadId}:${threadId}`, locateTabSlot, (slot, node) => slot.prepend(node), "bbp-tabs-host", HOST_ATTR);
   const chatHost = useMountedHost(overlayId !== null, `${leadId}:${threadId}`, locateThreadWindow, (slot, node) => slot.append(node), "bbp-chat-host", CHAT_ATTR);
+
+  const canShowTabs = leadId === null || tabHost !== null;
+  useEffect(() => (canShowTabs ? registerTabHost() : undefined), [canShowTabs]);
 
   if (!tabHost || !leadId) return null;
 

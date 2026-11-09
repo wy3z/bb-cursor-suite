@@ -123,9 +123,12 @@ and `bb plugin build` bundles it.
   it isn't already showing or a maximized panel hides its conversation.
   Ctrl or Cmd-click stays a real split, and threads with no lead navigate
   plainly. `shownThread` and `useShownThread` name the thread actually on
-  screen (the overlaid worker when its lead is routed). The tab and view stores live on the page under one
-  `Symbol.for` key, so Projects' tab strip and the Cursor sidebar share them
-  even though each plugin bundles its own copy.
+  screen (the overlaid worker when its lead is routed). Projects' tab strip
+  calls `registerTabHost` while it can show tabs, and `tabHostReady` tells
+  other plugins whether to route through it or navigate plainly; with no host
+  the shown thread is just the route. The tab, view and host stores live on
+  the page under one `Symbol.for` key, so Projects' tab strip and the Cursor
+  sidebar share them even though each plugin bundles its own copy.
 - `@wy3z/bb-suite/time`: `shortAge` ("now", "5m", "3d", "2w", "1mo"),
   `duration` ("2h 5m") and `elapsed`.
 - `@wy3z/bb-suite/tokens.css`: the suite palette (`--bbs-*`) and pill metrics.

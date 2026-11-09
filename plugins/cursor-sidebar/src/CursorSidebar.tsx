@@ -1556,7 +1556,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
                         <ProjectBoardRow
                           board={board}
                           icon={boardIcons.iconFor(board.id)}
-                          active={board.leadThreadId !== null && board.leadThreadId === routedThreadId}
+                          active={board.leadThreadId !== null && board.leadThreadId === activeThreadId}
                           working={false}
                           familyStatus={(() => {
                             const lead = board.leadThreadId ? rawById.get(board.leadThreadId) : undefined;
