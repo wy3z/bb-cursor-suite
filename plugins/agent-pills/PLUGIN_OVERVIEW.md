@@ -59,8 +59,8 @@ await sdk.plugins.callRpc({
 
 - Pull Requests (`pull-requests`): `gitCommit`, `gitPush`, `gitCreatePullRequest` and `gitApplyLocally`, the git actions behind the Changes tray and Apply locally. The contract is `gitActionsContract` in `@wy3z/bb-suite/contracts`. Without Pull Requests installed and enabled, those buttons are disabled and say "Needs Pull Requests".
 - BB's git plugin (`bb--git`): `status`, for the Changes pill, and its Diff tab.
-- A desktop vendor, for the Desktop tab: the plugin `DESKTOP_PROVIDERS` in `@wy3z/bb-suite/desktop` names for the thread's machine provider (today `machine-boat` for `boat-sandbox`). It calls `desktop.status`, `desktop.view` and `desktop.control` from `desktopRpcContract`. When that plugin isn't installed and enabled, or answers with an error, the tab stays hidden and nothing is reported.
-- BB's SDK, for the Desktop tab: `environments.get` and `hosts.get`, to find the thread's machine provider.
+- A desktop vendor, for the Desktop pill and tab: the plugin `DESKTOP_PROVIDERS` in `@wy3z/bb-suite/desktop` names for the thread's machine provider (today `machine-boat` for `boat-sandbox`). It calls `desktop.status`, `desktop.view` and `desktop.control` from `desktopRpcContract`. When that plugin isn't installed and enabled, or answers with an error, the pill and tab stay hidden and nothing is reported.
+- BB's SDK, for the Desktop pill and tab: `environments.get` and `hosts.get`, to find the thread's machine provider.
 - BB's SDK, for the environment picker:
   - `environments.listProviders({ projectId })`
   - `environments.list({ projectId, environmentProviderId: "git-worktree", hostId, status: "ready" })`
@@ -119,6 +119,7 @@ While the pills are on, BB's own cards are hidden with CSS on their `aria-label`
 
 The thread's computer, the way Cursor shows a cloud agent's desktop.
 
+- **Desktop pill.** In the pill row above the composer, for a thread whose machine has a desktop provider and whose desktop is running or starting. It opens the Desktop tab. While you hold control it reads "Desktop, you have control" and shows a dot. It doesn't depend on the Agent pills setting, because it replaces none of BB's cards.
 - **Desktop tab.** A fixed tab in the thread's right-hand panel, named Desktop with a cloud computer icon, shown only for threads on a machine with a desktop provider. It shows the live stream in a 16:9 frame. A paused machine, a starting desktop or a machine without one shows a plain message with Check again.
 - **View-only by default.** The stream is `inert` until you take control, so clicks and keys can't reach it by accident. The bar says who has control: "Agent has control", "You have control", or "You have control in another window".
 - **Take Control / Release control.** Take Control (in the bar or over the stream) asks the vendor to pause the agent's computer tools, then focuses the stream so your mouse and keyboard go to the VM. The agent's computer calls wait until you release; the tab says so. The window renews control every 30 seconds; closing the tab releases it, and if the window disappears, control goes back to the agent within about 2 minutes. Taking control in a second window moves it there; the first window sees "You have control in another window" and can take it back.

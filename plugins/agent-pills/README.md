@@ -14,6 +14,7 @@ People who spend their day in the prompt box and want it calm. The pills keep ch
 - **Changes** shows the checkout's changes with commit, push and pull request buttons. These need the Pull Requests plugin.
 - **Apply locally** copies a child thread's worktree into the parent's checkout as uncommitted changes. This also needs Pull Requests.
 - Pills for workflows, plan mode, the goal, to-dos, model fallback, queued messages, an archived thread and a paused machine, each with its own actions.
+- **Desktop** opens the thread's computer in the right-hand panel when the thread runs on a cloud VM with a desktop (Boat Sandbox today). You watch the agent work, then **Take Control** to click and type in it yourself; the agent's computer tools wait until you **Release control**.
 
 The restyle is on whenever the plugin is. The pills are on by default; turn them off under **Settings → Plugins → Cursor Composer → Agent pills** to get BB's own cards back. That setting is kept in this browser only.
 

@@ -2015,6 +2015,22 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   border-radius: 2px;
 }
 
+.bb-agent-pills__pill[data-group="desktop"] {
+  gap: var(--bbs-gap-xs);
+}
+
+.bb-agent-pills__pill[data-group="desktop"] [data-icon-root],
+.bb-agent-pills__pill[data-group="desktop"] svg {
+  width: var(--bbs-icon);
+  height: var(--bbs-icon);
+  flex: 0 0 auto;
+}
+
+.bb-agent-pills__dot[data-state="control"] {
+  margin-left: 2px;
+  background: var(--bbs-accent);
+}
+
 .bb-desktop {
   display: flex;
   flex-direction: column;

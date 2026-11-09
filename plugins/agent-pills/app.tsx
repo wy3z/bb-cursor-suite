@@ -25,6 +25,7 @@ import {
 import { COMPOSER_ATTRIBUTE } from "./src/channels";
 import { startComposerLayout } from "./src/composer-layout";
 import { EnvironmentPickerAction } from "./src/environment-picker/EnvironmentPicker";
+import { DesktopPill, useDesktopPillVisible } from "./src/desktop/DesktopPill";
 import { DesktopTab, useDesktopTabVisible } from "./src/desktop/DesktopTab";
 import { DESKTOP_TAB } from "./src/desktop/model";
 
@@ -76,6 +77,15 @@ export default definePluginApp((app) => {
     order: 11,
     summary: ParentPill,
     useVisible: useParentPillVisible,
+  });
+
+  app.slots.experimental_threadContextSegment({
+    id: "desktop",
+    title: "Desktop",
+    group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.thread,
+    order: 12,
+    summary: DesktopPill,
+    useVisible: useDesktopPillVisible,
   });
 
   app.slots.experimental_tab({

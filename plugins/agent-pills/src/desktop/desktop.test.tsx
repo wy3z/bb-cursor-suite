@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { DesktopStatus } from "@wy3z/bb-suite/desktop";
-import { CONTROL_LABEL, controlView, newClientId, preferredTheme, statusMessage, urlExpired } from "./model";
+import { CONTROL_LABEL, controlView, newClientId, pillVisible, preferredTheme, statusMessage, urlExpired } from "./model";
 
 const runtime = globalThis as unknown as { __bbPluginRuntime?: unknown };
 runtime.__bbPluginRuntime = {
   react: React,
   pluginSdkApp: {
     experimental_Icon: ({ name }: { name: string }) => React.createElement("span", { "data-icon": name }),
+    experimental_useAppPanel: () => ({ openTab: () => true }),
     useSdk: () => ({}),
   },
 };
+
+const { DesktopPillView } = await import("./DesktopPill");
 
 function status(overrides: Partial<DesktopStatus> = {}): DesktopStatus {
   return {
@@ -36,7 +40,15 @@ describe("controlView", () => {
   });
 });
 
-describe("status messages", () => {
+describe("pill visibility", () => {
+  it("shows for a running or starting desktop only", () => {
+    expect(pillVisible(status())).toBe(true);
+    expect(pillVisible(status({ state: "starting" }))).toBe(true);
+    expect(pillVisible(status({ state: "stopped" }))).toBe(false);
+    expect(pillVisible(status({ state: "unavailable" }))).toBe(false);
+    expect(pillVisible(null)).toBe(false);
+  });
+
   it("falls back to a plain message per state", () => {
     expect(statusMessage(status({ state: "stopped" }))).toContain("paused");
     expect(statusMessage(status({ state: "unavailable" }))).toBe("This machine has no desktop.");
@@ -66,3 +78,14 @@ describe("helpers", () => {
   });
 });
 
+describe("DesktopPillView", () => {
+  it("reads Desktop, and says when you hold control", () => {
+    const idle = renderToStaticMarkup(<DesktopPillView control="agent" onOpen={() => undefined} />);
+    expect(idle).toContain('aria-label="Desktop"');
+    expect(idle).toContain('data-icon="ComputerCloud"');
+    expect(idle).not.toContain('data-state="control"');
+    const held = renderToStaticMarkup(<DesktopPillView control="you" onOpen={() => undefined} />);
+    expect(held).toContain('aria-label="Desktop, you have control"');
+    expect(held).toContain('data-state="control"');
+  });
+});
