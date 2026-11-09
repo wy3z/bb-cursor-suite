@@ -6,7 +6,7 @@ Never call it "open source Cursor". The line is "Cursor's agent UI for Claude Co
 
 ## Scrappy post (James posts it himself)
 
-Media: `x-video-4-opus-in-cursrr.mp4` (47 s, 1920x1200, captions burned in, no audio). A rough screen recording of the demo: picking Opus 5.5 in the composer, the sidebar and pills, Opus doing a real task, the board, a cloud agent on its own desktop, and Take Control.
+Media: `x-video-4-opus-in-cursor.mp4` (47 s, 1920x1200, captions burned in, no audio). A rough screen recording of the demo: picking Opus 5.5 in the composer, the sidebar and pills, Opus doing a real task, the board, a cloud agent on its own desktop, and Take Control.
 
 The joke is the UI, not the model. Cursor itself offers Anthropic models, so never say or imply it can't run Opus. The honest hook is Claude Code itself, on your own Claude subscription, inside a Cursor-style UI.
 
@@ -14,17 +14,19 @@ Burned-in captions, in order: "ok so this looks like cursor", "but it's claude c
 
 Title options:
 
-- opus 5.5 in cursrr
-- it's basically cursor. it's actually claude code
-- claude code in a cursor costume
-- cursor's ui, claude code's brain, my claude sub
-- same sidebar, same pills, it's claude code running opus 5.5
+- opus 5.5 in Cursor
+- opus 5.5 in Cursor (it's Claude Code)
+- it's basically Cursor. it's actually Claude Code
+- Claude Code in a Cursor costume
+- Cursor's UI, Claude Code's brain, my Claude sub
 
-**S1** (media: `x-video-4-opus-in-cursrr.mp4`)
+Read on its own, "opus 5.5 in Cursor" says this is Cursor. Keep it with the post's next line, which says what it really is.
 
-> opus 5.5 in cursrr
+**S1** (media: `x-video-4-opus-in-cursor.mp4`)
+
+> opus 5.5 in Cursor
 >
-> (yes, cursor runs anthropic models too. this is claude code itself, on my own claude sub, in a cursor-style ui. sidebar, pills, boards, cloud desktops. open source)
+> (well, a Cursor-style UI. Cursor runs Anthropic models too; this is Claude Code itself, on my own Claude sub. sidebar, pills, boards, cloud desktops. open source)
 >
 > https://github.com/wy3z/bb-cursor-suite
 
