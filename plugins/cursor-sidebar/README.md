@@ -136,6 +136,11 @@ from the Projects plugin over RPC, and **Set icon…** in a board row's
 right-click menu sets the board's icon, not the repository's. Without Projects
 installed there are no board rows and nothing is read.
 
+Clicking a worker under a project lead opens it as a tab of the lead, the same
+way the Projects board does, so the lead's side panel stays. Ctrl or Cmd-click
+still opens a split, and top-level chats, the lead itself, and children with no
+lead above them open as before.
+
 Chats can set icons too, from a shell:
 
 ```sh

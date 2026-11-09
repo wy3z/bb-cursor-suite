@@ -81,6 +81,7 @@ import {
 } from "./collapse";
 import { useThreadSections } from "./useThreadSections";
 import { useThreadMutations } from "./thread-actions";
+import { ThreadRoutingContext, type ThreadRouting } from "./lead-tabs";
 import { useSidebarView } from "./useSidebarView";
 import type { cursorSidebarRpcContract } from "./server";
 import { GROUPING_HEADINGS, SidebarViewMenuRoot, SidebarViewMenuTrigger, SidebarViewSyncNotice } from "./SidebarViewMenu";
@@ -168,7 +169,12 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   const threadOrders = useThreadOrders();
   const threadOrdersRef = useRef(threadOrders);
   threadOrdersRef.current = threadOrders;
-  const actions = useThreadMutations();
+  const { boards: allProjectBoards, leadIds: projectLeadIds, reload: reloadProjectBoards } = useProjectBoards();
+  const threadRouting = useMemo<ThreadRouting>(
+    () => ({ current: activeThreadId, byId: rawById, leadIds: projectLeadIds }),
+    [activeThreadId, projectLeadIds, rawById],
+  );
+  const actions = useThreadMutations(threadRouting);
   const rpc = useRpc<typeof cursorSidebarRpcContract>();
   const projectIcons = useProjectIcons();
 
@@ -461,7 +467,6 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       familyRootId((id) => rawById.get(id)?.parentThreadId ?? null, threadId),
     [rawById],
   );
-  const { boards: allProjectBoards, leadIds: projectLeadIds, reload: reloadProjectBoards } = useProjectBoards();
   const boardIcons = useBoardIcons(allProjectBoards.length > 0);
   const projectBoards = useMemo(
     () => allProjectBoards.filter((board) => {
@@ -1452,6 +1457,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   };
 
   return (
+    <ThreadRoutingContext.Provider value={threadRouting}>
     <SidebarViewMenuRoot
       open={viewMenuOpen}
       onOpenChange={setViewMenuOpen}
@@ -1728,6 +1734,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       </div>
     </div>
     </SidebarViewMenuRoot>
+    </ThreadRoutingContext.Provider>
   );
 }
 

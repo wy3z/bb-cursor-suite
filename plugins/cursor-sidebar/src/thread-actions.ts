@@ -5,7 +5,7 @@
 // sidebar used. Writes now go through the public SDK client and navigation,
 // while archive and delete go through bb's own thread actions so their
 // confirmations, cascade and pane cleanup stay the host's.
-import { useCallback, useMemo } from "react";
+import { useCallback, useContext, useMemo } from "react";
 import {
   experimental_useThreadActions,
   useBbNavigate,
@@ -14,6 +14,7 @@ import {
   type PluginSidebarThread,
   type PluginThreadActionTarget,
 } from "@get-bb/plugin-sdk/app";
+import { openSidebarThread, ThreadRoutingContext, type ThreadRouting } from "./lead-tabs";
 
 export interface ThreadMutations {
   open(threadId: string, options?: { split?: boolean }): void;
@@ -26,12 +27,14 @@ export interface ThreadMutations {
 }
 
 /** Navigation and silent thread writes, stable for a component's lifetime. */
-export function useThreadMutations(): ThreadMutations {
+export function useThreadMutations(routing?: ThreadRouting | null): ThreadMutations {
   const navigate = useBbNavigate();
   const sdk = useSdk();
+  const provided = useContext(ThreadRoutingContext);
+  const route = routing === undefined ? provided : routing;
   return useMemo(
     () => ({
-      open: (threadId, options) => navigate.toThread(threadId, options),
+      open: (threadId, options) => openSidebarThread(threadId, options, route, navigate),
       openNewThread: (options) => navigate.toCompose(options),
       setPinned: async (threadId, pinned) => {
         await (pinned
@@ -50,7 +53,7 @@ export function useThreadMutations(): ThreadMutations {
         await sdk.threads.experimental_regenerateTitle({ threadId });
       },
     }),
-    [navigate, sdk],
+    [navigate, route, sdk],
   );
 }
 

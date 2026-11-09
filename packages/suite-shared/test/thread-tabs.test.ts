@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { applyOpenPlan, findLead, planThreadOpen, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "./thread-tabs";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { applyOpenPlan, findLead, openThreadAsTab, planThreadOpen, sharedThreadTabs, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "../src/thread-tabs";
 
 const LEAD = "thr_lead";
 const WORKER = "thr_worker";
@@ -112,5 +112,65 @@ describe("opening a thread from the board", () => {
     const { calls } = open(OTHER, LEAD);
     expect(calls).toEqual([{ threadId: OTHER }]);
     expect(tabStore.get()).toEqual({});
+  });
+});
+
+describe("openThreadAsTab", () => {
+  it("resolves the lead and opens a worker as its tab from any surface", () => {
+    const { calls, navigate } = recorder();
+    const plan = openThreadAsTab({ target: NESTED, current: OTHER, byId, leadIds: leads, split: false, navigate });
+    expect(plan).toEqual({ kind: "tab", leadId: LEAD, view: NESTED, navigate: true });
+    expect(calls).toEqual([{ threadId: LEAD }]);
+    expect(tabStore.get()[LEAD]).toEqual([NESTED]);
+    expect(viewStore.get()[LEAD]).toBe(NESTED);
+  });
+
+  it("stays on the lead when it is already showing", () => {
+    const { calls, navigate } = recorder();
+    openThreadAsTab({ target: WORKER, current: LEAD, byId, leadIds: leads, split: false, navigate, isConversationHidden: () => false });
+    expect(calls).toEqual([]);
+    expect(viewStore.get()[LEAD]).toBe(WORKER);
+  });
+
+  it("brings the lead's conversation back when its panel is maximized", () => {
+    const { calls, navigate } = recorder();
+    openThreadAsTab({ target: WORKER, current: LEAD, byId, leadIds: leads, split: false, navigate, isConversationHidden: () => true });
+    expect(calls).toEqual([{ threadId: LEAD }]);
+    expect(viewStore.get()[LEAD]).toBe(WORKER);
+  });
+
+  it("keeps Ctrl-click as a real split of the worker", () => {
+    const { calls, navigate } = recorder();
+    openThreadAsTab({ target: WORKER, current: LEAD, byId, leadIds: leads, split: true, navigate });
+    expect(calls).toEqual([{ threadId: WORKER, options: { split: true } }]);
+    expect(viewStore.get()).toEqual({});
+  });
+
+  it("navigates plainly when the projects board has no leads", () => {
+    const { calls, navigate } = recorder();
+    openThreadAsTab({ target: WORKER, current: OTHER, byId, leadIds: new Set(), split: false, navigate });
+    expect(calls).toEqual([{ threadId: WORKER }]);
+    expect(tabStore.get()).toEqual({});
+    expect(viewStore.get()).toEqual({});
+  });
+});
+
+describe("shared stores", () => {
+  it("live on the page so every plugin bundle reads the same tabs and views", async () => {
+    const copy = await import(`../src/thread-tabs.ts?bundle=${Date.now()}`);
+    expect(copy.sharedThreadTabs()).toBe(sharedThreadTabs());
+    copy.addTab(LEAD, WORKER);
+    copy.setView(LEAD, WORKER);
+    expect(tabStore.get()[LEAD]).toEqual([WORKER]);
+    expect(viewStore.get()[LEAD]).toBe(WORKER);
+  });
+
+  it("notifies subscribers in other bundles when a view changes", () => {
+    const seen: (string | undefined)[] = [];
+    const stop = sharedThreadTabs().views.subscribe(() => seen.push(sharedThreadTabs().views.get()[LEAD]));
+    viewStore.set({ [LEAD]: NESTED });
+    stop();
+    viewStore.set({});
+    expect(seen).toEqual([NESTED]);
   });
 });
