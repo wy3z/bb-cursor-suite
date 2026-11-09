@@ -1889,6 +1889,17 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   left: calc(100% + 4px);
 }
 
+.bb-agent-pills-env__submenu[data-side="left"] {
+  right: calc(100% + 4px);
+  left: auto;
+}
+
+.bb-agent-pills-env__inline-list {
+  display: flex;
+  flex-direction: column;
+  padding-left: 12px;
+}
+
 .bb-agent-pills-env__section + .bb-agent-pills-env__section {
   margin-top: 4px;
   padding-top: 4px;

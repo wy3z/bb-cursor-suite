@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CLOUD_LEARN_MORE_URL, buildModel, type Location, type PickerProvider } from "./model";
+import { CLOUD_LEARN_MORE_URL, buildModel, type Location, type PickerProvider, type PickerWorktree } from "./model";
 
 const runtime = globalThis as unknown as { __bbPluginRuntime?: unknown };
 runtime.__bbPluginRuntime ??= { react: React, pluginSdkApp: {} };
@@ -25,10 +25,15 @@ const LOCAL = provider("project-checkout", "Project checkout");
 const WORKTREE = provider("git-worktree", "Worktree");
 const MODAL = provider("modal-sandbox", "Modal Sandbox", "modal-sandbox");
 
-function render(providers: PickerProvider[], location: Location | null = { kind: "local" }): string {
+function render(
+  providers: PickerProvider[],
+  location: Location | null = { kind: "local" },
+  options: { catalog?: PickerProvider[]; worktrees?: PickerWorktree[]; viewportWidth?: number } = {},
+): string {
   return renderToStaticMarkup(
     <PickerMenu
-      model={buildModel(providers, [])}
+      model={buildModel(providers, options.worktrees ?? [], options.catalog ?? providers)}
+      viewportWidth={options.viewportWidth ?? 1400}
       location={location}
       choose={() => undefined}
       close={() => undefined}
@@ -42,6 +47,8 @@ const items = (html: string) =>
     tag,
     text: inner.replace(/<[^>]+>/g, "").trim(),
     disabled: attrs.includes('aria-disabled="true"'),
+    describedBy: attrs.match(/aria-describedby="([^"]*)"/)?.[1] ?? null,
+    controls: attrs.match(/aria-controls="([^"]*)"/)?.[1] ?? null,
     checked: attrs.includes('aria-checked="true"'),
     href: attrs.match(/href="([^"]*)"/)?.[1] ?? null,
   }));
@@ -68,4 +75,31 @@ describe("PickerMenu", () => {
     expect(rows.find((row) => row.text === "Cloud")?.checked).toBe(true);
     expect(rows.find((row) => row.text === "This Computer")?.checked).toBe(false);
   });
+
+  it("ties the disabled Cloud explanation to the Cloud row and the Learn more link", () => {
+    const html = render([LOCAL, WORKTREE]);
+    const rows = items(html);
+    const cloud = rows.find((row) => row.text === "Cloud")!;
+    const learnMore = rows.find((row) => row.text === "Learn more")!;
+    expect(cloud.describedBy).not.toBeNull();
+    expect(learnMore.describedBy).toBe(cloud.describedBy);
+    const note = html.match(new RegExp(`id="${cloud.describedBy!.replace(/[:]/g, "\\:")}"[^>]*>([^<]*)<`))?.[1];
+    expect(note).toBe("Install a cloud machine plugin to run agents in the cloud.");
+    expect(html).not.toContain("<p");
+  });
+
+  it("says Cloud isn't available for this project when the provider is installed but not offered here", () => {
+    const html = render([LOCAL, WORKTREE], { kind: "local" }, { catalog: [LOCAL, WORKTREE, MODAL] });
+    expect(html).toContain("Cloud isn&#x27;t available for this project.");
+    expect(html).not.toContain("Install a cloud machine plugin");
+  });
+
+  it("points the Worktree... row at its submenu", () => {
+    const worktrees = ["a", "b", "c", "d"].map((id, index) => ({ id, name: null, branchName: `feature-${id}`, path: null, updatedAt: index }));
+    const rows = items(render([LOCAL, WORKTREE], { kind: "local" }, { worktrees, viewportWidth: 390 }));
+    const more = rows.find((row) => row.text === "Worktree...");
+    expect(more?.controls).toBeTruthy();
+    expect(rows.some((row) => row.text.startsWith("feature-"))).toBe(false);
+  });
 });
+

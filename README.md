@@ -48,9 +48,11 @@ Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range k
 
 On a new thread, Cursor Composer's environment picker sits under the prompt box. Like Cursor's, it offers **Cloud**, **This Computer** and the worktree options. Cloud runs the thread on a machine that a machine provider plugin creates, with a fresh clone of the project, so the work carries on while your computer sleeps.
 
-Cloud lists every environment provider that runs on a machine provider, the ones with a `machineProviderId` in `bb environment providers --json`. BB includes one, Modal Sandbox (experimental), which needs a Modal account. With no cloud provider set up, Cloud is shown greyed out with a link to this section.
+Cloud lists every environment provider that runs on a machine provider, the ones with a `machineProviderId` in `bb environment providers --json`. BB includes one, Modal Sandbox (experimental), which needs a Modal account. With no cloud provider installed, Cloud is shown greyed out with a link to this section. When a cloud provider is installed but can't run the current project (`bb environment providers --project <id> --json` leaves it out), Cloud says "Cloud isn't available for this project" instead.
 
-Choosing Cloud only changes the selection. A machine starts when you send the first message, and the provider charges for it until it pauses or is removed.
+Choosing Cloud only changes the selection. A machine starts when you send the first message. What it costs, and for how long, depends on the provider, so check its pricing.
+
+The picker takes over BB's own Environment button only when one machine is connected and the selection is on this computer. With a second machine connected, or another machine selected, BB's picker stays so you can still choose the machine, and Cursor's picker sits in the prompt box beside it.
 
 ## For agents
 

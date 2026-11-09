@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   experimental_Icon as Icon,
@@ -9,18 +20,25 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import {
+  CLOUD_DESCRIPTION,
   CLOUD_LEARN_MORE_URL,
   INLINE_WORKTREE_LIMIT,
+  MENU_WIDTH,
   WORKTREE_PROVIDER,
   accessibleTriggerLabel,
   buildModel,
+  canReplaceBbPicker,
+  cloudUnavailableMessage,
   environmentFor,
   hostIdOf,
+  isRemoteHost,
   locationOf,
   sameLocation,
+  submenuSide,
   triggerLabel,
   worktreeLabel,
   type Location,
+  type Machines,
   type PickerModel,
   type PickerProvider,
   type PickerWorktree,
@@ -29,54 +47,80 @@ import {
 } from "./model";
 import { REPLACED_ATTRIBUTE, SLOT_ATTRIBUTE, findBbEnvironmentPicker } from "./bb-picker";
 
-const CLOUD_DESCRIPTION = "Runs on a cloud machine with a fresh clone of this project.";
-const NO_CLOUD_DESCRIPTION = "Install a cloud machine plugin to run agents in the cloud.";
+const LOAD_TIMEOUT_MS = 5000;
 
 interface PickerData {
   providers: PickerProvider[];
   worktrees: PickerWorktree[];
+  machines: Machines;
+  hostNames: Record<string, string>;
 }
 
-function usePickerData(projectId: string | null): PickerData | null {
+type PickerDataState = { status: "loading" } | { status: "failed" } | { status: "ready"; data: PickerData };
+
+function usePickerData(projectId: string | null): PickerDataState {
   const sdk = useSdk();
   const catalog = useEnvironmentProviders();
   const catalogKey = catalog.providers.map((provider) => `${provider.id}:${provider.machineProviderId ?? ""}`).join("|");
-  const [data, setData] = useState<PickerData | null>(null);
+  const [state, setState] = useState<PickerDataState>({ status: "loading" });
 
   useEffect(() => {
     if (projectId === null) {
-      setData(null);
+      setState({ status: "failed" });
       return;
     }
+    setState({ status: "loading" });
     const controller = new AbortController();
-    void Promise.all([
-      sdk.environments.listProviders({ projectId, signal: controller.signal }),
-      sdk.environments
-        .list({ projectId, environmentProviderId: WORKTREE_PROVIDER, status: "ready", signal: controller.signal })
-        .catch(() => []),
-    ])
-      .then(([providers, environments]) => {
-        if (controller.signal.aborted) return;
-        setData({
-          providers: providers as PickerProvider[],
-          worktrees: environments
-            .filter((environment) => environment.lifecycle.phase === "active")
-            .map((environment) => ({
-              id: environment.id,
-              name: environment.name,
-              branchName: environment.branchName,
-              path: environment.path,
-              updatedAt: environment.updatedAt,
-            })),
-        });
+    const signal = controller.signal;
+    const timer = window.setTimeout(() => {
+      controller.abort();
+      setState((current) => (current.status === "loading" ? { status: "failed" } : current));
+    }, LOAD_TIMEOUT_MS);
+    const load = async (): Promise<PickerData> => {
+      const [providers, config, hosts] = await Promise.all([
+        sdk.environments.listProviders({ projectId, signal }),
+        sdk.system.config(),
+        sdk.hosts.list({ signal }),
+      ]);
+      const primaryHostId = config.primaryHostId ?? null;
+      const environments = primaryHostId
+        ? await sdk.environments
+            .list({ projectId, environmentProviderId: WORKTREE_PROVIDER, hostId: primaryHostId, status: "ready", signal })
+            .catch(() => [])
+        : [];
+      return {
+        providers: providers as PickerProvider[],
+        worktrees: environments
+          .filter((environment) => environment.lifecycle.phase === "active")
+          .map((environment) => ({
+            id: environment.id,
+            name: environment.name,
+            branchName: environment.branchName,
+            path: environment.path,
+            updatedAt: environment.updatedAt,
+          })),
+        machines: {
+          primaryHostId,
+          connectedHostCount: hosts.filter((host) => host.status === "connected").length,
+        },
+        hostNames: Object.fromEntries(hosts.map((host) => [host.id, host.name])),
+      };
+    };
+    load()
+      .then((data) => {
+        if (!signal.aborted) setState({ status: "ready", data });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setData(null);
-      });
-    return () => controller.abort();
+        if (!signal.aborted) setState({ status: "failed" });
+      })
+      .finally(() => window.clearTimeout(timer));
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [sdk, projectId, catalogKey]);
 
-  return data;
+  return state;
 }
 
 function useBbPickerSlot(anchor: HTMLElement | null, enabled: boolean): HTMLElement | null {
@@ -116,7 +160,12 @@ function useBbPickerSlot(anchor: HTMLElement | null, enabled: boolean): HTMLElem
     sync();
     const root = anchor.closest("[data-app-composer]") ?? document.body;
     const observer = new MutationObserver(() => sync());
-    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label", "data-promptbox-project-control"] });
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-label", "data-promptbox-project-control"],
+    });
     return () => {
       observer.disconnect();
       release();
@@ -131,6 +180,7 @@ function TriggerIcon({ label }: { label: TriggerLabel }) {
   if (label.icon === "laptop") return <Icon name="Laptop" fallback="Monitor" />;
   if (label.icon === "cloud") return <Icon name="Cloud" />;
   if (label.icon === "fork") return <Icon name="GitFork" fallback="GitBranch" />;
+  if (label.icon === "server") return <Icon name="Server" fallback="Monitor" />;
   return <ProviderIcon providerKind="environment" provider={{ id: label.providerId ?? "" }} />;
 }
 
@@ -138,45 +188,37 @@ function Check({ on }: { on: boolean }) {
   return <span className="bb-agent-pills-env__check" aria-hidden="true">{on ? <Icon name="Check" /> : null}</span>;
 }
 
-function Row({
-  icon,
-  label,
-  description,
-  selected,
-  disabled,
-  title,
-  onSelect,
-  trailing,
-  expanded,
-  onKeyDown,
-  onPointerEnter,
-}: {
+interface RowProps {
   icon: ReactNode;
   label: string;
   description?: string | null;
   selected?: boolean;
   disabled?: boolean;
   title?: string;
+  describedBy?: string;
   onSelect?: (element: HTMLButtonElement) => void;
   trailing?: ReactNode;
-  expanded?: boolean;
+  submenu?: { id: string; expanded: boolean };
   onKeyDown?: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
-  onPointerEnter?: () => void;
-}) {
+}
+
+function Row({ icon, label, description, selected, disabled, title, describedBy, onSelect, trailing, submenu, onKeyDown }: RowProps) {
   return (
     <button
       type="button"
       role={selected === undefined ? "menuitem" : "menuitemradio"}
       aria-checked={selected === undefined ? undefined : selected}
       aria-disabled={disabled ? "true" : undefined}
-      aria-haspopup={expanded === undefined ? undefined : "menu"}
-      aria-expanded={expanded}
+      aria-describedby={describedBy}
+      aria-haspopup={submenu ? "menu" : undefined}
+      aria-expanded={submenu?.expanded}
+      aria-controls={submenu?.id}
       title={title}
       className="bb-agent-pills-env__item"
       data-disabled={disabled ? "" : undefined}
+      data-submenu-trigger={submenu ? "" : undefined}
       onClick={disabled || !onSelect ? undefined : (event) => onSelect(event.currentTarget)}
       onKeyDown={onKeyDown}
-      onPointerEnter={onPointerEnter}
     >
       <span className="bb-agent-pills-env__icon" aria-hidden="true">{icon}</span>
       <span className="bb-agent-pills-env__text">
@@ -197,53 +239,50 @@ function Section({ title, children }: { title?: string; children: ReactNode }) {
   );
 }
 
+function UnavailableCloud({ message }: { message: string }) {
+  const noteId = useId();
+  return (
+    <div className="bb-agent-pills-env__unavailable" role="none">
+      <Row icon={<Icon name="Cloud" />} label="Cloud" disabled title={message} describedBy={noteId} />
+      <div className="bb-agent-pills-env__note" role="none">
+        <span id={noteId}>{message}</span>{" "}
+        <a
+          role="menuitem"
+          href={CLOUD_LEARN_MORE_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-describedby={noteId}
+          className="bb-agent-pills-env__link"
+        >
+          Learn more
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function CloudRows({
-  cloud,
+  model,
   location,
   choose,
 }: {
-  cloud: ProviderState[];
+  model: PickerModel;
   location: Location | null;
   choose: (next: Location) => void;
 }) {
-  if (cloud.length === 0) {
-    return (
-      <div className="bb-agent-pills-env__unavailable">
-        <Row icon={<Icon name="Cloud" />} label="Cloud" disabled title={NO_CLOUD_DESCRIPTION} />
-        <p className="bb-agent-pills-env__note">
-          {NO_CLOUD_DESCRIPTION}{" "}
-          <a role="menuitem" href={CLOUD_LEARN_MORE_URL} target="_blank" rel="noreferrer" className="bb-agent-pills-env__link">
-            Learn more
-          </a>
-        </p>
-      </div>
-    );
-  }
-  if (cloud.length === 1) {
-    const [only] = cloud;
-    const next: Location = { kind: "cloud", providerId: only!.provider.id };
-    return (
-      <Row
-        icon={<Icon name="Cloud" />}
-        label="Cloud"
-        title={only!.disabledReason ?? CLOUD_DESCRIPTION}
-        description={only!.disabledReason}
-        selected={sameLocation(location, next)}
-        disabled={only!.disabledReason !== null}
-        onSelect={() => choose(next)}
-      />
-    );
-  }
+  const { cloud, cloudUnavailable } = model;
+  if (cloudUnavailable !== null) return <UnavailableCloud message={cloudUnavailableMessage(cloudUnavailable)} />;
+  if (cloud.length === 1 && cloud[0]!.disabledReason !== null) return <UnavailableCloud message={cloud[0]!.disabledReason} />;
   return (
     <>
-      {cloud.map((entry) => {
+      {cloud.map((entry: ProviderState) => {
         const next: Location = { kind: "cloud", providerId: entry.provider.id };
         return (
           <Row
             key={entry.provider.id}
             icon={<Icon name="Cloud" />}
             label="Cloud"
-            description={entry.disabledReason ?? entry.provider.displayName}
+            description={entry.disabledReason ?? (cloud.length > 1 ? entry.provider.displayName : null)}
             title={entry.disabledReason ?? CLOUD_DESCRIPTION}
             selected={sameLocation(location, next)}
             disabled={entry.disabledReason !== null}
@@ -289,20 +328,25 @@ export function PickerMenu({
   choose,
   close,
   position,
+  viewportWidth,
 }: {
   model: PickerModel;
   location: Location | null;
   choose: (next: Location) => void;
   close: () => void;
   position: { top: number; left: number; maxHeight: number };
+  viewportWidth?: number;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const subRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement | null>(null);
+  const subId = useId();
   const [subOpen, setSubOpen] = useState(false);
   const [subTop, setSubTop] = useState(0);
+  const side = submenuSide(position.left, viewportWidth ?? (typeof window === "undefined" ? 1280 : window.innerWidth));
+  const flyout = side !== "inline";
   useMenuKeyboard(menuRef, true, close);
-  useMenuKeyboard(subRef, subOpen, () => {
+  useMenuKeyboard(subRef, flyout && subOpen, () => {
     setSubOpen(false);
     moreRef.current?.focus();
   });
@@ -317,6 +361,38 @@ export function PickerMenu({
     setSubOpen(true);
   };
 
+  const onPointerOver = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!flyout) return;
+    const row = (event.target as Element).closest?.('[role^="menuitem"]');
+    if (!row) return;
+    if (row.hasAttribute("data-submenu-trigger")) openSub(row as HTMLButtonElement);
+    else setSubOpen(false);
+  };
+
+  const worktreeMore =
+    model.worktrees.length > 0 && !inlineWorktrees ? (
+      <Row
+        icon={<Icon name="GitFork" fallback="GitBranch" />}
+        label="Worktree..."
+        submenu={{ id: subId, expanded: subOpen }}
+        trailing={
+          <span className="bb-agent-pills-env__check" aria-hidden="true">
+            <Icon name={flyout ? (side === "left" ? "ChevronLeft" : "ChevronRight") : subOpen ? "ChevronUp" : "ChevronDown"} />
+          </span>
+        }
+        onSelect={(element) => (flyout ? openSub(element) : setSubOpen((open) => !open))}
+        onKeyDown={(event) => {
+          moreRef.current = event.currentTarget;
+          if (!flyout) return;
+          const opens = side === "left" ? "ArrowLeft" : "ArrowRight";
+          if (event.key === opens) {
+            event.preventDefault();
+            openSub(event.currentTarget);
+          }
+        }}
+      />
+    ) : null;
+
   return (
     <div className="bb-agent-pills-env__popover" style={{ top: position.top, left: position.left }}>
       <div
@@ -325,9 +401,10 @@ export function PickerMenu({
         role="menu"
         aria-label="Select Environment"
         style={{ maxHeight: position.maxHeight }}
+        onPointerOver={onPointerOver}
       >
         <Section title="Run on">
-          <CloudRows cloud={model.cloud} location={location} choose={choose} />
+          <CloudRows model={model} location={location} choose={choose} />
           {model.local ? (
             <Row
               icon={<Icon name="Laptop" fallback="Monitor" />}
@@ -336,7 +413,6 @@ export function PickerMenu({
               disabled={model.local.disabledReason !== null}
               selected={sameLocation(location, { kind: "local" })}
               onSelect={() => choose({ kind: "local" })}
-              onPointerEnter={() => setSubOpen(false)}
             />
           ) : null}
         </Section>
@@ -345,25 +421,11 @@ export function PickerMenu({
             {model.worktrees.length > 0 && inlineWorktrees ? (
               <WorktreeRows worktrees={model.worktrees} location={location} choose={choose} />
             ) : null}
-            {model.worktrees.length > 0 && !inlineWorktrees ? (
-              <Row
-                icon={<Icon name="GitFork" fallback="GitBranch" />}
-                label="Worktree..."
-                expanded={subOpen}
-                trailing={<span className="bb-agent-pills-env__check" aria-hidden="true"><Icon name="ChevronRight" /></span>}
-                onSelect={openSub}
-                onPointerEnter={() => {
-                  const row = menuRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]') ?? null;
-                  openSub(row);
-                }}
-                onKeyDown={(event) => {
-                  moreRef.current = event.currentTarget;
-                  if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openSub(event.currentTarget);
-                  }
-                }}
-              />
+            {worktreeMore}
+            {worktreeMore && !flyout && subOpen ? (
+              <div id={subId} className="bb-agent-pills-env__inline-list" role="group" aria-label="Worktrees">
+                <WorktreeRows worktrees={model.worktrees} location={location} choose={choose} />
+              </div>
             ) : null}
             {model.newWorktree ? (
               <Row
@@ -374,7 +436,6 @@ export function PickerMenu({
                 title={model.newWorktree.disabledReason ?? undefined}
                 selected={sameLocation(location, { kind: "new-worktree" })}
                 onSelect={() => choose({ kind: "new-worktree" })}
-                onPointerEnter={() => setSubOpen(false)}
               />
             ) : null}
             {model.others.map((entry) => {
@@ -389,22 +450,31 @@ export function PickerMenu({
                   disabled={entry.disabledReason !== null}
                   selected={sameLocation(location, next)}
                   onSelect={() => choose(next)}
-                  onPointerEnter={() => setSubOpen(false)}
                 />
               );
             })}
           </Section>
         ) : null}
       </div>
-      {subOpen ? (
+      {worktreeMore && flyout && subOpen ? (
         <div
           ref={subRef}
+          id={subId}
           className="bb-agent-pills-env__menu bb-agent-pills-env__submenu"
+          data-side={side}
           role="menu"
           aria-label="Select worktree"
-          style={{ top: subTop, maxHeight: position.maxHeight }}
+          style={{ top: subTop, maxHeight: position.maxHeight, width: MENU_WIDTH }}
+          onKeyDownCapture={(event) => {
+            if (event.key !== "Tab") return;
+            event.preventDefault();
+            event.stopPropagation();
+            setSubOpen(false);
+            close();
+          }}
           onKeyDown={(event) => {
-            if (event.key === "ArrowLeft") {
+            const back = side === "left" ? "ArrowRight" : "ArrowLeft";
+            if (event.key === back) {
               event.preventDefault();
               setSubOpen(false);
               moreRef.current?.focus();
@@ -418,7 +488,6 @@ export function PickerMenu({
   );
 }
 
-const MENU_WIDTH = 280;
 const GAP = 6;
 
 function placeBelow(trigger: HTMLElement): { top: number; left: number; maxHeight: number } {
@@ -434,19 +503,23 @@ function placeBelow(trigger: HTMLElement): { top: number; left: number; maxHeigh
 export function EnvironmentPickerControl({
   model,
   location,
+  label,
   onChoose,
 }: {
   model: PickerModel;
   location: Location | null;
+  label: TriggerLabel;
   onChoose: (next: Location) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const label = triggerLabel(location, model);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -473,7 +546,6 @@ export function EnvironmentPickerControl({
     return () => document.removeEventListener("pointerdown", onPointer, true);
   }, [open]);
 
-  if (label === null) return null;
   const text = label.detail ? `${label.label}: ${label.detail}` : label.label;
 
   return (
@@ -488,6 +560,12 @@ export function EnvironmentPickerControl({
         title="Select Environment"
         data-location={location?.kind}
         onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
       >
         <span className="bb-agent-pills-env__trigger-icon" aria-hidden="true"><TriggerIcon label={label} /></span>
         <span className="bb-agent-pills-env__trigger-label">{text}</span>
@@ -502,9 +580,8 @@ export function EnvironmentPickerControl({
                 position={position}
                 close={close}
                 choose={(next) => {
-                  setOpen(false);
                   onChoose(next);
-                  triggerRef.current?.focus();
+                  close();
                 }}
               />
             </div>,
@@ -517,31 +594,46 @@ export function EnvironmentPickerControl({
 
 export function EnvironmentPickerAction() {
   const composer = useComposer();
+  const catalog = useEnvironmentProviders();
   const projectId = composer.scope.kind === "new-thread" ? composer.scope.projectId : null;
   const environment = composer.selection?.environment;
-  const data = usePickerData(projectId);
+  const state = usePickerData(projectId);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
-  const model = useMemo(() => (data ? buildModel(data.providers, data.worktrees) : null), [data]);
+  const data = state.status === "ready" ? state.data : null;
+  const model = useMemo(
+    () => (data ? buildModel(data.providers, data.worktrees, catalog.providers) : null),
+    [data, catalog.providers],
+  );
   const location = useMemo(() => locationOf(environment, data?.providers ?? []), [environment, data]);
-  const active = model !== null && location !== null && location.kind !== "personal";
-  const slot = useBbPickerSlot(anchor, active);
+  const selectedHostId = hostIdOf(environment);
+  const personal = location?.kind === "personal";
+  const remote = data !== null && isRemoteHost(selectedHostId, data.machines);
+  const remoteName = remote && selectedHostId !== null ? (data.hostNames[selectedHostId] ?? "Remote machine") : null;
+  const label = model ? triggerLabel(location, model, remoteName) : null;
+  const replace = model !== null && label !== null && data !== null && canReplaceBbPicker(selectedHostId, data.machines);
+  const holding = state.status === "loading" && environment !== undefined && !personal;
+  const slot = useBbPickerSlot(anchor, replace || holding);
 
   const choose = useCallback(
     (next: Location) => {
-      const args = environmentFor(next, hostIdOf(environment));
+      const hostId = data?.machines.primaryHostId ?? (remote ? null : selectedHostId);
+      const args = environmentFor(next, hostId);
       if (args === null) return;
       void composer.setSelection({ environment: args }).catch(() => undefined);
     },
-    [composer, environment],
+    [composer, data, remote, selectedHostId],
   );
 
   if (composer.scope.kind !== "new-thread") return null;
-  const control = active ? <EnvironmentPickerControl model={model} location={location} onChoose={choose} /> : null;
+  const control =
+    model !== null && label !== null ? (
+      <EnvironmentPickerControl model={model} location={remote ? null : location} label={label} onChoose={choose} />
+    ) : null;
 
   return (
     <span ref={setAnchor} className="bb-agent-pills-env__anchor" data-bb-agent-pills-environment-anchor="">
-      {slot ? (control ? createPortal(control, slot) : null) : control}
+      {slot !== null ? (replace && control ? createPortal(control, slot) : null) : control}
     </span>
   );
 }

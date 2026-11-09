@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLOUD_NOT_FOR_PROJECT_MESSAGE,
+  NO_CLOUD_MESSAGE,
   accessibleTriggerLabel,
   buildModel,
+  canReplaceBbPicker,
+  cloudUnavailableMessage,
+  submenuSide,
   environmentFor,
   locationOf,
   sameLocation,
@@ -49,6 +54,17 @@ describe("buildModel", () => {
   it("has no cloud entries when no provider runs on a machine provider", () => {
     expect(buildModel([LOCAL, WORKTREE], []).cloud).toEqual([]);
     expect(buildModel([LOCAL, provider("blank", { machineProviderId: "  " })], []).cloud).toEqual([]);
+  });
+
+  it("says whether cloud is missing everywhere or only for this project", () => {
+    expect(buildModel([LOCAL, MODAL], []).cloudUnavailable).toBeNull();
+    const none = buildModel([LOCAL], [], [LOCAL]);
+    expect(none.cloudUnavailable).toBe("none-installed");
+    expect(cloudUnavailableMessage(none.cloudUnavailable!)).toBe(NO_CLOUD_MESSAGE);
+    const elsewhere = buildModel([LOCAL], [], [LOCAL, MODAL]);
+    expect(elsewhere.cloudUnavailable).toBe("not-for-project");
+    expect(cloudUnavailableMessage(elsewhere.cloudUnavailable!)).toBe(CLOUD_NOT_FOR_PROJECT_MESSAGE);
+    expect(CLOUD_NOT_FOR_PROJECT_MESSAGE).toBe("Cloud isn't available for this project.");
   });
 
   it("never lists the personal workspace", () => {
@@ -139,5 +155,35 @@ describe("sameLocation", () => {
     expect(sameLocation({ kind: "cloud", providerId: "a" }, { kind: "cloud", providerId: "b" })).toBe(false);
     expect(sameLocation({ kind: "worktree", environmentId: "a" }, { kind: "worktree", environmentId: "a" })).toBe(true);
     expect(sameLocation(null, { kind: "local" })).toBe(false);
+  });
+});
+
+describe("canReplaceBbPicker", () => {
+  const one = { primaryHostId: "host_a", connectedHostCount: 1 };
+  it("replaces BB's picker only with one connected machine and a local selection", () => {
+    expect(canReplaceBbPicker("host_a", one)).toBe(true);
+    expect(canReplaceBbPicker(null, one)).toBe(true);
+    expect(canReplaceBbPicker("host_a", { primaryHostId: "host_a", connectedHostCount: 0 })).toBe(true);
+  });
+
+  it("keeps BB's picker when another machine is connected or selected", () => {
+    expect(canReplaceBbPicker("host_a", { primaryHostId: "host_a", connectedHostCount: 2 })).toBe(false);
+    expect(canReplaceBbPicker("host_b", one)).toBe(false);
+    expect(canReplaceBbPicker("host_a", { primaryHostId: null, connectedHostCount: 1 })).toBe(false);
+  });
+
+  it("names a remote machine instead of calling it This Computer", () => {
+    const model = buildModel([LOCAL, WORKTREE], []);
+    expect(triggerLabel({ kind: "local" }, model, "build-box")).toMatchObject({ label: "build-box", detail: "This Computer", icon: "server" });
+    expect(triggerLabel({ kind: "new-worktree" }, model, "build-box")).toMatchObject({ label: "build-box", detail: "New Worktree" });
+  });
+});
+
+describe("submenuSide", () => {
+  it("opens right when it fits, flips left, and goes inline on a phone", () => {
+    expect(submenuSide(400, 1400)).toBe("right");
+    expect(submenuSide(1100, 1400)).toBe("left");
+    expect(submenuSide(102, 390)).toBe("inline");
+    expect(submenuSide(8, 390)).toBe("inline");
   });
 });

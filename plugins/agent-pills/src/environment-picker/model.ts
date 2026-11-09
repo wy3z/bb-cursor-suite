@@ -45,12 +45,23 @@ export interface ProviderState {
   disabledReason: string | null;
 }
 
+export type CloudUnavailable = "none-installed" | "not-for-project";
+
 export interface PickerModel {
   local: ProviderState | null;
   newWorktree: ProviderState | null;
   cloud: ProviderState[];
+  cloudUnavailable: CloudUnavailable | null;
   others: ProviderState[];
   worktrees: PickerWorktree[];
+}
+
+export const CLOUD_DESCRIPTION = "Runs on a cloud machine with a fresh clone of this project.";
+export const NO_CLOUD_MESSAGE = "Install a cloud machine plugin to run agents in the cloud.";
+export const CLOUD_NOT_FOR_PROJECT_MESSAGE = "Cloud isn't available for this project.";
+
+export function cloudUnavailableMessage(reason: CloudUnavailable): string {
+  return reason === "none-installed" ? NO_CLOUD_MESSAGE : CLOUD_NOT_FOR_PROJECT_MESSAGE;
 }
 
 export const isCloudProvider = (provider: Pick<PickerProvider, "machineProviderId">): boolean =>
@@ -72,16 +83,24 @@ export function disabledReason(provider: PickerProvider): string | null {
 
 const MAX_WORKTREES = 20;
 
-export function buildModel(providers: readonly PickerProvider[], worktrees: readonly PickerWorktree[]): PickerModel {
+export function buildModel(
+  providers: readonly PickerProvider[],
+  worktrees: readonly PickerWorktree[],
+  catalog: readonly Pick<PickerProvider, "machineProviderId">[] = providers,
+): PickerModel {
   const state = (provider: PickerProvider): ProviderState => ({ provider, disabledReason: disabledReason(provider) });
   const byId = new Map(providers.map((provider) => [provider.id, provider]));
   const local = byId.get(LOCAL_PROVIDER);
   const worktree = byId.get(WORKTREE_PROVIDER);
   const builtIn = new Set([LOCAL_PROVIDER, WORKTREE_PROVIDER, PERSONAL_PROVIDER]);
+  const cloud = providers.filter(isCloudProvider).map(state);
+  const cloudUnavailable: CloudUnavailable | null =
+    cloud.length > 0 ? null : catalog.some(isCloudProvider) ? "not-for-project" : "none-installed";
   return {
     local: local && !isCloudProvider(local) ? state(local) : null,
     newWorktree: worktree && !isCloudProvider(worktree) ? state(worktree) : null,
-    cloud: providers.filter(isCloudProvider).map(state),
+    cloud,
+    cloudUnavailable,
     others: providers.filter((provider) => !isCloudProvider(provider) && !builtIn.has(provider.id)).map(state),
     worktrees: [...worktrees].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_WORKTREES),
   };
@@ -159,12 +178,29 @@ export function worktreeLabel(worktree: PickerWorktree): string {
 export interface TriggerLabel {
   label: string;
   detail: string | null;
-  icon: "laptop" | "fork" | "cloud" | "provider";
+  icon: "laptop" | "fork" | "cloud" | "provider" | "server";
   providerId: string | null;
 }
 
-export function triggerLabel(location: Location | null, model: PickerModel): TriggerLabel | null {
+export interface Machines {
+  primaryHostId: string | null;
+  connectedHostCount: number;
+}
+
+export function isRemoteHost(selectedHostId: string | null, machines: Machines): boolean {
+  return selectedHostId !== null && selectedHostId !== machines.primaryHostId;
+}
+
+export function canReplaceBbPicker(selectedHostId: string | null, machines: Machines): boolean {
+  return machines.connectedHostCount <= 1 && !isRemoteHost(selectedHostId, machines);
+}
+
+export function triggerLabel(location: Location | null, model: PickerModel, remoteHostName: string | null = null): TriggerLabel | null {
   if (location === null || location.kind === "personal") return null;
+  if (remoteHostName !== null && location.kind !== "cloud" && location.kind !== "worktree") {
+    const base = triggerLabel(location, model);
+    return { label: remoteHostName, detail: base?.label ?? null, icon: "server", providerId: null };
+  }
   switch (location.kind) {
     case "local":
       return { label: "This Computer", detail: null, icon: "laptop", providerId: null };
@@ -192,3 +228,15 @@ export function accessibleTriggerLabel(label: TriggerLabel): string {
 }
 
 export const INLINE_WORKTREE_LIMIT = 3;
+export const MENU_WIDTH = 280;
+export const SUBMENU_GAP = 4;
+const EDGE = 8;
+
+export type SubmenuSide = "right" | "left" | "inline";
+
+export function submenuSide(menuLeft: number, viewportWidth: number): SubmenuSide {
+  const width = MENU_WIDTH + SUBMENU_GAP;
+  if (menuLeft + MENU_WIDTH + width <= viewportWidth - EDGE) return "right";
+  if (menuLeft - width >= EDGE) return "left";
+  return "inline";
+}
