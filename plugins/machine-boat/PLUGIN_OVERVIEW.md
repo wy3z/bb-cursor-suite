@@ -150,9 +150,17 @@ Where the token sits on disk, by a full scan (paths only; `/proc`, `/sys`, `/dev
 |---|---|
 | After create | `/run/ascii-secrets/env.sh` (600, boat's own) |
 | After a `claude -p` run | the same, nothing new |
-| After stop and resume | `/run/ascii-secrets/env.sh`, plus `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json` (600), written by boat at the same moment it rewrote `env.sh` |
+| After stop and a resume within 10 minutes (same machine) | `/run/ascii-secrets/env.sh`, plus `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json` (600), written by boat at the same moment it rewrote `env.sh` |
+| After stop and a resume 11 minutes later (new machine, fifth VM) | `/run/ascii-secrets/env.sh` only |
 
-`/run` is normally tmpfs and not in the disk snapshot (confirm). The two `auth.json` files are boat's credentials for its own pi and Prime Agent harnesses; they are on disk, so a VM resumed once carries the login in its snapshots until it is deleted. The plugin doesn't remove them: boat rewrites them on every resume and saves the disk every minute, so a cleanup would race boat's own sync and break boat's harnesses without keeping the token out of snapshots.
+`/run` is normally tmpfs and not in the disk snapshot (confirm). The two `auth.json` files are boat's credentials for its own pi and Prime Agent harnesses; they are on disk, so a VM that has had a same-machine resume carries the login in its snapshots until it is deleted. The plugin doesn't remove them: boat rewrites them when it resumes the VM and saves the disk every minute, so a cleanup would race boat's own sync and break boat's harnesses without keeping the token out of snapshots.
+
+A fifth VM checked what the guard and the hand-off rely on, through the plugin's own code:
+
+- `GET /sandboxes/{id}` has `environment` (string) and `environmentVersion` (number), and `GET /environments` has `latestVersionNumber` (number); `toSandbox` and `toEnvironment` read them correctly, and the VM's pinned version equalled the environment's latest.
+- A stand-in `bb-host-daemon-*` unit given an old token (fake value) was left alone by a live-mode hand-off (pid unchanged, value still old), restarted by a safe-point hand-off (new pid, value now matching boat's, compared on the VM), and left alone by a repeat.
+- After a stop and an 11-minute wait, `resume` came back on a new machine (new boot id). The enabled unit had autostarted without the login; the hand-off, which waits for the user manager first, restarted it 0.9 s later with the matching value. The user manager had finished starting 12 s into boot and reported `degraded` (boat's own units), which `is-system-running --wait` treats as settled.
+- The token was in argv 0 times and the user journal 0 times. The agent-CLI busy check wasn't exercised: the test harness wrote a broken unit file for it, so it is covered by unit tests only.
 
 The guard's machine source (`createBoatLoginCheck`, passed as `launchCheck.machineLogins`) answers by host:
 
@@ -214,7 +222,7 @@ boat keeps a stopped VM's disk for at least 14 days; after that an automated cle
 
 ### Secrets
 
-Agent logins from a boat environment live in boat's exec environment and `/run/ascii-secrets/env.sh`, in the VM's systemd user manager after the hand-off (memory only), and, after any resume, in boat's `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json`. The plugin itself never writes them to a file; see Agent logins.
+Agent logins from a boat environment live in boat's exec environment and `/run/ascii-secrets/env.sh`, in the VM's systemd user manager after the hand-off (memory only), and, after a resume onto the same machine, in boat's `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json`. The plugin itself never writes them to a file; see Agent logins.
 
 With `noEnv`, boat still leaves its own `ASCII_TOKEN` (plus `ASCII_PORT`, `ASCII_API_URL` and `BOAT_ID`) in the VM's command environment; boat says it can only host ports of its own sandbox. `~/.config/ascii/boat/config.json` holds no key.
 
