@@ -19,6 +19,16 @@ People who hand real work to agents and need to see where it stands: what is run
 - **Board icons,** using the suite's port of Cursor's icon picker. Its notices (Hugeicons, T3 Code) are in [suite-shared's THIRD-PARTY-NOTICES.md](../../packages/suite-shared/THIRD-PARTY-NOTICES.md).
 - **A composer pill** in any thread of a linked BB project, with the working count and "N for review".
 
+![The board: For Review, In Progress, Queued and Done columns with live cards](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-board.png)
+
+![Cards up close: agent chips, change counts, PR chips reading Ready, CI Failing, Checks running and Draft, and a sub-task pill with an Apply hint](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-card.png)
+
+![A lead thread with the board's compact list in the side panel](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-lead-panel.png)
+
+![Workers open as tabs of their lead, with the Parent pill above the composer](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-lead-tabs.png)
+
+![List view with Done ordered by completion time, newest first](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-done-sorted.png)
+
 The full behaviour reference is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md).
 
 ## Install

@@ -17,6 +17,12 @@ People whose agents open pull requests and who would rather review them next to 
 - **Git actions** for the other suite plugins: commit, push, create PR and apply locally.
 - **GitLab merge requests** for a thread's branch, read through `glab` on the environment's machine.
 
+![The Pull requests page for one repository, grouped into Needs attention, Awaiting review, Approved and Drafts](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-board.png)
+
+![A pull request open beside the thread that wrote it](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-detail.png)
+
+![The PRs tray above a composer: Waiting for Reviewers, Draft, CI Failing and Ready, with the Listening chip](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-thread-tray.png)
+
 The full behaviour reference, including exactly which git commands run and with what protection, is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md).
 
 ## Install

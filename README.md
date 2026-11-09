@@ -1,6 +1,8 @@
 # BB Cursor Suite
 
-Run Claude Code, Codex and the other agents BB supports behind a Cursor-style interface. Six plugins give [BB](https://getbb.app) Cursor's sidebar, composer, file tree, project boards and pull request views, and each one installs and works on its own.
+Run Claude Code, Codex and the other agents BB supports behind a Cursor-style interface. Seven plugins give [BB](https://getbb.app) Cursor's sidebar, composer, file tree, project boards, pull request views and cloud agents with a desktop you can take over, and each one installs and works on its own.
+
+![BB with the whole suite on: the Cursor-style sidebar, a lead thread with its pill row, and the Files tab](docs/media/suite-hero.png)
 
 Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
 
@@ -50,9 +52,19 @@ Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range k
 
 On a new thread, Cursor Composer's environment picker sits under the prompt box. Like Cursor's, it offers **Cloud**, **This Computer** and the worktree options. Cloud runs the thread on a machine that a machine provider plugin creates, with a fresh clone of the project, so the work carries on while your computer sleeps.
 
-Cloud lists every environment provider that runs on a machine provider, the ones with a `machineProviderId` in `bb environment providers --json`. BB includes one, Modal Sandbox (experimental), which needs a Modal account. With no cloud provider installed, Cloud is shown greyed out with a link to this section. When a cloud provider is installed but can't run the current project (`bb environment providers --project <id> --json` leaves it out), Cloud says "Cloud isn't available for this project" instead.
+![The environment picker on a new thread: Cloud, This Computer and the worktrees](docs/media/composer-environment-picker.png)
+
+Cloud lists every environment provider that runs on a machine provider, the ones with a `machineProviderId` in `bb environment providers --json`. BB includes one, Modal Sandbox (experimental), which needs a Modal account. This suite adds [Boat Sandbox](plugins/machine-boat), which runs each thread on its own [boat.dev](https://boat.dev) VM with a desktop, Docker, Chrome, and Claude Code and Codex preinstalled. With no cloud provider installed, Cloud is shown greyed out with a link to this section. When a cloud provider is installed but can't run the current project (`bb environment providers --project <id> --json` leaves it out), Cloud says "Cloud isn't available for this project" instead.
 
 Choosing Cloud only changes the selection. A machine starts when you send the first message. What it costs, and for how long, depends on the provider, so check its pricing.
+
+### The Desktop tab
+
+When a thread runs on a VM with a desktop (Boat Sandbox today), a **Desktop** pill appears above the composer. It opens the VM's screen in the right-hand panel, so you can watch the agent drive Chrome or any other app with its computer-use tools. Press **Take Control** to click and type in it yourself; the agent's computer tools wait until you **Release control**, and an agent that was mid-turn is told to take a fresh screenshot before it carries on.
+
+![A cloud agent play-testing a game on its VM, shown in the Desktop tab with the Take Control button](docs/media/desktop-take-control.png)
+
+### Choosing a machine
 
 The picker takes over BB's own Environment button only when one machine is connected and the selection is on this computer. With a second machine connected, or another machine selected, BB's picker stays so you can still choose the machine, and Cursor's picker sits in the prompt box beside it.
 

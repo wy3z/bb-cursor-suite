@@ -17,6 +17,16 @@ Anyone who runs several agents at once and wants to see, at a glance, which ones
 - **Touch gestures** on phones: swipe to pin or archive, hold to drag or open the menu.
 - **Two navigation layouts,** Compact and Cursor. BB switches to Compact after install unless you have picked a layout yourself.
 
+![The sidebar in Projects grouping: a board row with its worker chats, a pinned chat and repositories with icons](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-projects.png)
+
+![The view menu with Grouping, Ordering, Threads per group, Show and the filters](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-view-menu.png)
+
+![The project icon picker with search, ten colour swatches and the icon grid](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-icon-picker.png)
+
+![A chat row on hover with its pin and archive buttons](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-hover-actions.png)
+
+![A chat running on a cloud machine, with the cloud mark beside its provider mark](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-cloud-mark.png)
+
 Your view settings live in the plugin's own database on the BB server. Uninstalling the plugin removes them and leaves your threads alone.
 
 The full behaviour reference (every menu item, gesture and edge case) is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md).

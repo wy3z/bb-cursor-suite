@@ -16,6 +16,18 @@ People who spend their day in the prompt box and want it calm. The pills keep ch
 - Pills for workflows, plan mode, the goal, to-dos, model fallback, queued messages, an archived thread and a paused machine, each with its own actions.
 - **Desktop** opens the thread's computer in the right-hand panel when the thread runs on a cloud VM with a desktop (Boat Sandbox today). You watch the agent work, then **Take Control** to click and type in it yourself; the agent's computer tools wait until you **Release control**.
 
+![The composer with a draft, and the pill row above it: Working, PRs, Listening and Changes](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-composer.png)
+
+![The Agents tray with one child waiting on an answer and one working, and Stop All](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-agents-tray.png)
+
+![The Changes tray with three files, the commit message box, the untracked files tick and the Commit, Commit & Push and Create PR buttons](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-changes-tray.png)
+
+![The environment picker on a new thread: Cloud and This Computer, then the worktrees](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/composer-environment-picker.png)
+
+![A worker's composer with the Parent pill, its PRs and its changes](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/agent-pills-parent-pill.png)
+
+![A cloud thread with the Desktop tab open on the VM's screen and the Take Control button](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/desktop-take-control.png)
+
 The restyle is on whenever the plugin is. The pills are on by default; turn them off under **Settings → Plugins → Cursor Composer → Agent pills** to get BB's own cards back. That setting is kept in this browser only.
 
 The full behaviour reference is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md).

@@ -14,6 +14,10 @@ Anyone who wants to see what an agent is working on without leaving the thread. 
 - **Open a file** in BB's viewer as a right panel tab. With the panel split, it opens in the other pane, so the tree stays in view.
 - **Copy a path** or **save a copy** of a file from the right-click menu.
 
+![The Files tab: search box and a tree with Symbols icons and Git markers on new and modified files](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/filetree-tree.png)
+
+![The right panel split: the Files tree in one pane and a file open in the other](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/filetree-split.png)
+
 File access is read-only. Runs on macOS (Apple silicon and Intel), Linux (x64 and Arm64, glibc 2.29 or newer) and Windows x64. On any other machine the Files tab says it can't browse that machine.
 
 ## Install
