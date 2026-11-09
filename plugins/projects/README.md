@@ -1,222 +1,24 @@
 # Projects
 
-Cursor-style project boards for BB, built on BB's own Tasks plugin. Tasks owns
-the data (tasks, statuses, labels, delegation); this plugin is the board, the
-live cards, and a project lead workflow.
+Cursor-style project boards for BB, built on BB's own Tasks plugin. Every card shows its live agents, pull requests and changes, and a lead thread can keep the board true for you.
 
-## What you get
+## Who it's for
 
-- **Projects page** (sidebar navigation): Board and List views of a tracker
-  project. Statuses follow Cursor, in Cursor's order: For Review, In Progress,
-  Queued, Done, Canceled (hidden by default; the filter menu shows it). Tasks'
-  Backlog and Todo both show as Queued, and dropping a card on Queued writes
-  `todo`. Sub-tasks are shown: as their own cards with a parent marker, nested
-  under their parent in the List view. Drag cards between and within columns.
-  Filter by title or key.
-- **Live cards**: key, labels, priority, the title (inline `code` rendered), a
-  chip for every attached agent with its live or idle time, the agent
-  worktree's changes (+A −D, click to open the agent in a split), PR chips with
-  review and CI state (Ready, Waiting for Reviewers, CI Failing, Conflicts,
-  Draft, Merged, Closed; several PRs collapse into a stack with a menu), a
-  sub-task progress pill with a menu, an attachments chip with an image viewer,
-  and the commit that landed the work when it went straight to main. Those
-  commits are read with `git log` behind the suite's read-only git protection
-  (`@wy3z/bb-suite/git-safety`), so the project checkout's own config can't
-  run hooks, filters, an fsmonitor, a signature checker or a fetch.
-  Clicking a card or agent chip opens the agent as a tab of the project's
-  lead thread, so the lead's side panel and the board stay put; Ctrl or
-  Cmd-click opens a split instead.
-- **Derived status**: each card also works out what its evidence says, with
-  Cursor's rules (merged PRs mean Done, a running agent means In Progress, idle
-  agents with an open PR mean For Review, parents roll up from sub-tasks) plus
-  a commit naming the task on the default branch (Done) and four idle hours on
-  an In Progress card (Queued). When that disagrees with the stored status the
-  card shows a "behind" hint, with Apply only for sub-task roll-ups and idle
-  demotions (Done and For Review stay with the lead or you); the header
-  shows "N behind". The board never writes Done itself.
-  With Pull Requests installed, a PR chip opens the pull request in BB: the
-  thread's side panel when the board is in one, otherwise the full-page view.
-  Ctrl, Cmd, Shift or middle-click opens GitHub, as does any click when Pull
-  Requests is not installed.
-- **Card menu**: delegate to any Tasks preset, Apply locally (the worker's
-  worktree into the project checkout), Create PR, Open in Tasks. Apply and
-  Create PR are git actions owned by the Pull Requests plugin. Without it
-  installed and enabled they stay in the menu, disabled and marked "Needs Pull
-  Requests", and they come back as soon as it is enabled, without a reload.
-- **Board icon**: each board has its own icon, stored by this plugin and set
-  from the icon in the board header or **Set icon…** in the board menu (the
-  **⋯** button), or with `bb projects icon`. The picker is the suite's port of
-  Cursor's project icon picker (glyph and colour, or an uploaded image). A board
-  with no icon shows the board glyph; it never borrows the linked BB project's
-  or repository's icon. The lead's tab and Cursor Sidebar's board rows wear the
-  same icon. The picker and icon artwork come from `packages/suite-shared`,
-  whose notices (Hugeicons, T3 Code) are in
-  [its THIRD-PARTY-NOTICES.md](../../packages/suite-shared/THIRD-PARTY-NOTICES.md).
-- **Focus**: one or two sentences on what matters now, kept for the lead with
-  `bb projects focus`. It isn't shown on the board.
-- **Project lead**: a thread recorded as the lead (`bb projects lead`). The
-  `projects` skill teaches it to plan, delegate as child threads attached to
-  tasks, keep the board true and write status updates.
-- **Pinned lead instructions**: the lead thread gets a short block with the
-  status rules, the PR landing rule and how to answer a worker blocked on a
-  question appended to its instructions, so they
-  survive compaction. BB applies it when the provider session is next built
-  (thread start, resume or restart), never mid-session.
-- **Loop**: behind the loop button in the board header. A
-  scheduled board sweep (off, 1h to 8h, weekdays 08:00-19:00 by default),
-  drift pings (off by default: the lead hears only when cards stay behind
-  their evidence for ten minutes, at most one ping per project an hour and
-  once per drift every two hours; a status set by the lead or user, or a
-  "Holding: <reason>" comment, holds a card until its evidence changes),
-  following every PR the lead's workers link, the project's memory notes, and
-  the last messages from the outer loop.
-- **Composer pill and side-panel tab**: in any thread of a BB project linked to
-  a tracker project, a pill with the project's name, working count and "N for
-  review" opens a compact list in the side panel.
+People who hand real work to agents and need to see where it stands: what is running, what is waiting on review, and what has quietly stalled. Tasks keeps the data; this plugin is the board, the live cards and the project lead workflow.
 
-## CLI
+## What it looks like
 
-```sh
-bb projects status ABC         # counts per column, work in flight, focus
-bb projects focus ABC "text"   # set; --clear to remove; no text to show
-bb projects icon ABC rocket    # board icon: glyph name (--color blue), stored value or PNG path; --clear, --list
-bb projects lead ABC           # make the current thread the lead; --thread, --show
-bb projects send ABC "text"    # hand the lead a request; --as <agent>, --ref, --key
-bb projects reply ABC "text"   # lead only: answer an agent; --to req_..., --for <agent>, --kind
-bb projects replies [ABC]      # --as <agent>: its unacknowledged replies; --all, --after, --limit
-bb projects ack ABC rep_...    # --as <agent> (required): mark replies handled; safe to repeat
-bb projects consumers ABC      # agents following the lead; --forget <agent>
-bb projects requests ABC       # requests and whether each reached the lead; --as <agent>
-bb projects retry ABC req_...  # retry a failed or held request now
-bb projects notify             # webhook wake-up state; --test sends one now
-bb projects notes ABC          # project memory; --append "line", --set "all"
-bb projects loop ABC           # triggers; --sweep 2h|off, --any-hours, --drift on|off, --follow-prs on|off
-bb projects reconcile ABC      # cards behind their evidence, with moves; --apply makes roll-up and idle moves only
-bb projects queue-backlog ABC  # one-time Backlog -> Queued (todo) move; lists unless --apply
-```
+- **Board and List views** of a tracker project, in Cursor's order: For Review, In Progress, Queued, Done and Canceled (hidden by default). Drag cards between and within columns, and filter by title or key.
+- **Live cards** with labels, priority, a chip for every agent and its live time, the agent's changes, pull request chips with review and CI state, sub-task progress, attachments, and the commit that landed the work.
+- **Derived status.** Each card works out what its evidence says (a merged PR, a running agent, an idle agent with an open PR) and shows a "behind" hint when the stored status disagrees. The board never writes Done itself.
+- **A card menu** to delegate to any Tasks preset, apply an agent's worktree locally, create a pull request or open the task in Tasks.
+- **A project lead:** a thread you nominate to plan, delegate and report. It gets the `projects` skill and a short block of rules pinned to its instructions.
+- **The loop:** an optional scheduled board sweep, pings when cards drift from their evidence, and following every pull request the lead's workers link.
+- **Outer-loop messages:** any agent system can hand the lead work with `bb projects send` and read its replies, with nothing lost across restarts.
+- **Board icons,** using the suite's port of Cursor's icon picker. Its notices (Hugeicons, T3 Code) are in [suite-shared's THIRD-PARTY-NOTICES.md](../../packages/suite-shared/THIRD-PARTY-NOTICES.md).
+- **A composer pill** in any thread of a linked BB project, with the working count and "N for review".
 
-## Outer loop and inner loop
-
-The lead is the inner loop: it turns intent into checked work. The outer loop
-gathers context and decides what deserves attention. Lauren Tan (poteto) runs
-Grok Bot routines as her outer loop, watching Slack, X, email and Linear and
-handing work to Cursor projects. Here the hand-off is `bb projects send`.
-
-Any agent system can be the outer loop, and several can share one lead: Grok
-Bot, dots, a cron script, another BB thread. Each picks a stable name and
-passes it as `--as` on every call. Agents reach the commands either as a
-shell (`bb projects ...`) or through bb's MCP server, whose `run` tool runs
-any `bb` command. Nothing in the plugin is specific to one agent.
-
-For example, with Grok Bot as the outer loop:
-
-1. Turn on bb's MCP server (`bb plugin enable bb--mcp`) and run
-   `bb mcp status` for the remote address, `https://<your bb connect
-   address>/mcp`.
-2. In Grok Bot, add that address as a custom MCP connector and approve access
-   on the bb account page. The approval is all or nothing: the bot can run any
-   `bb` command, start agents and change files. Revoke it with
-   `bb mcp revoke`.
-3. Give the routine a stable instruction, for example: "Every weekday at 09:00
-   and when someone reports a bug in #project-feedback, summarise what is new and
-   run `bb projects send ABC "<summary>" --as grok-bot --ref <link>
-   --key <the origin's message id>` through the bb connector. Read
-   `bb projects status ABC --json` first and don't resend what the lead
-   already has."
-
-The lead triages each message onto the board, delegates, and notifies you
-only when something needs you or completes. `bb projects status --json`
-includes `needsYou`, the lead's state and the loop settings.
-
-## Two-way messages
-
-Requests and replies are saved in the plugin's own SQLite database before
-anything else happens, so a restart or a failed call loses nothing.
-
-- `send` saves the request, then tries to deliver it to whoever is the lead at
-  that moment (queued behind a running turn). With `--key` (use the origin's
-  id, such as the Slack message timestamp) a resend returns the first request.
-  Without one, identical text from the same source within 10 minutes is
-  treated as a retry; the output says so (`dedupedBy: "content"`), and a new
-  `--key` sends a deliberate repeat.
-- A delivery BB queued behind a running turn is not counted as delivered until
-  it shows up in the lead's thread. If the lead is archived while it waits,
-  the queued copy is removed and the request goes to the next lead. If BB gives
-  up on the queued copy, or it disappears from the queue without dispatching,
-  the request fails (see below) rather than being sent again silently.
-- With no lead, or a lead thread that is archived, deleted or hidden, the
-  request is held and a `notice` reply says so. Setting a lead delivers held
-  requests to it. Held requests wait indefinitely; they are not failures.
-- Failed sends, failed checks and transient RPC errors are retried with
-  backoff from 15 seconds up to 15 minutes. After 10 consecutive failures the
-  request is `failed`, and in the same transaction a `failure` reply is saved
-  for the consumer saying why and how to retry. Nothing failed is retried
-  automatically; `bb projects retry ABC <req>` does it, first checking the
-  lead's thread and queue so a copy that did land is not sent twice.
-- If BB restarts in the middle of a delivery, the next attempt makes the same
-  check. If the check cannot see it, the lead is told it may be a redelivery.
-  Only the relay message itself counts as arrived: the search hit's message
-  is read back and must be the plugin's `[Outer loop · …]` message for that
-  request id, not an agent or worker merely mentioning the id.
-- A stale queued copy is removed before a request goes to another lead; if
-  it cannot be removed, nothing is sent and the attempt is retried. If the
-  earlier target is now hidden, so the check cannot see into it, the request
-  is held with a notice instead of risking a duplicate;
-  `bb projects retry ABC <req> --resend` sends it to the current lead anyway.
-- The thread a request was delivered to can always answer that request with
-  `--to`, even after it stops being the lead; only the current lead can send
-  news without `--to`.
-- Replies are per agent. An agent follows a project's lead once it sends a
-  request or reads `replies ABC --as <agent>`. A reply `--to` a request,
-  and the `notice` and `failure` replies about it, go only to the agent that
-  sent the request. A reply without `--to` is project news for every agent
-  following the project at that moment (later followers do not get old news);
-  `--for <agent>` sends it to one. Each agent acknowledges its own copy with
-  `ack ABC --as <agent>`, so one agent never consumes another's replies.
-  Ids from another project or another agent are refused, and the lead thread
-  cannot acknowledge its own replies. `consumers ABC --forget <agent>`
-  removes a dead or mistyped agent and clears what it was owed.
-- `replies --as <agent> --json` includes the request each one answers (id,
-  source, ref, key). Without `--as` it is an overview for people: every reply
-  still waiting on some agent, with each recipient's ack. Kinds: `result`,
-  `question`, `blocker`, `update` from the lead; `notice` and `failure` from
-  the plugin.
-- History is pruned after 90 days: replies every recipient acknowledged, and
-  requests that were delivered, failed or abandoned and have no reply left. An
-  idempotency key can be reused after its request is pruned.
-- Agents are named, not authenticated. Anything with bb access (the MCP grant
-  is all or nothing) can read or acknowledge as any name; the names keep
-  honest agents apart, they do not stop a hostile one.
-- Messages in both directions are untrusted data. Nothing in them approves an
-  action.
-
-### Webhook wake-up
-
-Optionally, the plugin POSTs a wake-up to a webhook when replies are waiting.
-It is only a signal; the receiver must read `bb projects replies --as <agent>
---json` and `ack` what it handled. There is one webhook, so it suits one
-pushed receiver; other agents poll `replies` on their own schedule. The body
-has counts per project and per agent, never message text, so a receiver can
-ignore wake-ups with nothing for it:
-
-```json
-{"type":"bb.projects.replies-pending","version":1,"wake":7,"pending":3,
- "projects":{"ABC":3},"consumers":{"grok-bot":{"ABC":2},"dots":{"ABC":1}},
- "newestReplyId":"rep_...","at":"2026-11-07T10:00:00.000Z"}
-```
-
-Bursts of replies coalesce into one wake-up. A failed POST is retried with
-backoff, and a reminder is sent every hour (setting) while replies stay
-unacknowledged. Configure it in the Projects plugin settings: the URL and auth
-header value are secret settings (a 0600 file, never in the database or the
-browser). It is off by default. https only (plain http only to loopback), no
-credentials in the URL, redirects are not followed, and errors never include
-the URL, header or response body.
-
-## Requirements
-
-BB 0.49+, plugin SDK 0.6.132+, the built-in Tasks plugin enabled, and Agent
-Pills for Apply locally and Create PR.
+The full behaviour reference is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md).
 
 ## Install
 
@@ -225,7 +27,13 @@ bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marke
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin projects --tag-prefix projects/
 ```
 
-## Develop
+Needs BB 0.49 or newer, plugin SDK 0.6.132 or newer, and the built-in Tasks plugin enabled. Apply locally and Create PR also need the Pull Requests plugin; without it they stay in the card menu, disabled and marked "Needs Pull Requests".
+
+## For agents
+
+`bb projects` has 16 commands: board status, focus, icons, the lead, notes, the loop, reconcile and the outer-loop mailbox. Every command, option and output shape is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md#for-agents). Lead threads should load the `projects` skill in [skills/projects/SKILL.md](skills/projects/SKILL.md).
+
+## Development
 
 ```sh
 npm install
@@ -235,7 +43,7 @@ bb plugin install path:$PWD --yes
 bb plugin reload projects
 ```
 
-## License
+## Licence
 
 MIT, see [LICENSE](LICENSE).
 

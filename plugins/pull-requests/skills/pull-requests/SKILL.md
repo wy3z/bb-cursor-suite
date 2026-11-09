@@ -62,6 +62,9 @@ bb pull-requests subscriptions
   later changes (state, commits, reviews, comments, checks, labels, assignees)
   arrive in this thread as `[Subscription update] …` messages, one message
   covering everything since you last read one.
+- A subscription ends on its own once the pull request merges or closes and
+  that last update has been delivered. `subscriptions` won't list it after
+  that; subscribe again if you need to follow a reopened one.
 - "waiting for first check" is normal for about a minute after subscribing.
   "gh is not signed in" means the `gh` CLI on the bb server needs
   `gh auth login`; don't retry in a loop.

@@ -60,7 +60,7 @@
     {
       "id": "filetree",
       "displayName": "Files",
-      "description": "Browse thread workspaces and project sources with search, Git status, and document previews.",
+      "description": "Browse thread workspaces and project sources with search and Git status.",
       "icon": {
         "url": "./icons/filetree.svg"
       },
