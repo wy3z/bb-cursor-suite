@@ -1,6 +1,6 @@
 # Shot list
 
-Every screenshot the READMEs and the launch posts use. BCS-86 and BCS-87 captured them in a throwaway BB with fake data: invented projects (`acme/web`, `acme/api` and the `orbit` game, published as [wy3z/orbit](https://github.com/wy3z/orbit)), people, tasks and pull requests, with real agent turns. Plugin READMEs embed them with absolute `https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/<name>.png` URLs, the root README with a relative path. Captions and alt text for every file are in [docs/launch/captions.md](../launch/captions.md).
+Every screenshot the READMEs and the launch posts use. BCS-86 and BCS-87 captured them in a throwaway BB with fake data: invented projects (`acme/web`, `acme/api` and the `orbit` game, published as [wy3z/orbit](https://github.com/wy3z/orbit)), people, tasks and pull requests, with real agent turns. Plugin READMEs embed them with absolute `https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/<name>.png` URLs, the root README with a relative path.
 
 When you replace a shot, keep the fake data: no real thread titles, client names, customer data, tokens, hostnames or emails. Run OCR over the new file and read what it found before committing it.
 
@@ -36,5 +36,5 @@ Common rules:
 | `composer-environment-picker.png` | `plugins/agent-pills/README.md`, `README.md` | A new thread's environment menu open: Cloud and This Computer under Run on, then Worktrees. |
 | `desktop-take-control.png` | `plugins/agent-pills/README.md`, `plugins/machine-boat/README.md`, `README.md` | A thread on a Boat Sandbox VM with the Desktop tab open on the agent's screen and the Take Control button. |
 | `projects-lead-tabs.png` | `plugins/projects/README.md` | A worker open as a tab of its lead: the lead's tab, sibling worker tabs and the Parent pill. |
-| `projects-lead-question.png` | `docs/launch/guide-pt1.md` | The lead asking the user to choose, with its recommendation first, and the Submit answer button. |
+| `projects-lead-question.png` | launch posts | The lead asking the user to choose, with its recommendation first, and the Submit answer button. |
 | `projects-done-sorted.png` | `plugins/projects/README.md` | List view with the Done group open, newest completion first. |
