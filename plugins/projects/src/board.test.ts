@@ -50,6 +50,7 @@ describe("pinned lead instructions", () => {
     expect(block).toContain('"Holding: <reason>"');
     expect(block).toContain("bb tasks attachment add <task> --file <path>");
     expect(block).toContain("--mode queue --image/--file");
+    expect(block).toContain("bb tasks attachment get");
     expect(fake.instructions("thr_other")).toBeNull();
     await fake.run(["lead", "ABC", "--thread", "thr_lead2"]);
     await settle();

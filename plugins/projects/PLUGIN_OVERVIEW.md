@@ -56,7 +56,7 @@ bb projects reply ABC --to req_456 --kind result "Fixed in PR #12, waiting on re
 
 ### Agent instructions
 
-When a thread is a project's lead, the plugin contributes a `<project_lead_instructions project="ABC">` block to that thread's instructions: the status rules, how to answer a worker blocked on a question, the proof rule for visible work, the derived-status rules and the landing rule. BB applies it when the provider session is next built (thread start, resume or restart), never mid-session. Setting a lead also sets the lead thread's notifications to questions and approvals only, unless the thread already has its own level.
+When a thread is a project's lead, the plugin contributes a `<project_lead_instructions project="ABC">` block to that thread's instructions: the status rules, how to answer a worker blocked on a question, the proof rule for visible work and presenting it to the user, the derived-status rules and the landing rule. BB applies it when the provider session is next built (thread start, resume or restart), never mid-session. Setting a lead also sets the lead thread's notifications to questions and approvals only, unless the thread already has its own level.
 
 ### Skill
 

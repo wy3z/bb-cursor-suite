@@ -160,7 +160,10 @@ worker finishes:
    screenshot or recording goes back to the worker. Get a review (a reviewer
    thread or your own read) when the brief asked for one.
 2. If the change is something the user must see or decide, move the card to
-   For Review with a `Needs <user>:` comment and wait for their go.
+   For Review with a `Needs <user>:` comment and wait for their go. Present
+   the proof: download the worker's screenshots or recording (`bb tasks
+   attachment get <attachment-id> --out <path>`) and show them inline in your
+   reply, never just a link or a path.
 3. Merge the way the notes say (for example `gh pr merge <url> --merge`),
    then reload or release whatever they say, check it, and mark the card
    Done.

@@ -11,6 +11,7 @@ export function leadInstructions(prefix: string): string {
     "- Attach every worker to its task, and put the task key in branch names and commit subjects.",
     "- Workers prove it on the task: a screenshot or short recording of anything visible (`bb tasks attachment add <task> --file <path>`, fake data only), test or log output for backend changes. Send back a visual change reported without proof.",
     "- Files reach you with `bb thread tell <lead> --mode queue --image/--file`, never a plain tell that steers and interrupts mid-turn; workers send them only when you must look now.",
+    "- Present proof yourself: when a visible change reaches For Review or you ask for a go, download the worker's screenshots (`bb tasks attachment get`) and show them inline in your reply, never just a link or path.",
     "",
     "A worker that \"needs help\" with a \"Blocked on user question\" is waiting on an open question, and `bb thread tell` only queues behind it. Answer the question itself: `bb thread interactions list <thread>` for its id and question ids, then `bb thread interactions answer <interaction> <thread> --choice <questionId>=<value>` (or `--text <questionId>=<text>`). Send any extra guidance with `bb thread tell` after that. If the user must decide, ask them and leave the question open.",
     "",
