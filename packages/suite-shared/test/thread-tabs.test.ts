@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { applyOpenPlan, findLead, openThreadAsTab, planThreadOpen, sharedThreadTabs, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "../src/thread-tabs";
+import { applyOpenPlan, findLead, openThreadAsTab, planThreadOpen, sharedThreadTabs, shownThread, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "../src/thread-tabs";
 
 const LEAD = "thr_lead";
 const WORKER = "thr_worker";
@@ -172,5 +172,23 @@ describe("shared stores", () => {
     stop();
     viewStore.set({});
     expect(seen).toEqual([NESTED]);
+  });
+});
+
+describe("shownThread", () => {
+  const exists = (id: string) => byId.has(id);
+
+  it("is the overlaid worker on its lead, and the route otherwise", () => {
+    const tabs = { [LEAD]: [WORKER, NESTED] };
+    expect(shownThread(LEAD, leads, tabs, { [LEAD]: NESTED }, exists)).toBe(NESTED);
+    expect(shownThread(LEAD, leads, tabs, {}, exists)).toBe(LEAD);
+    expect(shownThread(WORKER, leads, tabs, { [LEAD]: NESTED }, exists)).toBe(WORKER);
+    expect(shownThread(OTHER, leads, tabs, { [OTHER]: NESTED }, exists)).toBe(OTHER);
+    expect(shownThread(null, leads, tabs, {}, exists)).toBeNull();
+  });
+
+  it("falls back to the lead when the viewed tab was closed or its thread is gone", () => {
+    expect(shownThread(LEAD, leads, { [LEAD]: [NESTED] }, { [LEAD]: WORKER }, exists)).toBe(LEAD);
+    expect(shownThread(LEAD, leads, { [LEAD]: ["thr_gone"] }, { [LEAD]: "thr_gone" }, exists)).toBe(LEAD);
   });
 });

@@ -133,6 +133,23 @@ export function applyOpenPlan(plan: OpenPlan, navigate: ThreadNavigate) {
   if (plan.navigate) navigate.toThread(plan.leadId);
 }
 
+export function shownThread(
+  current: string | null,
+  leadIds: ReadonlySet<string>,
+  tabs: Readonly<TabStore>,
+  views: Readonly<Record<string, string>>,
+  exists: (threadId: string) => boolean,
+): string | null {
+  if (current === null || !leadIds.has(current)) return current;
+  const view = views[current];
+  if (!view || view === current || !exists(view) || !(tabs[current] ?? []).includes(view)) return current;
+  return view;
+}
+
+export function useShownThread(current: string | null, leadIds: ReadonlySet<string>, exists: (threadId: string) => boolean): string | null {
+  return shownThread(current, leadIds, tabStore.use(), viewStore.use(), exists);
+}
+
 export function openThreadAsTab({
   target,
   current,

@@ -13,7 +13,7 @@ import { ProjectIconArt } from "@wy3z/bb-suite/project-icon/picker";
 import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
 import { projectsContract } from "./meta";
 import { useBoardIcons } from "./BoardIcon";
-import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, tabStore, viewStore } from "@wy3z/bb-suite/thread-tabs";
+import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, shownThread, tabStore, viewStore } from "@wy3z/bb-suite/thread-tabs";
 
 const HOST_ATTR = "data-bb-projects-tabs";
 const CHAT_ATTR = "data-bb-projects-chat";
@@ -257,7 +257,8 @@ export function ManagerTabs() {
   }, [byId, leadId, store]);
 
   const onLead = leadId !== null && threadId === leadId;
-  const overlayId = onLead && views[leadId] && tabs.includes(views[leadId]!) ? views[leadId]! : null;
+  const shown = onLead ? shownThread(threadId, leadIds, store, views, (id) => byId.has(id)) : null;
+  const overlayId = shown !== null && shown !== threadId ? shown : null;
   const selectedId = overlayId ?? threadId;
 
   useEffect(() => {

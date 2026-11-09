@@ -17,7 +17,8 @@ export function openSidebarThread(
   isConversationHidden?: () => boolean,
 ): void {
   const parentThreadId = routing?.byId.get(target)?.parentThreadId ?? null;
-  if (routing === null || parentThreadId === null) {
+  const isLead = routing?.leadIds.has(target) ?? false;
+  if (routing === null || (parentThreadId === null && (!isLead || options?.split === true))) {
     navigate.toThread(target, options);
     return;
   }

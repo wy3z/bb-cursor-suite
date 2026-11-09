@@ -82,6 +82,7 @@ import {
 import { useThreadSections } from "./useThreadSections";
 import { useThreadMutations } from "./thread-actions";
 import { ThreadRoutingContext, type ThreadRouting } from "./lead-tabs";
+import { useShownThread } from "@wy3z/bb-suite/thread-tabs";
 import { useSidebarView } from "./useSidebarView";
 import type { cursorSidebarRpcContract } from "./server";
 import { GROUPING_HEADINGS, SidebarViewMenuRoot, SidebarViewMenuTrigger, SidebarViewSyncNotice } from "./SidebarViewMenu";
@@ -141,7 +142,7 @@ const COLLAPSED_ROW_EXIT_MS = 220;
  * native personal container is shown as Chats, and settled threads sit in one
  * collapsed section under the thread list rather than a shelf per project.
  */
-export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListProps) {
+export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: PluginThreadListProps) {
   const { status, threads: rawThreads, projects: nativeProjects } = useSidebarThreads();
   const nativeProjectSections = useMemo(
     () => nativeProjects.filter((project) => !project.isPersonal).map((project) => ({ id: nativeProjectSectionId(project.id), name: project.name, isPersonal: false })),
@@ -171,9 +172,10 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   threadOrdersRef.current = threadOrders;
   const { boards: allProjectBoards, leadIds: projectLeadIds, reload: reloadProjectBoards } = useProjectBoards();
   const threadRouting = useMemo<ThreadRouting>(
-    () => ({ current: activeThreadId, byId: rawById, leadIds: projectLeadIds }),
-    [activeThreadId, projectLeadIds, rawById],
+    () => ({ current: routedThreadId, byId: rawById, leadIds: projectLeadIds }),
+    [routedThreadId, projectLeadIds, rawById],
   );
+  const activeThreadId = useShownThread(routedThreadId, projectLeadIds, (id) => rawById.has(id));
   const actions = useThreadMutations(threadRouting);
   const rpc = useRpc<typeof cursorSidebarRpcContract>();
   const projectIcons = useProjectIcons();
@@ -1554,7 +1556,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
                         <ProjectBoardRow
                           board={board}
                           icon={boardIcons.iconFor(board.id)}
-                          active={board.leadThreadId !== null && board.leadThreadId === activeThreadId}
+                          active={board.leadThreadId !== null && board.leadThreadId === routedThreadId}
                           working={false}
                           familyStatus={(() => {
                             const lead = board.leadThreadId ? rawById.get(board.leadThreadId) : undefined;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
-import { tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "@wy3z/bb-suite/thread-tabs";
+import { shownThread, tabStore, viewStore, type ThreadNavigate, type ThreadNode } from "@wy3z/bb-suite/thread-tabs";
 import { openSidebarThread, type ThreadRouting } from "./lead-tabs";
 
 const LEAD = "thr_lead";
@@ -60,9 +60,27 @@ describe("opening a thread from the sidebar", () => {
     assert.deepEqual(viewStore.get(), {});
   });
 
-  test("leaves top-level threads, including the lead, on plain navigation", () => {
+  test("switches back to the lead's tab when its row is clicked while a worker tab shows", () => {
+    click(WORKER, LEAD, { split: false });
+    assert.deepEqual(click(LEAD, LEAD, { split: false }), []);
+    assert.deepEqual(viewStore.get(), {});
+    assert.deepEqual(tabStore.get()[LEAD], [WORKER]);
+  });
+
+  test("routes to the lead with its own tab selected from another thread", () => {
     viewStore.set({ [LEAD]: WORKER });
-    assert.deepEqual(click(LEAD, OTHER, { split: false }), [[LEAD, { split: false }]]);
+    assert.deepEqual(click(LEAD, OTHER, { split: false }), [[LEAD]]);
+    assert.deepEqual(viewStore.get(), {});
+  });
+
+  test("keeps Ctrl-click on the lead as a split", () => {
+    viewStore.set({ [LEAD]: WORKER });
+    assert.deepEqual(click(LEAD, OTHER, { split: true }), [[LEAD, { split: true }]]);
+    assert.deepEqual(viewStore.get(), { [LEAD]: WORKER });
+  });
+
+  test("leaves other top-level threads on plain navigation", () => {
+    viewStore.set({ [LEAD]: WORKER });
     assert.deepEqual(click(OTHER, LEAD, undefined), [[OTHER, undefined]]);
     assert.deepEqual(viewStore.get(), { [LEAD]: WORKER });
     assert.deepEqual(tabStore.get(), {});
@@ -78,5 +96,26 @@ describe("opening a thread from the sidebar", () => {
     openSidebarThread(WORKER, undefined, null, { toThread: (...args) => calls.push(args) });
     assert.deepEqual(calls, [[WORKER, undefined]]);
     assert.deepEqual(viewStore.get(), {});
+  });
+});
+
+describe("the highlighted row", () => {
+  const leadIds = new Set([LEAD]);
+  const shown = (current: string | null) => shownThread(current, leadIds, tabStore.get(), viewStore.get(), (id) => byId.has(id));
+
+  test("follows the worker tab while it shows, then the lead once its tab is clicked", () => {
+    assert.equal(shown(LEAD), LEAD);
+    click(NESTED, LEAD, { split: false });
+    assert.equal(shown(LEAD), NESTED);
+    click(WORKER, LEAD, { split: false });
+    assert.equal(shown(LEAD), WORKER);
+    click(LEAD, LEAD, { split: false });
+    assert.equal(shown(LEAD), LEAD);
+  });
+
+  test("stays on the routed thread away from a lead", () => {
+    click(WORKER, LEAD, { split: false });
+    assert.equal(shown(OTHER), OTHER);
+    assert.equal(shown(null), null);
   });
 });

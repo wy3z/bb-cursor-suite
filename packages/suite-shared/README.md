@@ -122,7 +122,8 @@ and `bb plugin build` bundles it.
   above a thread, adds the tab, selects it, and routes to the lead only when
   it isn't already showing or a maximized panel hides its conversation.
   Ctrl or Cmd-click stays a real split, and threads with no lead navigate
-  plainly. The tab and view stores live on the page under one
+  plainly. `shownThread` and `useShownThread` name the thread actually on
+  screen (the overlaid worker when its lead is routed). The tab and view stores live on the page under one
   `Symbol.for` key, so Projects' tab strip and the Cursor sidebar share them
   even though each plugin bundles its own copy.
 - `@wy3z/bb-suite/time`: `shortAge` ("now", "5m", "3d", "2w", "1mo"),
