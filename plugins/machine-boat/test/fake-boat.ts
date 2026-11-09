@@ -57,7 +57,7 @@ export class FakeBoat {
   };
   deletedCostUsd = 0;
   desktopProvisioning = 0;
-  desktopUrl = "https://bx-test.on.boat.example/stream.html?hostId=1&appId=2&theme=dark#token=secretdesktoptoken";
+  desktopUrl = "https://bx-test.on.boat.dev/stream.html?hostId=1&appId=2&theme=dark#token=secretdesktoptoken";
   trialTtlCap: number | null = 7200;
   nowIso = "2026-11-09T12:00:00.000Z";
   idempotency = new Map<string, FakeSandbox>();

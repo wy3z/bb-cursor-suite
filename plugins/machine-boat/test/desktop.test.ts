@@ -10,6 +10,7 @@ import {
   CODEX_TOOL_TIMEOUT_SECONDS,
   codexTimeoutScript,
   createBoatDesktop,
+  isBoatStreamUrl,
   pauseScript,
   resumeScript,
 } from "../lib/desktop.ts";
@@ -87,10 +88,16 @@ describe("desktop view", () => {
     await expect(attempt).rejects.not.toThrow("leaky123");
   });
 
-  test("refuses a desktop address that isn't https", async () => {
+  test("only frames https addresses on boat's stream domain", async () => {
     const t = setup();
-    t.boat.desktopUrl = "http://bx-test.on.boat.example/stream.html#token=x";
-    await expect(t.desktop.view(HOST, { theme: null, signal: signal() })).rejects.toThrow("isn't https");
+    t.boat.desktopUrl = "http://bx-test.on.boat.dev/stream.html#token=x";
+    await expect(t.desktop.view(HOST, { theme: null, signal: signal() })).rejects.toThrow("on.boat.dev");
+    t.boat.desktopUrl = "https://evil.example/stream.html#token=x";
+    await expect(t.desktop.view(HOST, { theme: null, signal: signal() })).rejects.toThrow("on.boat.dev");
+    t.boat.desktopUrl = "https://on.boat.dev.evil.example/stream.html#token=x";
+    await expect(t.desktop.view(HOST, { theme: null, signal: signal() })).rejects.toThrow("on.boat.dev");
+    expect(isBoatStreamUrl("https://bx-1.on.boat.dev/stream.html#token=x")).toBe(true);
+    expect(isBoatStreamUrl("https://on.boat.dev/stream.html")).toBe(false);
   });
 
   test("needs a recorded sandbox", async () => {
@@ -121,16 +128,23 @@ describe("desktop probe", () => {
 describe("pausing the agent's computer tools", () => {
   test("freezes cua-driver behind a VM-side release timer and thaws it on release", async () => {
     const t = setup();
-    await t.desktop.pauseAgent!(HOST, { leaseMs: 120_000, signal: signal() });
+    expect(await t.desktop.pauseAgent!(HOST, { leaseMs: 120_000, signal: signal() })).toBe(true);
     await t.desktop.resumeAgent!(HOST, signal());
     const [pause, resume] = t.boat.commands.map((entry) => entry.command);
     expect(pause).toContain("systemctl --user freeze cua-driver.service");
     expect(pause).toContain("--on-active=150s");
     expect(pause).toContain("AccuracySec=1s");
     expect(pause).toContain("SIGSTOP");
+    expect(pause).toMatch(/\|\| \{ systemctl --user thaw cua-driver\.service[^}]*SIGCONT[^}]*exit 3; \}/);
     expect(resume).toContain("systemctl --user thaw cua-driver.service");
     expect(resume).toContain("SIGCONT");
     expect(resume).toContain("stop bb-desktop-release.timer");
+  });
+
+  test("says when there's no computer-use daemon to pause", async () => {
+    const t = setup();
+    t.boat.commandScript = () => [{ type: "started" }, { type: "stdout", data: "absent\n" }, { type: "exit", exitCode: 0, timedOut: false }];
+    expect(await t.desktop.pauseAgent!(HOST, { leaseMs: 120_000, signal: signal() })).toBe(false);
   });
 
   test("reports a failed pause", async () => {

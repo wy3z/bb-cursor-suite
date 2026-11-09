@@ -4,7 +4,7 @@ import {
   type ExperimentalThreadContextSegmentInput,
 } from "@get-bb/plugin-sdk/app";
 import { CONTROL_LABEL, DESKTOP_TAB, controlView, pillVisible, type ControlView } from "./model";
-import { desktopClientId, useDesktopProvider, useDesktopStatus } from "./store";
+import { useDesktopProvider, useDesktopStatus } from "./store";
 
 export function useDesktopPillVisible({ threadId, environment }: ExperimentalThreadContextSegmentInput): boolean {
   const target = useDesktopProvider(environment?.id);
@@ -32,5 +32,5 @@ export function DesktopPill({ threadId, environment }: ExperimentalThreadContext
   const target = useDesktopProvider(environment?.id);
   const { status } = useDesktopStatus(threadId, target);
   if (target === null || !pillVisible(status)) return null;
-  return <DesktopPillView control={controlView(status?.control, desktopClientId())} onOpen={() => panel.openTab({ tab: DESKTOP_TAB })} />;
+  return <DesktopPillView control={controlView(status?.control)} onOpen={() => panel.openTab({ tab: DESKTOP_TAB })} />;
 }

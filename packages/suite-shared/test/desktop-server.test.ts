@@ -1,27 +1,33 @@
 import { describe, expect, it } from "bun:test";
-import { desktopProviderFor, isViewUrl, viewOrigin } from "../src/desktop.ts";
-import { registerDesktopProvider, type DesktopHost, type DesktopVendor } from "../src/desktop-server.ts";
+import { browserRequestRefusal, desktopProviderFor, desktopRouteUrl, isViewUrl } from "../src/desktop.ts";
+import { AGENT_NOTE, registerDesktopProvider, type DesktopHost, type DesktopVendor } from "../src/desktop-server.ts";
 
-type Handler = (input: Record<string, unknown>, context?: { experimental_caller: { kind: "client" } | { kind: "plugin"; pluginId: string } }) => Promise<unknown>;
+type Route = (context: unknown) => Promise<Response>;
 
-const client = { experimental_caller: { kind: "client" as const } };
-const plugin = { experimental_caller: { kind: "plugin" as const, pluginId: "other" } };
+const APP_HEADERS: Record<string, string> = {
+  origin: "http://127.0.0.1:38886",
+  "sec-fetch-site": "same-origin",
+  "sec-fetch-mode": "cors",
+  "content-type": "application/json",
+};
 
-function setup(options: { phase?: string; provider?: string; leaseMs?: number; pauseFails?: boolean } = {}) {
+function setup(options: { phase?: string; provider?: string; leaseMs?: number; maxHoldMs?: number; pauseFails?: boolean; paused?: boolean; threadStatus?: string } = {}) {
   const calls: string[] = [];
   const activity: string[] = [];
+  const sent: unknown[] = [];
   const warnings: string[] = [];
-  let handlers: Record<string, Handler> = {};
-  let registerOptions: unknown = null;
+  const routes = new Map<string, Route>();
   let service: { start(signal: AbortSignal): void | Promise<void> } | null = null;
   const host = { id: "host_1", machineProviderId: options.provider ?? "fake-sandbox", lifecycle: { phase: options.phase ?? "active" } };
   const clock = { t: 1_000_000 };
+  let probeFails = false;
   const vendor: DesktopVendor = {
     providerId: "fake-sandbox",
     displayName: "Fake Sandbox",
     interactive: true,
     probe: async (target: DesktopHost) => {
       calls.push(`probe ${target.hostId}`);
+      if (probeFails) throw new Error("boat is down");
       return { state: "ready", message: null };
     },
     view: async () => {
@@ -31,6 +37,7 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; p
     pauseAgent: async (_target, { leaseMs }) => {
       calls.push(`pause ${leaseMs}`);
       if (options.pauseFails) throw new Error("freeze failed ?token=leak");
+      return options.paused ?? true;
     },
     resumeAgent: async () => {
       calls.push("resume");
@@ -38,10 +45,9 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; p
   };
   const bb = {
     log: { warn: (message: string) => warnings.push(message) },
-    rpc: {
-      register: (_contract: unknown, map: Record<string, Handler>, opts: unknown) => {
-        handlers = map;
-        registerOptions = opts;
+    http: {
+      route: (method: string, path: string, handler: Route) => {
+        routes.set(`${method} ${path}`, handler);
       },
     },
     background: {
@@ -53,7 +59,11 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; p
       threads: {
         get: async ({ threadId }: { threadId: string }) => {
           if (threadId === "thr_missing") throw new Error("not found");
-          return { environmentId: threadId === "thr_local" ? null : "env_1" };
+          return { environmentId: threadId === "thr_local" ? null : "env_1", runtime: { displayStatus: options.threadStatus ?? "active" } };
+        },
+        send: async (args: unknown) => {
+          sent.push(args);
+          return { ok: true, delivery: "sent" };
         },
       },
       environments: { get: async () => ({ hostId: "host_1" }) },
@@ -63,13 +73,50 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; p
   const registration = registerDesktopProvider(bb as never, vendor, {
     now: () => clock.t,
     leaseMs: options.leaseMs ?? 120_000,
+    maxHoldMs: options.maxHoldMs ?? 30 * 60_000,
     redact: (text) => text.replace(/token=[^\s&]+/g, "token=[redacted]"),
     onActivity: (hostId) => {
       activity.push(hostId);
     },
   });
-  return { calls, activity, warnings, handlers: () => handlers, registerOptions: () => registerOptions, service: () => service, host, clock, registration };
+
+  async function call(path: string, body: unknown, headers: Record<string, string> = APP_HEADERS) {
+    const handler = routes.get(`POST ${path}`);
+    if (handler === undefined) throw new Error(`no route ${path}`);
+    const response = await handler({
+      req: {
+        header: (name: string) => headers[name.toLowerCase()],
+        json: async () => body,
+      },
+    });
+    return { status: response.status, body: (await response.json()) as { ok: boolean; result?: any; error?: { code: string; message: string } } };
+  }
+
+  const status = (threadId = "thr_1", clientId = "client_aaaa") => call("/desktop/status", { threadId, clientId });
+  const control = (action: "take" | "renew" | "release", clientId = "client_aaaa", threadId = "thr_1") =>
+    call("/desktop/control", { threadId, clientId, action });
+  const view = (threadId = "thr_1") => call("/desktop/view", { threadId, theme: "dark" });
+  return {
+    calls,
+    activity,
+    sent,
+    warnings,
+    routes,
+    service: () => service,
+    host,
+    clock,
+    registration,
+    call,
+    status,
+    control,
+    view,
+    failProbe: () => {
+      probeFails = true;
+    },
+  };
 }
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("desktop registry", () => {
   it("maps a machine provider to its desktop plugin and nothing else", () => {
@@ -77,6 +124,7 @@ describe("desktop registry", () => {
     expect(desktopProviderFor("modal-sandbox")).toBeNull();
     expect(desktopProviderFor(null)).toBeNull();
     expect(desktopProviderFor(" ")).toBeNull();
+    expect(desktopRouteUrl("machine-boat", "view")).toBe("/api/v1/plugins/machine-boat/http/desktop/view");
   });
 
   it("only accepts https view URLs without credentials", () => {
@@ -84,145 +132,216 @@ describe("desktop registry", () => {
     expect(isViewUrl("http://desktop.example/")).toBe(false);
     expect(isViewUrl("javascript:alert(1)")).toBe(false);
     expect(isViewUrl("https://user:pass@desktop.example/")).toBe(false);
-    expect(viewOrigin("https://desktop.example/stream.html#token=x")).toBe("https://desktop.example");
+  });
+});
+
+describe("browserRequestRefusal", () => {
+  const from = (headers: Record<string, string>) => browserRequestRefusal((name) => headers[name]);
+  it("lets the BB app's own fetches through", () => {
+    expect(from(APP_HEADERS)).toBeNull();
+    expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "session" })).toBeNull();
+  });
+
+  it("refuses machine and connected-app credentials from the Connect gate", () => {
+    expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "machine" })).toContain("machine credentials");
+    expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "oauth" })).toContain("connected apps");
+  });
+
+  it("refuses requests without the browser's same-origin fetch metadata, like the bb CLI's", () => {
+    expect(from({ "content-type": "application/json" })).toContain("only the BB app");
+    expect(from({ ...APP_HEADERS, "sec-fetch-site": "cross-site" })).toContain("only the BB app");
+    expect(from({ ...APP_HEADERS, "sec-fetch-mode": "navigate" })).toContain("only the BB app");
+    const { origin: _origin, ...noOrigin } = APP_HEADERS;
+    expect(from(noOrigin)).toContain("only the BB app");
   });
 });
 
 describe("registerDesktopProvider", () => {
-  it("registers the methods as not discoverable", () => {
+  it("serves three HTTP routes and nothing over RPC", () => {
     const t = setup();
-    expect(Object.keys(t.handlers()).sort()).toEqual(["desktop.control", "desktop.status", "desktop.view"]);
-    expect(t.registerOptions()).toEqual({ experimental_discoverable: false });
+    expect([...t.routes.keys()].sort()).toEqual(["POST /desktop/control", "POST /desktop/status", "POST /desktop/view"]);
   });
 
-  it("reports a ready desktop with the agent in control", async () => {
+  it("refuses every route to callers that aren't the BB app", async () => {
     const t = setup();
-    const status = await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client);
-    expect(status).toEqual({
+    const cli = { "content-type": "application/json" };
+    for (const [path, body] of [
+      ["/desktop/status", { threadId: "thr_1", clientId: "client_aaaa" }],
+      ["/desktop/view", { threadId: "thr_1" }],
+      ["/desktop/control", { threadId: "thr_1", clientId: "client_aaaa", action: "take" }],
+    ] as const) {
+      const answer = await t.call(path, body, cli);
+      expect(answer.status).toBe(403);
+      const machine = await t.call(path, body, { ...APP_HEADERS, "x-bb-gate-auth": "machine" });
+      expect(machine.status).toBe(403);
+    }
+    expect(t.calls).toEqual([]);
+  });
+
+  it("validates the body against the contract", async () => {
+    const t = setup();
+    expect((await t.call("/desktop/control", { threadId: "thr_1", clientId: "x", action: "take" })).status).toBe(400);
+    expect((await t.call("/desktop/status", { threadId: "thr_1" })).status).toBe(400);
+  });
+
+  it("reports a ready desktop with the agent in control, and never another window's id", async () => {
+    const t = setup();
+    const answer = await t.status();
+    expect(answer.body.result).toEqual({
       providerId: "fake-sandbox",
-      hostId: "host_1",
       state: "ready",
       message: null,
       interactive: true,
       pausesAgent: true,
-      control: { holder: "agent", clientId: null, since: null, expiresAt: null },
+      control: { holder: "agent", mine: false, agentPaused: false, since: null, expiresAt: null },
     });
+    await t.control("take");
+    const mine = await t.status("thr_1", "client_aaaa");
+    const theirs = await t.status("thr_1", "client_bbbb");
+    expect(mine.body.result.control).toMatchObject({ holder: "user", mine: true, agentPaused: true });
+    expect(theirs.body.result.control).toMatchObject({ holder: "user", mine: false });
+    expect(JSON.stringify(theirs.body)).not.toContain("client_aaaa");
   });
 
-  it("caches the vendor probe for a short while", async () => {
+  it("caches the vendor probe for a short while, but not failures", async () => {
     const t = setup();
-    await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client);
-    await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client);
+    await t.status();
+    await t.status();
     expect(t.calls.filter((call) => call.startsWith("probe"))).toHaveLength(1);
     t.clock.t += 16_000;
-    await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client);
+    await t.status();
     expect(t.calls.filter((call) => call.startsWith("probe"))).toHaveLength(2);
   });
 
   it("refuses threads on another provider's machine and threads without a machine", async () => {
     const other = setup({ provider: "modal-sandbox" });
-    await expect(other.handlers()["desktop.view"]!({ threadId: "thr_1" }, client)).rejects.toThrow("doesn't run on a Fake Sandbox machine");
-    await expect(other.handlers()["desktop.status"]!({ threadId: "thr_1" }, client)).rejects.toThrow("doesn't run on a Fake Sandbox machine");
+    const refused = await other.view();
+    expect(refused.status).toBe(403);
+    expect(refused.body.error?.message).toContain("doesn't run on a Fake Sandbox machine");
     const t = setup();
-    await expect(t.handlers()["desktop.status"]!({ threadId: "thr_local" }, client)).rejects.toThrow("has no machine");
-    await expect(t.handlers()["desktop.status"]!({ threadId: "thr_missing" }, client)).rejects.toThrow("wasn't found");
+    expect((await t.status("thr_local")).body.error?.message).toContain("has no machine");
+    expect((await t.status("thr_missing")).body.error?.message).toContain("wasn't found");
     expect(other.calls).toEqual([]);
   });
 
-  it("serves the view URL only to the app", async () => {
+  it("opens the view for the app and won't for a paused machine", async () => {
     const t = setup();
-    await expect(t.handlers()["desktop.view"]!({ threadId: "thr_1" }, plugin)).rejects.toThrow("only served to the BB app");
-    await expect(t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, plugin)).rejects.toThrow(
-      "only served to the BB app",
-    );
-    expect(t.calls).toEqual([]);
-    const view = (await t.handlers()["desktop.view"]!({ threadId: "thr_1", theme: "dark" }, client)) as { url: string };
-    expect(view.url).toStartWith("https://desktop.example/");
-  });
-
-  it("won't open the view of a paused machine", async () => {
-    const t = setup({ phase: "suspended" });
-    await expect(t.handlers()["desktop.view"]!({ threadId: "thr_1" }, client)).rejects.toThrow("paused");
-    const status = (await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client)) as { state: string };
-    expect(status.state).toBe("stopped");
-    expect(t.calls).toEqual([]);
+    const opened = await t.view();
+    expect(opened.body.result.url).toStartWith("https://desktop.example/");
+    const paused = setup({ phase: "suspended" });
+    expect((await paused.view()).status).toBe(409);
+    expect((await paused.status()).body.result.state).toBe("stopped");
+    expect(paused.calls).toEqual([]);
   });
 
   it("pauses the agent while a user holds control and hands it back on release", async () => {
     const t = setup();
-    const take = await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
-    expect(take).toEqual({ holder: "user", clientId: "client_aaaa", since: 1_000_000, expiresAt: 1_120_000 });
+    const take = await t.control("take");
+    expect(take.body.result).toEqual({ holder: "user", mine: true, agentPaused: true, since: 1_000_000, expiresAt: 1_120_000 });
     expect(t.calls).toEqual(["pause 120000"]);
-    expect(t.registration.control("host_1").holder).toBe("user");
 
     t.clock.t += 30_000;
-    const renewed = (await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "renew" }, client)) as {
-      since: number;
-      expiresAt: number;
-    };
-    expect(renewed.since).toBe(1_000_000);
-    expect(renewed.expiresAt).toBe(1_150_000);
+    const renewed = await t.control("renew");
+    expect(renewed.body.result).toMatchObject({ since: 1_000_000, expiresAt: 1_150_000 });
 
-    const stranger = await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_bbbb", action: "release" }, client);
-    expect(stranger).toMatchObject({ holder: "user", clientId: "client_aaaa" });
-    const strangerRenew = await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_bbbb", action: "renew" }, client);
-    expect(strangerRenew).toMatchObject({ holder: "user", clientId: "client_aaaa" });
+    expect((await t.control("release", "client_bbbb")).body.result).toMatchObject({ holder: "user", mine: false });
+    expect((await t.control("renew", "client_bbbb")).body.result).toMatchObject({ holder: "user", mine: false });
 
-    const released = await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "release" }, client);
-    expect(released).toEqual({ holder: "agent", clientId: null, since: null, expiresAt: null });
+    const released = await t.control("release");
+    expect(released.body.result).toEqual({ holder: "agent", mine: false, agentPaused: false, since: null, expiresAt: null });
     expect(t.calls).toEqual(["pause 120000", "pause 120000", "resume"]);
   });
 
-  it("counts opening the view and holding control as machine activity", async () => {
+  it("counts only taking control as machine activity", async () => {
     const t = setup();
-    await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client);
-    expect(t.activity).toEqual([]);
-    await t.handlers()["desktop.view"]!({ threadId: "thr_1" }, client);
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "renew" }, client);
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_bbbb", action: "renew" }, client);
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "release" }, client);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(t.activity).toEqual(["host_1", "host_1", "host_1"]);
+    await t.status();
+    await t.view();
+    await t.control("take");
+    await t.control("renew");
+    await t.control("release");
+    await settle();
+    expect(t.activity).toEqual(["host_1"]);
+  });
+
+  it("ends a hold after the maximum, resumes the agent and refuses the renew", async () => {
+    const t = setup({ maxHoldMs: 60_000 });
+    await t.control("take");
+    t.clock.t += 30_000;
+    expect((await t.control("renew")).body.result.expiresAt).toBe(1_060_000);
+    t.clock.t += 31_000;
+    const refused = await t.control("renew");
+    expect(refused.status).toBe(409);
+    expect(refused.body.error?.message).toContain("went back to the agent");
+    expect(t.calls.at(-1)).toBe("resume");
+    expect(t.registration.control("host_1").holder).toBe("agent");
+    expect((await t.control("take")).body.result).toMatchObject({ holder: "user", since: 1_061_000 });
+  });
+
+  it("tells a running agent that control came back, only when it was paused", async () => {
+    const t = setup();
+    await t.control("take");
+    await t.control("release");
+    await settle();
+    await settle();
+    expect(t.sent).toEqual([{ threadId: "thr_1", mode: "steer", input: [{ type: "text", text: AGENT_NOTE, mentions: [], visibility: "agent-only" }] }]);
+
+    const idle = setup({ threadStatus: "idle" });
+    await idle.control("take");
+    await idle.control("release");
+    await settle();
+    expect(idle.sent).toEqual([]);
+
+    const unpaused = setup({ paused: false });
+    const taken = await unpaused.control("take");
+    expect(taken.body.result.agentPaused).toBe(false);
+    await unpaused.control("release");
+    await settle();
+    expect(unpaused.sent).toEqual([]);
   });
 
   it("lets another window take over control", async () => {
     const t = setup();
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
+    await t.control("take");
     t.clock.t += 5_000;
-    const taken = await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_bbbb", action: "take" }, client);
-    expect(taken).toMatchObject({ holder: "user", clientId: "client_bbbb", since: 1_005_000 });
+    expect((await t.control("take", "client_bbbb")).body.result).toMatchObject({ holder: "user", mine: true, since: 1_005_000 });
+    expect((await t.status("thr_1", "client_aaaa")).body.result.control.mine).toBe(false);
   });
 
-  it("refuses control when the agent can't be paused, without logging a token", async () => {
+  it("refuses control when the agent can't be paused, without leaking a token", async () => {
     const t = setup({ pauseFails: true });
-    const attempt = t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
-    await expect(attempt).rejects.toThrow("couldn't pause the agent's computer tools");
-    await expect(attempt).rejects.not.toThrow("leak");
+    const attempt = await t.control("take");
+    expect(attempt.status).toBe(409);
+    expect(attempt.body.error?.message).toContain("couldn't pause the agent's computer tools");
+    expect(attempt.body.error?.message).not.toContain("leak");
     expect(t.registration.control("host_1").holder).toBe("agent");
   });
 
   it("hands control back when the lease runs out", async () => {
     const t = setup({ leaseMs: 20 });
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
+    await t.control("take");
     t.clock.t += 1_000;
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(t.calls).toEqual(["pause 20", "resume"]);
     expect(t.registration.control("host_1").holder).toBe("agent");
   });
 
-  it("drops control when the machine is paused", async () => {
+  it("keeps the lease through a failed probe and drops it once the machine is paused", async () => {
     const t = setup();
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
+    await t.control("take");
+    t.failProbe();
+    t.clock.t += 16_000;
+    const flaky = await t.status();
+    expect(flaky.body.result.state).toBe("unavailable");
+    expect(t.registration.control("host_1").holder).toBe("user");
     t.host.lifecycle.phase = "suspended";
-    const status = (await t.handlers()["desktop.status"]!({ threadId: "thr_1" }, client)) as { control: { holder: string } };
-    expect(status.control.holder).toBe("agent");
-    await expect(t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client)).rejects.toThrow("paused");
+    expect((await t.status()).body.result.control.holder).toBe("agent");
+    expect(t.registration.control("host_1").holder).toBe("agent");
+    expect((await t.control("take")).status).toBe(409);
   });
 
   it("hands every desktop back when the plugin stops", async () => {
     const t = setup();
-    await t.handlers()["desktop.control"]!({ threadId: "thr_1", clientId: "client_aaaa", action: "take" }, client);
+    await t.control("take");
     const controller = new AbortController();
     const running = t.service()!.start(controller.signal);
     controller.abort();

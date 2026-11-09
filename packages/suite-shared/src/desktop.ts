@@ -1,4 +1,3 @@
-import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 export interface DesktopProviderEntry {
@@ -22,8 +21,11 @@ export function desktopProviderFor(
 
 export const DESKTOP_LEASE_MS = 120_000;
 export const DESKTOP_RENEW_MS = 30_000;
+export const DESKTOP_HIDDEN_STOP_MS = 30_000;
+export const DESKTOP_MAX_HOLD_MS = 30 * 60_000;
 export const DESKTOP_URL_MS = 10 * 60_000;
-export const DESKTOP_FRAME_ALLOW = "autoplay; fullscreen; clipboard-read; clipboard-write; keyboard-map; pointer-lock";
+export const DESKTOP_FRAME_ALLOW = "autoplay; fullscreen; keyboard-map; pointer-lock";
+export const DESKTOP_FRAME_SANDBOX = "allow-scripts allow-same-origin allow-pointer-lock";
 
 const threadId = z.string().min(1).max(200);
 export const desktopClientId = z
@@ -34,7 +36,8 @@ export const desktopClientId = z
 
 export const desktopControlSchema = z.object({
   holder: z.enum(["agent", "user"]),
-  clientId: z.string().nullable(),
+  mine: z.boolean(),
+  agentPaused: z.boolean(),
   since: z.number().nullable(),
   expiresAt: z.number().nullable(),
 });
@@ -45,7 +48,6 @@ export type DesktopState = (typeof DESKTOP_STATES)[number];
 
 export const desktopStatusSchema = z.object({
   providerId: z.string(),
-  hostId: z.string(),
   state: z.enum(DESKTOP_STATES),
   message: z.string().nullable(),
   interactive: z.boolean(),
@@ -63,23 +65,22 @@ export const desktopViewSchema = z.object({
 });
 export type DesktopView = z.output<typeof desktopViewSchema>;
 
-export const desktopRpcContract = defineRpcContract({
-  "desktop.status": {
-    input: z.object({ threadId }).strict(),
-    output: desktopStatusSchema,
-  },
-  "desktop.view": {
-    input: z.object({ threadId, theme: z.enum(["light", "dark"]).nullable().optional() }).strict(),
-    output: desktopViewSchema,
-  },
-  "desktop.control": {
-    input: z.object({ threadId, clientId: desktopClientId, action: z.enum(["take", "renew", "release"]) }).strict(),
-    output: desktopControlSchema,
-  },
-});
-export type DesktopRpcContract = typeof desktopRpcContract;
+export const desktopStatusInput = z.object({ threadId, clientId: desktopClientId }).strict();
+export const desktopViewInput = z.object({ threadId, theme: z.enum(["light", "dark"]).nullable().optional() }).strict();
+export const desktopControlInput = z.object({ threadId, clientId: desktopClientId, action: z.enum(["take", "renew", "release"]) }).strict();
 
-export const AGENT_CONTROL: DesktopControl = { holder: "agent", clientId: null, since: null, expiresAt: null };
+export const DESKTOP_ROUTES = {
+  status: { path: "/desktop/status", input: desktopStatusInput, output: desktopStatusSchema },
+  view: { path: "/desktop/view", input: desktopViewInput, output: desktopViewSchema },
+  control: { path: "/desktop/control", input: desktopControlInput, output: desktopControlSchema },
+} as const;
+export type DesktopRoute = keyof typeof DESKTOP_ROUTES;
+
+export function desktopRouteUrl(pluginId: string, route: DesktopRoute): string {
+  return `/api/v1/plugins/${encodeURIComponent(pluginId)}/http${DESKTOP_ROUTES[route].path}`;
+}
+
+export const AGENT_CONTROL: DesktopControl = { holder: "agent", mine: false, agentPaused: false, since: null, expiresAt: null };
 
 export function isViewUrl(value: string): boolean {
   try {
@@ -90,10 +91,15 @@ export function isViewUrl(value: string): boolean {
   }
 }
 
-export function viewOrigin(value: string): string | null {
-  try {
-    return isViewUrl(value) ? new URL(value).origin : null;
-  } catch {
-    return null;
-  }
+export type DesktopRequestHeaders = (name: string) => string | undefined | null;
+
+export function browserRequestRefusal(header: DesktopRequestHeaders): string | null {
+  const gate = header("x-bb-gate-auth")?.trim().toLowerCase();
+  if (gate === "machine") return "machine credentials can't use another machine's desktop";
+  if (gate === "oauth") return "connected apps can't use the desktop";
+  if (header("sec-fetch-site")?.trim().toLowerCase() !== "same-origin") return "only the BB app can use the desktop";
+  const mode = header("sec-fetch-mode")?.trim().toLowerCase();
+  if (mode !== "cors" && mode !== "same-origin") return "only the BB app can use the desktop";
+  if (!header("origin")) return "only the BB app can use the desktop";
+  return null;
 }

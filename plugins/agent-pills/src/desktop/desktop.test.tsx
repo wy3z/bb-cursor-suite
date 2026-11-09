@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { DesktopStatus } from "@wy3z/bb-suite/desktop";
-import { CONTROL_LABEL, controlView, newClientId, pillVisible, preferredTheme, statusMessage, urlExpired } from "./model";
+import type { DesktopControl, DesktopStatus } from "@wy3z/bb-suite/desktop";
+import {
+  CONTROL_LABEL,
+  controlView,
+  lostControlNote,
+  newClientId,
+  pillVisible,
+  preferredTheme,
+  shouldRenew,
+  statusMessage,
+  urlExpired,
+} from "./model";
 
 const runtime = globalThis as unknown as { __bbPluginRuntime?: unknown };
 runtime.__bbPluginRuntime = {
@@ -16,27 +26,42 @@ runtime.__bbPluginRuntime = {
 
 const { DesktopPillView } = await import("./DesktopPill");
 
+const agent: DesktopControl = { holder: "agent", mine: false, agentPaused: false, since: null, expiresAt: null };
+
 function status(overrides: Partial<DesktopStatus> = {}): DesktopStatus {
   return {
     providerId: "boat-sandbox",
-    hostId: "host_1",
     state: "ready",
     message: null,
     interactive: true,
     pausesAgent: true,
-    control: { holder: "agent", clientId: null, since: null, expiresAt: null },
+    control: agent,
     ...overrides,
   };
 }
 
 describe("controlView", () => {
   it("tells this window, another window and the agent apart", () => {
-    expect(controlView(null, "bbd_me")).toBe("agent");
-    expect(controlView({ holder: "agent", clientId: null, since: null, expiresAt: null }, "bbd_me")).toBe("agent");
-    expect(controlView({ holder: "user", clientId: "bbd_me", since: 1, expiresAt: 2 }, "bbd_me")).toBe("you");
-    expect(controlView({ holder: "user", clientId: "bbd_other", since: 1, expiresAt: 2 }, "bbd_me")).toBe("elsewhere");
+    expect(controlView(null)).toBe("agent");
+    expect(controlView(agent)).toBe("agent");
+    expect(controlView({ holder: "user", mine: true, agentPaused: true, since: 1, expiresAt: 2 })).toBe("you");
+    expect(controlView({ holder: "user", mine: false, agentPaused: true, since: 1, expiresAt: 2 })).toBe("elsewhere");
     expect(CONTROL_LABEL.agent).toBe("Agent has control");
     expect(CONTROL_LABEL.you).toBe("You have control");
+  });
+
+  it("explains where lost control went", () => {
+    expect(lostControlNote("agent")).toBe("Control went back to the agent.");
+    expect(lostControlNote("elsewhere")).toBe("You took control in another window.");
+    expect(lostControlNote("you")).toBeNull();
+  });
+});
+
+describe("renewal", () => {
+  it("stops once the page has been hidden for the limit", () => {
+    expect(shouldRenew(null, 100_000, 30_000)).toBe(true);
+    expect(shouldRenew(80_000, 100_000, 30_000)).toBe(true);
+    expect(shouldRenew(70_000, 100_000, 30_000)).toBe(false);
   });
 });
 

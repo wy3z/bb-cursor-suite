@@ -1,9 +1,13 @@
-import { experimental_PluginRpcRefusal, type BbPluginApi, type ExperimentalPluginRpcHandlerContext, type PluginBbSdk } from "@get-bb/plugin-sdk";
+import type { BbPluginApi, PluginBbSdk } from "@get-bb/plugin-sdk";
+import type { z } from "zod";
 import {
   AGENT_CONTROL,
   DESKTOP_LEASE_MS,
-  desktopRpcContract,
+  DESKTOP_MAX_HOLD_MS,
+  DESKTOP_ROUTES,
+  browserRequestRefusal,
   type DesktopControl,
+  type DesktopRoute,
   type DesktopState,
   type DesktopStatus,
   type DesktopView,
@@ -28,16 +32,16 @@ export interface DesktopVendor {
   interactive: boolean;
   probe(host: DesktopHost, signal: AbortSignal): Promise<DesktopProbe>;
   view(host: DesktopHost, request: { theme: "light" | "dark" | null; signal: AbortSignal }): Promise<DesktopView>;
-  pauseAgent?(host: DesktopHost, request: { leaseMs: number; signal: AbortSignal }): Promise<void>;
+  pauseAgent?(host: DesktopHost, request: { leaseMs: number; signal: AbortSignal }): Promise<boolean>;
   resumeAgent?(host: DesktopHost, signal: AbortSignal): Promise<void>;
 }
 
 export interface DesktopPluginApi {
   readonly log: Pick<BbPluginApi["log"], "warn">;
-  readonly rpc: Pick<BbPluginApi["rpc"], "register">;
+  readonly http: Pick<BbPluginApi["http"], "route">;
   readonly background: Pick<BbPluginApi["background"], "service">;
   readonly sdk: {
-    readonly threads: Pick<PluginBbSdk["threads"], "get">;
+    readonly threads: Pick<PluginBbSdk["threads"], "get" | "send">;
     readonly environments: Pick<PluginBbSdk["environments"], "get">;
     readonly hosts: Pick<PluginBbSdk["hosts"], "get">;
   };
@@ -46,6 +50,7 @@ export interface DesktopPluginApi {
 export interface DesktopOptions {
   now?: () => number;
   leaseMs?: number;
+  maxHoldMs?: number;
   probeCacheMs?: number;
   vendorTimeoutMs?: number;
   redact?: (text: string) => string;
@@ -53,33 +58,58 @@ export interface DesktopOptions {
 }
 
 export interface DesktopRegistration {
-  control(hostId: string): DesktopControl;
+  control(hostId: string, clientId?: string | null): DesktopControl;
   releaseAll(): Promise<void>;
 }
 
 interface Lease {
   host: DesktopHost;
+  threadId: string;
   clientId: string;
   since: number;
   expiresAt: number;
+  agentPaused: boolean;
   timer: ReturnType<typeof setTimeout>;
 }
 
-type Caller = Pick<ExperimentalPluginRpcHandlerContext, "experimental_caller">;
+export class DesktopRefusal extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "DesktopRefusal";
+    this.status = status;
+  }
+}
 
-function refuse(code: "conflict" | "forbidden" | "invalid" | "not_found", message: string): never {
-  throw new experimental_PluginRpcRefusal({ code, message });
+function refuse(status: number, message: string): never {
+  throw new DesktopRefusal(status, message);
+}
+
+export const AGENT_NOTE =
+  "The user took control of this machine's desktop and has now handed it back. The screen may have changed while they had it, and any computer action you started meanwhile ran only after they released control. Take a fresh screenshot before your next computer action.";
+
+interface RouteContext {
+  req: { header(name: string): string | undefined; json(): Promise<unknown> };
+}
+
+function respond(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
 }
 
 export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVendor, options: DesktopOptions = {}): DesktopRegistration {
   const now = options.now ?? Date.now;
   const leaseMs = options.leaseMs ?? DESKTOP_LEASE_MS;
+  const maxHoldMs = options.maxHoldMs ?? DESKTOP_MAX_HOLD_MS;
   const probeCacheMs = options.probeCacheMs ?? 15_000;
   const vendorTimeoutMs = options.vendorTimeoutMs ?? 60_000;
   const redact = options.redact ?? ((text: string) => text);
   const leases = new Map<string, Lease>();
   const probes = new Map<string, { at: number; value: DesktopProbe }>();
   const queues = new Map<string, Promise<unknown>>();
+  const pauses = vendor.pauseAgent !== undefined && vendor.resumeAgent !== undefined;
 
   const text = (error: unknown) => redact(error instanceof Error ? error.message : String(error));
 
@@ -101,10 +131,16 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     return next;
   }
 
-  function controlOf(hostId: string): DesktopControl {
+  function controlOf(hostId: string, clientId: string | null = null): DesktopControl {
     const lease = leases.get(hostId);
     if (lease === undefined) return AGENT_CONTROL;
-    return { holder: "user", clientId: lease.clientId, since: lease.since, expiresAt: lease.expiresAt };
+    return {
+      holder: "user",
+      mine: clientId !== null && lease.clientId === clientId,
+      agentPaused: lease.agentPaused,
+      since: lease.since,
+      expiresAt: lease.expiresAt,
+    };
   }
 
   function drop(hostId: string): Lease | undefined {
@@ -113,6 +149,21 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     clearTimeout(lease.timer);
     leases.delete(hostId);
     return lease;
+  }
+
+  async function tellAgent(lease: Lease): Promise<void> {
+    if (!lease.agentPaused) return;
+    try {
+      const thread = await bb.sdk.threads.get({ threadId: lease.threadId });
+      if (thread.runtime.displayStatus !== "active") return;
+      await bb.sdk.threads.send({
+        threadId: lease.threadId,
+        mode: "steer",
+        input: [{ type: "text", text: AGENT_NOTE, mentions: [], visibility: "agent-only" }],
+      });
+    } catch {
+      return;
+    }
   }
 
   async function resume(host: DesktopHost, why: string): Promise<void> {
@@ -125,21 +176,29 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     }
   }
 
-  function arm(host: DesktopHost, clientId: string, since: number): DesktopControl {
+  async function end(lease: Lease, why: string): Promise<void> {
+    await resume(lease.host, why);
+    void tellAgent(lease);
+  }
+
+  function arm(host: DesktopHost, threadId: string, clientId: string, since: number, agentPaused: boolean): DesktopControl {
     drop(host.hostId);
-    const expiresAt = now() + leaseMs;
-    const timer = setTimeout(() => {
-      void serial(host.hostId, async () => {
-        const lease = leases.get(host.hostId);
-        if (lease === undefined || lease.expiresAt > now()) return;
-        drop(host.hostId);
-        await resume(host, "the control lease ran out").catch(() => undefined);
-      });
-    }, leaseMs + 250);
+    const expiresAt = Math.min(now() + leaseMs, since + maxHoldMs);
+    const timer = setTimeout(
+      () => {
+        void serial(host.hostId, async () => {
+          const lease = leases.get(host.hostId);
+          if (lease === undefined || lease.expiresAt > now()) return;
+          drop(host.hostId);
+          await end(lease, "the control lease ran out").catch(() => undefined);
+        });
+      },
+      Math.max(0, expiresAt - now()) + 250,
+    );
     const handle = timer as { unref?: () => void };
     handle.unref?.();
-    leases.set(host.hostId, { host, clientId, since, expiresAt, timer });
-    return controlOf(host.hostId);
+    leases.set(host.hostId, { host, threadId, clientId, since, expiresAt, agentPaused, timer });
+    return controlOf(host.hostId, clientId);
   }
 
   async function hostOf(threadId: string): Promise<DesktopHost> {
@@ -147,52 +206,46 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     try {
       environmentId = (await bb.sdk.threads.get({ threadId })).environmentId;
     } catch {
-      refuse("not_found", `${vendor.displayName}: thread ${threadId} wasn't found.`);
+      refuse(404, `${vendor.displayName}: thread ${threadId} wasn't found.`);
     }
-    if (environmentId === null) refuse("not_found", `${vendor.displayName}: thread ${threadId} has no machine.`);
+    if (environmentId === null) refuse(404, `${vendor.displayName}: thread ${threadId} has no machine.`);
     let host: Awaited<ReturnType<PluginBbSdk["hosts"]["get"]>>;
     try {
       const environment = await bb.sdk.environments.get({ environmentId });
       host = await bb.sdk.hosts.get({ hostId: environment.hostId });
     } catch {
-      refuse("not_found", `${vendor.displayName}: the machine of thread ${threadId} wasn't found.`);
+      refuse(404, `${vendor.displayName}: the machine of thread ${threadId} wasn't found.`);
     }
     if (host.machineProviderId !== vendor.providerId) {
-      refuse("forbidden", `${vendor.displayName}: thread ${threadId} doesn't run on a ${vendor.displayName} machine.`);
+      refuse(403, `${vendor.displayName}: thread ${threadId} doesn't run on a ${vendor.displayName} machine.`);
     }
     return { hostId: host.id, machineProviderId: host.machineProviderId, phase: host.lifecycle.phase };
-  }
-
-  function clientOnly(context: Caller | undefined, what: string): void {
-    if (context?.experimental_caller.kind !== "client") {
-      refuse("forbidden", `${vendor.displayName}: ${what} is only served to the BB app.`);
-    }
   }
 
   async function probe(host: DesktopHost): Promise<DesktopProbe> {
     const cached = probes.get(host.hostId);
     if (cached !== undefined && now() - cached.at < probeCacheMs) return cached.value;
-    let value: DesktopProbe;
     try {
-      value = await vendor.probe(host, AbortSignal.timeout(20_000));
+      const value = await vendor.probe(host, AbortSignal.timeout(20_000));
+      probes.set(host.hostId, { at: now(), value });
+      return value;
     } catch (error) {
-      value = { state: "unavailable", message: `${vendor.displayName}: couldn't read the desktop (${text(error)}).` };
+      return { state: "unavailable", message: `${vendor.displayName}: couldn't read the desktop (${text(error)}).` };
     }
-    probes.set(host.hostId, { at: now(), value });
-    return value;
   }
 
-  async function status(threadId: string): Promise<DesktopStatus> {
+  async function forget(hostId: string): Promise<void> {
+    await serial(hostId, async () => {
+      drop(hostId);
+    });
+  }
+
+  async function status(threadId: string, clientId: string): Promise<DesktopStatus> {
     const host = await hostOf(threadId);
-    const base = {
-      providerId: vendor.providerId,
-      hostId: host.hostId,
-      interactive: vendor.interactive,
-      pausesAgent: vendor.pauseAgent !== undefined && vendor.resumeAgent !== undefined,
-    };
+    const base = { providerId: vendor.providerId, interactive: vendor.interactive, pausesAgent: pauses };
     if (host.phase !== "active") {
-      drop(host.hostId);
       probes.delete(host.hostId);
+      await forget(host.hostId);
       const starting = host.phase === "resuming";
       return {
         ...base,
@@ -202,21 +255,19 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
       };
     }
     const probed = await probe(host);
-    if (probed.state !== "ready") drop(host.hostId);
-    return { ...base, state: probed.state, message: probed.message, control: controlOf(host.hostId) };
+    if (probed.state === "stopped") await forget(host.hostId);
+    return { ...base, state: probed.state, message: probed.message, control: controlOf(host.hostId, clientId) };
   }
 
   async function view(threadId: string, theme: "light" | "dark" | null): Promise<DesktopView> {
     const host = await hostOf(threadId);
-    if (host.phase !== "active") refuse("conflict", `${vendor.displayName}: the machine is paused. Resume it to see its desktop.`);
+    if (host.phase !== "active") refuse(409, `${vendor.displayName}: the machine is paused. Resume it to see its desktop.`);
     try {
-      const opened = await vendor.view(host, { theme, signal: AbortSignal.timeout(vendorTimeoutMs) });
-      active(host.hostId);
-      return opened;
+      return await vendor.view(host, { theme, signal: AbortSignal.timeout(vendorTimeoutMs) });
     } catch (error) {
       probes.delete(host.hostId);
-      if (error instanceof experimental_PluginRpcRefusal) throw error;
-      refuse("conflict", `${vendor.displayName}: couldn't open the desktop: ${text(error)}`);
+      if (error instanceof DesktopRefusal) throw error;
+      refuse(409, `${vendor.displayName}: couldn't open the desktop: ${text(error)}`);
     }
   }
 
@@ -225,36 +276,50 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     return serial(host.hostId, async () => {
       const lease = leases.get(host.hostId);
       if (action === "release") {
-        if (lease !== undefined && lease.clientId !== clientId) return controlOf(host.hostId);
+        if (lease !== undefined && lease.clientId !== clientId) return controlOf(host.hostId, clientId);
         drop(host.hostId);
         if (host.phase === "active") {
           try {
-            await resume(host, "released");
+            if (lease !== undefined) await end(lease, "released");
+            else await resume(host, "released");
           } catch (error) {
-            refuse("conflict", `${vendor.displayName}: couldn't hand control back to the agent: ${text(error)}`);
+            refuse(409, `${vendor.displayName}: couldn't hand control back to the agent: ${text(error)}`);
           }
         }
         return AGENT_CONTROL;
       }
       if (host.phase !== "active") {
         drop(host.hostId);
-        refuse("conflict", `${vendor.displayName}: the machine is paused. Resume it to take control.`);
+        refuse(409, `${vendor.displayName}: the machine is paused. Resume it to take control.`);
       }
-      if (action === "renew" && (lease === undefined || lease.clientId !== clientId)) return controlOf(host.hostId);
-      if (vendor.pauseAgent !== undefined) {
-        try {
-          await vendor.pauseAgent(host, { leaseMs, signal: AbortSignal.timeout(vendorTimeoutMs) });
-        } catch (error) {
-          if (action === "renew") {
-            drop(host.hostId);
-            await resume(host, "the pause couldn't be renewed").catch(() => undefined);
-          }
-          refuse("conflict", `${vendor.displayName}: couldn't pause the agent's computer tools: ${text(error)}`);
+      if (action === "renew") {
+        if (lease === undefined || lease.clientId !== clientId) return controlOf(host.hostId, clientId);
+        if (now() >= lease.since + maxHoldMs) {
+          drop(host.hostId);
+          await end(lease, "the hold limit ran out").catch(() => undefined);
+          refuse(
+            409,
+            `${vendor.displayName}: you had control for ${Math.round(maxHoldMs / 60_000)} minutes, so it went back to the agent. Take control again to carry on.`,
+          );
         }
       }
-      const since = lease !== undefined && lease.clientId === clientId ? lease.since : now();
-      active(host.hostId);
-      return arm(host, clientId, since);
+      let agentPaused = false;
+      if (vendor.pauseAgent !== undefined) {
+        try {
+          agentPaused = await vendor.pauseAgent(host, { leaseMs, signal: AbortSignal.timeout(vendorTimeoutMs) });
+        } catch (error) {
+          if (action === "renew" && lease !== undefined) {
+            drop(host.hostId);
+            await end(lease, "the pause couldn't be renewed").catch(() => undefined);
+          }
+          refuse(409, `${vendor.displayName}: couldn't pause the agent's computer tools: ${text(error)}`);
+        }
+      }
+      if (action === "take") {
+        active(host.hostId);
+        return arm(host, threadId, clientId, now(), agentPaused);
+      }
+      return arm(host, threadId, clientId, lease!.since, agentPaused);
     });
   }
 
@@ -264,21 +329,36 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     await Promise.all(held.map((lease) => resume(lease.host, "the plugin stopped").catch(() => undefined)));
   }
 
-  bb.rpc.register(
-    desktopRpcContract,
-    {
-      "desktop.status": ({ threadId }) => status(threadId),
-      "desktop.view": async ({ threadId, theme }, context) => {
-        clientOnly(context, "the desktop view");
-        return view(threadId, theme ?? null);
-      },
-      "desktop.control": async ({ threadId, clientId, action }, context) => {
-        clientOnly(context, "desktop control");
-        return control(threadId, clientId, action);
-      },
-    },
-    { experimental_discoverable: false },
-  );
+  function route<R extends DesktopRoute>(name: R, run: (input: z.output<(typeof DESKTOP_ROUTES)[R]["input"]>) => Promise<unknown>): void {
+    const spec = DESKTOP_ROUTES[name];
+    bb.http.route("POST", spec.path, async (context) => {
+      const request = context as unknown as RouteContext;
+      const refusal = browserRequestRefusal((header) => request.req.header(header));
+      if (refusal !== null) return respond(403, { ok: false, error: { code: "forbidden", message: `${vendor.displayName}: ${refusal}.` } });
+      let body: unknown;
+      try {
+        body = await request.req.json();
+      } catch {
+        return respond(400, { ok: false, error: { code: "invalid_json", message: "The request body must be JSON." } });
+      }
+      const parsed = spec.input.safeParse(body);
+      if (!parsed.success) {
+        return respond(400, { ok: false, error: { code: "invalid_input", message: "The request doesn't match the desktop contract." } });
+      }
+      try {
+        const result = await run(parsed.data as z.output<(typeof DESKTOP_ROUTES)[R]["input"]>);
+        return respond(200, { ok: true, result: spec.output.parse(result) });
+      } catch (error) {
+        if (error instanceof DesktopRefusal) return respond(error.status, { ok: false, error: { code: "refused", message: error.message } });
+        bb.log.warn(`${vendor.displayName}: the desktop ${name} request failed: ${text(error)}`);
+        return respond(500, { ok: false, error: { code: "failed", message: `${vendor.displayName}: the desktop ${name} request failed.` } });
+      }
+    });
+  }
+
+  route("status", ({ threadId, clientId }) => status(threadId, clientId));
+  route("view", ({ threadId, theme }) => view(threadId, theme ?? null));
+  route("control", ({ threadId, clientId, action }) => control(threadId, clientId, action));
 
   bb.background.service(`${vendor.providerId}-desktop-control`, {
     start: (signal) =>

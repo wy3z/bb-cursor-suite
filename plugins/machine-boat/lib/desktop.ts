@@ -1,5 +1,13 @@
 import { readSandboxResource } from "@wy3z/bb-suite/machine-backend/server";
 import { DESKTOP_URL_MS, isViewUrl, type DesktopHost, type DesktopProbe, type DesktopVendor, type DesktopView } from "@wy3z/bb-suite/desktop/server";
+
+export const STREAM_HOST_SUFFIX = ".on.boat.dev";
+
+export function isBoatStreamUrl(value: string): boolean {
+  if (!isViewUrl(value)) return false;
+  const host = new URL(value).hostname.toLowerCase();
+  return host.endsWith(STREAM_HOST_SUFFIX) && host.length > STREAM_HOST_SUFFIX.length;
+}
 import { BoatApiError, LIVE_STATES, READY_STATES, isNotFound, redactBoat, type BoatApi } from "./api.ts";
 import { DISPLAY_NAME, PROVIDER_ID } from "./backend.ts";
 import { execInSandbox } from "./exec.ts";
@@ -21,7 +29,7 @@ export function pauseScript(leaseMs: number): string {
     `systemctl --user cat ${COMPUTER_UNIT} >/dev/null 2>&1 || { echo absent; exit 0; }`,
     `systemctl --user stop ${RELEASE_UNIT}.timer ${RELEASE_UNIT}.service >/dev/null 2>&1 || true`,
     `systemctl --user reset-failed ${RELEASE_UNIT}.timer ${RELEASE_UNIT}.service >/dev/null 2>&1 || true`,
-    `systemd-run --user --quiet --collect --unit=${RELEASE_UNIT} --on-active=${seconds}s --timer-property=AccuracySec=1s /bin/sh -c ${singleQuote(resumeCommands().join("; "))} || exit 3`,
+    `systemd-run --user --quiet --collect --unit=${RELEASE_UNIT} --on-active=${seconds}s --timer-property=AccuracySec=1s /bin/sh -c ${singleQuote(resumeCommands().join("; "))} || { ${resumeCommands().join("; ")}; exit 3; }`,
     `if [ "$(systemctl --user show -p FreezerState --value ${COMPUTER_UNIT} 2>/dev/null)" = frozen ]; then echo frozen; exit 0; fi`,
     `if systemctl --user freeze ${COMPUTER_UNIT} >/dev/null 2>&1; then echo frozen; exit 0; fi`,
     `systemctl --user kill --signal=SIGSTOP ${COMPUTER_UNIT} || exit 4`,
@@ -190,7 +198,7 @@ export function createBoatDesktop(deps: BoatDesktopDeps): DesktopVendor {
           if (!notReady || attempt >= PROVISION_ATTEMPTS) throw new Error(text(error));
         }
         if (answer !== null && answer.url !== null && !answer.provisioning) {
-          if (!isViewUrl(answer.url)) throw new Error("boat.dev answered with a desktop address that isn't https");
+          if (!isBoatStreamUrl(answer.url)) throw new Error(`boat.dev answered with a desktop address that isn't an https address on ${STREAM_HOST_SUFFIX.slice(1)}`);
           return { url: answer.url, expiresAt: now() + DESKTOP_URL_MS - URL_MARGIN_MS };
         }
         if (attempt >= PROVISION_ATTEMPTS) throw new Error("boat.dev is still preparing the desktop; try again in a minute");
@@ -199,7 +207,8 @@ export function createBoatDesktop(deps: BoatDesktopDeps): DesktopVendor {
     },
 
     async pauseAgent(host, { leaseMs, signal }) {
-      await runScript({ api: deps.api, sleep }, await sandboxIdOf(host), pauseScript(leaseMs), signal);
+      const output = await runScript({ api: deps.api, sleep }, await sandboxIdOf(host), pauseScript(leaseMs), signal);
+      return !/(^|\n)absent$/.test(output);
     },
 
     async resumeAgent(host, signal) {

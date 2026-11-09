@@ -4,9 +4,19 @@ export type ControlView = "agent" | "you" | "elsewhere";
 
 export const DESKTOP_TAB = { id: "desktop", context: { kind: "thread" }, availability: "fixed" } as const;
 
-export function controlView(control: DesktopControl | null | undefined, clientId: string): ControlView {
+export function controlView(control: DesktopControl | null | undefined): ControlView {
   if (!control || control.holder === "agent") return "agent";
-  return control.clientId === clientId ? "you" : "elsewhere";
+  return control.mine ? "you" : "elsewhere";
+}
+
+export function lostControlNote(after: ControlView): string | null {
+  if (after === "agent") return "Control went back to the agent.";
+  if (after === "elsewhere") return "You took control in another window.";
+  return null;
+}
+
+export function shouldRenew(hiddenSince: number | null, now: number, limitMs: number): boolean {
+  return hiddenSince === null || now - hiddenSince < limitMs;
 }
 
 export const CONTROL_LABEL: Record<ControlView, string> = {

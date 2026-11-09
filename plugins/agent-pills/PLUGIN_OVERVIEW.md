@@ -59,7 +59,10 @@ await sdk.plugins.callRpc({
 
 - Pull Requests (`pull-requests`): `gitCommit`, `gitPush`, `gitCreatePullRequest` and `gitApplyLocally`, the git actions behind the Changes tray and Apply locally. The contract is `gitActionsContract` in `@wy3z/bb-suite/contracts`. Without Pull Requests installed and enabled, those buttons are disabled and say "Needs Pull Requests".
 - BB's git plugin (`bb--git`): `status`, for the Changes pill, and its Diff tab.
-- A desktop vendor, for the Desktop pill and tab: the plugin `DESKTOP_PROVIDERS` in `@wy3z/bb-suite/desktop` names for the thread's machine provider (today `machine-boat` for `boat-sandbox`). It calls `desktop.status`, `desktop.view` and `desktop.control` from `desktopRpcContract`. When that plugin isn't installed and enabled, or answers with an error, the pill and tab stay hidden and nothing is reported.
+- A desktop vendor, for the Desktop pill and tab. This is the plugin `DESKTOP_PROVIDERS` in `@wy3z/bb-suite/desktop` names for the thread's machine provider; today that's `machine-boat` for `boat-sandbox`.
+  - It calls the vendor's `/desktop/status`, `/desktop/view` and `/desktop/control` routes with a same-origin `fetch`, not RPC. The vendor answers only the BB app's own requests.
+  - When that plugin isn't installed and enabled, or answers with an error, the pill and tab stay hidden and nothing is reported.
+  - The registry is compiled into this plugin, so a new vendor needs a new release of it.
 - BB's SDK, for the Desktop pill and tab: `environments.get` and `hosts.get`, to find the thread's machine provider.
 - BB's SDK, for the environment picker:
   - `environments.listProviders({ projectId })`
@@ -121,9 +124,26 @@ The thread's computer, the way Cursor shows a cloud agent's desktop.
 
 - **Desktop pill.** In the pill row above the composer, for a thread whose machine has a desktop provider and whose desktop is running or starting. It opens the Desktop tab. While you hold control it reads "Desktop, you have control" and shows a dot. It doesn't depend on the Agent pills setting, because it replaces none of BB's cards.
 - **Desktop tab.** A fixed tab in the thread's right-hand panel, named Desktop with a cloud computer icon, shown only for threads on a machine with a desktop provider. It shows the live stream in a 16:9 frame. A paused machine, a starting desktop or a machine without one shows a plain message with Check again.
-- **View-only by default.** The stream is `inert` until you take control, so clicks and keys can't reach it by accident. The bar says who has control: "Agent has control", "You have control", or "You have control in another window".
-- **Take Control / Release control.** Take Control (in the bar or over the stream) asks the vendor to pause the agent's computer tools, then focuses the stream so your mouse and keyboard go to the VM. The agent's computer calls wait until you release; the tab says so. The window renews control every 30 seconds; closing the tab releases it, and if the window disappears, control goes back to the agent within about 2 minutes. Taking control in a second window moves it there; the first window sees "You have control in another window" and can take it back.
-- **The URL.** A fresh view URL is fetched each time the tab opens and with Reconnect. A URL that was never opened in time is replaced, and so is one that expired while the page was hidden for 30 seconds or more. Nothing is persisted.
+- **View-only by default.**
+  - The stream is `inert` until you take control, so clicks and keys can't reach it by accident.
+  - The bar says who has control: "Agent has control", "You have control", or "You have control in another window".
+  - A vendor whose stream takes no input shows "View only" and no Take Control.
+- **Take Control / Release control.**
+  - Take Control (in the bar or over the stream) asks the vendor to pause the agent's computer tools, then focuses the stream so your mouse and keyboard go to the VM.
+  - The agent's computer calls wait until you release, and the tab says so. If there was nothing to pause, it says the agent can still use the desktop.
+  - When you release and the agent's turn is running, it's told to take a fresh screenshot before acting.
+- **When control ends.**
+  - The window renews control every 30 seconds, but not once the page has been hidden for 30 seconds, so a forgotten background tab hands control back within about 2 minutes.
+  - A hold lasts at most 30 minutes, then goes back to the agent; take control again to carry on.
+  - Closing the tab, switching to another thread or another tab releases it.
+  - Taking control in a second window moves it there. The first window says "You took control in another window" and can take it back.
+- **The frame.**
+  - It is sandboxed (`allow-scripts allow-same-origin allow-pointer-lock`), so the stream can't navigate BB's page or open windows.
+  - It gets `autoplay`, `fullscreen`, `keyboard-map` and `pointer-lock`, and no clipboard access.
+- **The URL.**
+  - The frame has no `src`: it's navigated with `location.replace`, so the token-bearing URL never sits in BB's DOM or in React state.
+  - A fresh URL is fetched each time the tab opens and with Reconnect. A URL that was never opened in time is replaced, and so is one that expired while the page was hidden for 30 seconds or more.
+  - Nothing is persisted.
 - **Full screen.** The full-screen button shows the stream and its controls full screen where the browser allows it.
 - **Phone width.** The bar wraps and the buttons grow to 32 px.
 

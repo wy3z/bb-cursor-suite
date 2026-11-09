@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { usePluginAvailability } from "@wy3z/bb-suite/plugin-availability";
 import {
+  DESKTOP_ROUTES,
   desktopProviderFor,
-  desktopRpcContract,
+  desktopRouteUrl,
   type DesktopControl,
   type DesktopProviderEntry,
+  type DesktopRoute,
   type DesktopStatus,
   type DesktopView,
 } from "@wy3z/bb-suite/desktop";
@@ -130,21 +132,33 @@ function statusEntry(key: string): StatusEntry {
   return entry;
 }
 
-type DesktopOutputs = { "desktop.status": DesktopStatus; "desktop.view": DesktopView; "desktop.control": DesktopControl };
+type DesktopOutputs = { status: DesktopStatus; view: DesktopView; control: DesktopControl };
 
-export function callDesktop<M extends keyof DesktopOutputs>(sdk: Sdk, pluginId: string, method: M, input: Record<string, unknown>): Promise<DesktopOutputs[M]> {
-  return sdk.plugins.callRpc({
-    pluginId,
-    method,
-    input: input as never,
-    outputSchema: desktopRpcContract[method].output as never,
-  }) as Promise<DesktopOutputs[M]>;
+export async function callDesktop<R extends DesktopRoute>(pluginId: string, route: R, input: Record<string, unknown>): Promise<DesktopOutputs[R]> {
+  const response = await fetch(desktopRouteUrl(pluginId, route), {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  type Envelope = { ok?: boolean; result?: unknown; error?: { message?: unknown } };
+  let body: Envelope | null;
+  try {
+    body = (await response.json()) as Envelope;
+  } catch {
+    body = null;
+  }
+  if (!response.ok || body?.ok !== true) {
+    const message = typeof body?.error?.message === "string" ? body.error.message : `The desktop request failed (${response.status}).`;
+    throw new Error(message);
+  }
+  return DESKTOP_ROUTES[route].output.parse(body.result) as DesktopOutputs[R];
 }
 
-function refreshStatus(sdk: Sdk, pluginId: string, threadId: string, entry: StatusEntry): Promise<void> {
+function refreshStatus(pluginId: string, threadId: string, entry: StatusEntry): Promise<void> {
   if (entry.inflight !== null) return entry.inflight;
   const generation = entry.generation;
-  const request: Promise<void> = callDesktop(sdk, pluginId, "desktop.status", { threadId })
+  const request: Promise<void> = callDesktop(pluginId, "status", { threadId, clientId: desktopClientId() })
     .then(
       (status) => ({ status, error: false, loaded: true }),
       () => ({ status: null, error: true, loaded: true }),
@@ -169,7 +183,6 @@ export function setStatusControl(pluginId: string, threadId: string, control: De
 }
 
 export function useDesktopStatus(threadId: string, target: DesktopTarget | null): StatusSnapshot & { refresh: () => Promise<void> } {
-  const sdk = useSdk();
   const pluginId = target?.provider.pluginId ?? null;
   const entry = useMemo(() => (pluginId === null ? null : statusEntry(statusKey(pluginId, threadId))), [pluginId, threadId]);
   const subscribe = useCallback(
@@ -177,10 +190,10 @@ export function useDesktopStatus(threadId: string, target: DesktopTarget | null)
       if (entry === null || pluginId === null) return () => undefined;
       entry.listeners.add(listener);
       if (entry.timer === null) {
-        void refreshStatus(sdk, pluginId, threadId, entry);
+        void refreshStatus(pluginId, threadId, entry);
         entry.timer = setInterval(() => {
           if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-          void refreshStatus(sdk, pluginId, threadId, entry);
+          void refreshStatus(pluginId, threadId, entry);
         }, STATUS_POLL_MS);
       }
       return () => {
@@ -191,7 +204,7 @@ export function useDesktopStatus(threadId: string, target: DesktopTarget | null)
         }
       };
     },
-    [entry, sdk, pluginId, threadId],
+    [entry, pluginId, threadId],
   );
   const snapshot = useSyncExternalStore(
     subscribe,
@@ -202,8 +215,8 @@ export function useDesktopStatus(threadId: string, target: DesktopTarget | null)
     if (entry === null || pluginId === null) return;
     entry.inflight = null;
     entry.generation += 1;
-    await refreshStatus(sdk, pluginId, threadId, entry);
-  }, [entry, sdk, pluginId, threadId]);
+    await refreshStatus(pluginId, threadId, entry);
+  }, [entry, pluginId, threadId]);
   return { ...snapshot, refresh };
 }
 

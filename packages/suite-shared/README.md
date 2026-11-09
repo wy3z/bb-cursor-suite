@@ -141,29 +141,56 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   status read. `@wy3z/bb-suite/testing/sandbox-fakes`
   exports the fake BB and backend the helper's own tests use. Server-only.
 - `@wy3z/bb-suite/desktop`: the vendor-neutral contract for a thread's
-  computer. `desktopRpcContract` has three methods every desktop vendor
-  serves: `desktop.status` (`{ threadId }` to state `ready`, `starting`,
-  `stopped` or `unavailable`, whether the stream takes input, whether the
-  agent can be paused, and who holds control), `desktop.view` (`{ threadId,
-  theme? }` to a fresh https view URL and the time it must be opened by) and
-  `desktop.control` (`{ threadId, clientId, action: "take" | "renew" |
-  "release" }`). `DESKTOP_PROVIDERS` maps a machine provider id to the plugin
-  that serves its desktop (`boat-sandbox` to `machine-boat`); a new vendor adds
-  one line there and implements the contract. Plus the lease timings
-  (`DESKTOP_LEASE_MS` 2 minutes, `DESKTOP_RENEW_MS` 30 seconds) and the iframe
-  `allow` list. Frontend-safe.
+  computer. A desktop vendor serves three JSON routes under its plugin,
+  `POST /api/v1/plugins/<id>/http/desktop/status`, `/view` and `/control`
+  (`DESKTOP_ROUTES`, `desktopRouteUrl`), each answering
+  `{ ok: true, result }` or `{ ok: false, error: { code, message } }`:
+  - `status` (`{ threadId, clientId }`): state `ready`, `starting`,
+    `stopped` or `unavailable`, whether the stream takes input, whether the
+    vendor can pause the agent, and control as `{ holder, mine,
+    agentPaused, since, expiresAt }`. `mine` says whether the caller's
+    `clientId` holds control; another window's id is never returned.
+  - `view` (`{ threadId, theme? }`): a fresh https view URL and the time it
+    must be opened by.
+  - `control` (`{ threadId, clientId, action: "take" | "renew" | "release" }`).
+
+  `DESKTOP_PROVIDERS` maps a machine provider id to the plugin that serves its
+  desktop (`boat-sandbox` to `machine-boat`). The registry is compiled into
+  the UI, so a new vendor means one line here plus a new Cursor Composer
+  release. Also the timings (`DESKTOP_LEASE_MS` 2 minutes,
+  `DESKTOP_RENEW_MS` 30 seconds, `DESKTOP_HIDDEN_STOP_MS` 30 seconds,
+  `DESKTOP_MAX_HOLD_MS` 30 minutes), the iframe `allow` list (no clipboard)
+  and `sandbox` tokens (`allow-scripts allow-same-origin allow-pointer-lock`,
+  never top navigation or popups), and `browserRequestRefusal`.
+  Frontend-safe.
 - `@wy3z/bb-suite/desktop/server`: `registerDesktopProvider(bb, vendor)`
-  serves that contract for a vendor plugin. The vendor supplies `probe`,
-  `view`, and optionally `pauseAgent` and `resumeAgent`; the helper does the
-  rest: it resolves the thread to its host and refuses threads on another
-  provider's machine or none, serves `view` and `control` only to the BB app
-  (another plugin calling through `callRpc` is refused), registers the methods
-  as not discoverable, caches `probe` for 15 seconds, and keeps one control
-  lease per host. Taking control calls `pauseAgent`; the holder's window
-  renews it every 30 seconds, and the lease runs out after 2 minutes without a
-  renewal, when the machine stops, or when the plugin stops, each of which
-  calls `resumeAgent`. Another window can take over. Nothing is stored: leases
-  live in memory, and the view URL is passed straight back to the caller.
+  serves those routes for a vendor plugin. The vendor supplies `probe`,
+  `view`, and optionally `pauseAgent` (resolving `false` when there was
+  nothing to pause) and `resumeAgent`. The helper:
+  - **Who may call.** It answers only requests that look like the BB app's
+    own `fetch`. It refuses Connect machine and OAuth credentials (the gate's
+    `x-bb-gate-auth: machine` / `oauth`, which callers can't forge through
+    Connect), and anything without the browser's same-origin fetch metadata
+    (`Sec-Fetch-Site: same-origin`, a `cors` or `same-origin`
+    `Sec-Fetch-Mode` and an `Origin`). That shuts out the bb CLI,
+    `bb plugin rpc call`, other plugins' servers and agents on cloud
+    machines. It is not a boundary against software on a trusted loopback or
+    direct route that forges browser headers: BB gives that software the
+    user's full access anyway.
+  - **Scope.** It resolves the thread to its host, and refuses threads on
+    another provider's machine or on none.
+  - **Control.** One lease per host, in memory. Taking control calls
+    `pauseAgent` and counts as machine activity; renewals don't. The lease
+    ends after 2 minutes without a renewal, after 30 minutes in total (the
+    renewal is refused and the agent resumed), on release, or when the
+    plugin stops, and each of those calls `resumeAgent`. When the machine
+    is paused or stopped the lease is simply dropped, because the stop ended
+    the pause. A transient probe failure keeps the lease. When the agent was
+    paused and its thread has a turn running, it gets an agent-only steer
+    saying control came back and to take a fresh screenshot.
+  - **Storage.** Nothing is stored: the view URL goes straight back to the
+    caller and is never logged.
+
   Server-only.
 - `@wy3z/bb-suite/git-safety`: every git call the suite makes inside a
   checkout goes through this module, so a repository's own config can't run
