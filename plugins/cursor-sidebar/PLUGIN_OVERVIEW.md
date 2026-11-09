@@ -160,7 +160,7 @@ With the Workspaces plugin running, a workspace's chats nest under its first cha
 
 ### Navigation
 
-The plugin adds two sidebar navigation layouts, **Compact** (`cursor-sidebar/compact`) and **Cursor** (`cursor-sidebar/cursor`). BB switches to the first one a plugin adds unless you have picked one, so after install the sidebar uses Compact, and a note above the list says so until dismissed. Compact puts Search in the header and other destinations behind a **Plugins** button in the footer. Cursor lists the destinations as rows.
+The plugin adds two sidebar navigation layouts, **Cursor** (`cursor-sidebar/cursor`) and **Compact** (`cursor-sidebar/compact`). BB uses the first one a plugin adds unless you have picked one, so the sidebar uses Cursor after install, and a note above the list says so until dismissed. Cursor lists the destinations as rows. Compact puts Search in the header and other destinations behind a **Plugins** button in the footer.
 
 ### Requirements
 
