@@ -4,6 +4,34 @@ Drafts for James to post. Every tweet is under 280 characters as X counts them (
 
 Never call it "open source Cursor". The line is "Cursor's agent UI for Claude Code and Codex, open source".
 
+## Scrappy post (James posts it himself)
+
+Media: `x-video-4-opus-in-cursrr.mp4` (47 s, 1920x1200, captions burned in, no audio). A rough screen recording of the demo: picking Opus 5.5 in the composer, the sidebar and pills, Opus doing a real task, the board, a cloud agent on its own desktop, and Take Control.
+
+The joke is the UI, not the model. Cursor itself offers Anthropic models, so never say or imply it can't run Opus. The honest hook is Claude Code itself, on your own Claude subscription, inside a Cursor-style UI.
+
+Burned-in captions, in order: "ok so this looks like cursor", "but it's claude code. picking opus 5.5", "on my own claude subscription", "same sidebar. same little pills", "opus did the thing", "diff's right there. commit from the pill", "one lead thread runs the whole board", "cloud agents get their own desktop", "and i can just grab the mouse", "open source. link below".
+
+Title options:
+
+- opus 5.5 in cursrr
+- it's basically cursor. it's actually claude code
+- claude code in a cursor costume
+- cursor's ui, claude code's brain, my claude sub
+- same sidebar, same pills, it's claude code running opus 5.5
+
+**S1** (media: `x-video-4-opus-in-cursrr.mp4`)
+
+> opus 5.5 in cursrr
+>
+> (yes, cursor runs anthropic models too. this is claude code itself, on my own claude sub, in a cursor-style ui. sidebar, pills, boards, cloud desktops. open source)
+>
+> https://github.com/wy3z/bb-cursor-suite
+
+**S2** (no media, reply)
+
+> it's a set of plugins for BB, so the same UI works with codex too. not affiliated with anysphere, i just like how cursor lays out agent work
+
 ## Launch post
 
 **1/** (media: `x-video-1-sidebar-composer.mp4`)
@@ -115,8 +143,6 @@ Links the long post (guide part 2).
 > https://github.com/wy3z/bb-cursor-suite
 
 ## Thread C: cloud agents with a desktop
-
-(confirm) Before posting this thread or tweet 3 of the launch post: in my headless capture, clicks inside the Desktop stream only reached the VM after Release control, while pointer movement worked straight away. Check Take Control in a real browser first; if it reproduces, it's a BCS-90 bug to fix before launch.
 
 **C1** (media: `x-video-3-cloud-desktop.mp4`)
 

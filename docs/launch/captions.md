@@ -4,13 +4,14 @@ One caption (for posts and articles) and one alt text (for screen readers) per f
 
 ## Videos for X
 
-All three are H.264 MP4, 1920x1200, 30 fps, no audio, recorded from a headless Chromium with the CDP screencast and encoded with ffmpeg. Slow stretches are sped up; nothing is staged in between.
+All four are H.264 MP4, 1920x1200, 30 fps, no audio, recorded from a headless Chromium with the CDP screencast and encoded with ffmpeg. Slow stretches are sped up; nothing is staged in between. Video 4 is the rough one: fast cuts, a human-paced cursor and burned-in captions.
 
 | File | Length | Caption | Alt text |
 |---|---|---|---|
 | `x-video-1-sidebar-composer.mp4` | 28 s | Pick a project, pick a fresh worktree, type, send. The thread shows up in the sidebar while it works, and the Changes pill has its diff ready to commit. | A new thread is started from a Cursor-style composer in BB; it appears in the sidebar with a spinner, finishes, and its Changes tray opens with three files and Commit, Commit & Push and Create PR buttons. |
 | `x-video-2-lead-fanout.mp4` | 36 s | I ask the lead to start three tasks. It starts two workers, asks me one question, and starts the third with my answer. The cards move, and PR chips appear as the workers open PRs. | A lead thread receives an instruction; the project board shows cards moving from Queued to In Progress with agent and PR chips; the lead asks a multiple-choice question, it is answered, and a third card moves. |
 | `x-video-3-cloud-desktop.mp4` | 36 s | A cloud agent play-tests a small game on its own VM desktop. Then I take control. | A thread runs on a boat.dev VM; its desktop appears in a Desktop tab; the agent opens Chrome and plays a two-level game; the user presses Take Control and the tab says the agent's tools wait. |
+| `x-video-4-opus-in-cursrr.mp4` | 47 s | opus 5.5 in cursrr. Claude Code on my own Claude subscription, in a Cursor-style UI. Rough cut, captions burned in. | A quick screen recording with white-on-black captions: Opus 5.5 is picked in a Cursor-style composer, a task is sent and finishes, the Changes tray opens, a project board appears, and a cloud agent's desktop is shown before the user takes control. |
 
 ## Stills for X (16:9, framed)
 
