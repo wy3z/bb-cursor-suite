@@ -142,8 +142,13 @@ the acceptance criteria, and how the work lands:
 - Push the branch and open a pull request into the default branch with `gh pr
   create`, then link it to the worker thread with `bb pull-requests link
   <url>`. Workers never merge, and never commit to main.
-- Finish with the PR link, the tests run and what was verified, and attach
-  reports and screenshots to the task (`bb tasks attachment add <KEY> --file <path>`).
+- Finish with the PR link, what was run and verified, and proof on the task
+  (`bb tasks attachment add <KEY> --file <path>`): a screenshot or short
+  recording of any visible change, fake data only, or test and log output for
+  backend work. No proof, no Done; attachments work from cloud VMs too.
+- Send those files to you with `bb thread tell <your thread> --mode queue
+  --image <path>` or `--file <path>`, and only when you must look now. A plain
+  `tell` is a steer: it interrupts your turn.
 
 ## Landing work
 
@@ -151,8 +156,9 @@ How work lands is project policy: read it in `bb projects notes <PREFIX>` and
 follow it. Without a rule there, workers open PRs and you merge them. When a
 worker finishes:
 
-1. Read the PR and the worker's evidence. Get a review (a reviewer thread or
-   your own read) when the brief asked for one.
+1. Read the PR and the worker's evidence. A visual change reported without a
+   screenshot or recording goes back to the worker. Get a review (a reviewer
+   thread or your own read) when the brief asked for one.
 2. If the change is something the user must see or decide, move the card to
    For Review with a `Needs <user>:` comment and wait for their go.
 3. Merge the way the notes say (for example `gh pr merge <url> --merge`),

@@ -48,6 +48,8 @@ describe("pinned lead instructions", () => {
     expect(block).toContain("bb projects notes ABC");
     expect(block).not.toMatch(/gh pr merge|squash|never merge/i);
     expect(block).toContain('"Holding: <reason>"');
+    expect(block).toContain("bb tasks attachment add <task> --file <path>");
+    expect(block).toContain("--mode queue --image/--file");
     expect(fake.instructions("thr_other")).toBeNull();
     await fake.run(["lead", "ABC", "--thread", "thr_lead2"]);
     await settle();
