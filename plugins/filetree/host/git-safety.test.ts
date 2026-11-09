@@ -23,7 +23,7 @@ import {
   GIT_SAFETY_ENV,
   gitDriverOverrides,
   resolveTrustedGit,
-} from "./git-env.js";
+} from "@wy3z/bb-suite/git-safety";
 import { loadNativeFilesAddon, prepareNativeAddon } from "./native-addon.js";
 import { NativeFileHostService } from "./service.js";
 const execFileAsync = promisify(execFile);

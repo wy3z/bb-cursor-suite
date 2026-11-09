@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { NativeFileHostError } from "./errors.js";
-import { resolveTrustedGit, safeGitArgs, scrubbedGitEnv } from "./git-env.js";
+import { resolveTrustedGit, safeGitArgs, scrubbedGitEnv } from "@wy3z/bb-suite/git-safety";
 export interface SpawnGitResult {
   code: number;
   stderr: Buffer;

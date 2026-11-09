@@ -112,6 +112,11 @@ and `bb plugin build` bundles it.
   frontend-safe module, so vendors share them. Pass `launchCheck: { rules }`
   to extend them, or `launchCheck: false` and compose
   `createCloudLaunchCheck` into a plugin's own hook. Server-only.
+- `@wy3z/bb-suite/git-safety`: every git call the suite makes inside a
+  checkout goes through this module, so a repository's own config can't run
+  code where nobody asked for it. Files, Pull Requests and Projects share it.
+  See [Git safety](#git-safety). `@wy3z/bb-suite/testing/hostile-git` is the
+  hostile repository the plugins' tests run against.
 - `@wy3z/bb-suite/time`: `shortAge` ("now", "5m", "3d", "2w", "1mo"),
   `duration` ("2h 5m") and `elapsed`.
 - `@wy3z/bb-suite/tokens.css`: the suite palette (`--bbs-*`) and pill metrics.
@@ -124,6 +129,77 @@ and `bb plugin build` bundles it.
   theme variables (`--border`, `--input`, `--surface-recessed`,
   `--subtle-foreground`), not Tailwind classes, so it doesn't depend on which
   classes BB's build happens to include.
+
+## Git safety
+
+A checkout's `.git/config` can name programs that git runs on its own: an
+fsmonitor, filter, diff and merge drivers, hooks, a pager, a signing program
+behind `log.showSignature`, credential helpers and transports such as `ext::`.
+A folder from an archive, a shared drive or another user can carry that config,
+so the suite never runs plain `git` in a checkout. `git-safety.ts` has three
+modes.
+
+**Read-only** (`GitSession.read`). The full Files protection:
+
+- `--no-optional-locks` and `--no-pager`, so reads never write the index.
+- `core.fsmonitor`, `diff.external` and `credential.helper` emptied,
+  `core.hooksPath` pointed at a path that can't exist,
+  `submodule.recurse=false` and `log.showSignature=false`.
+- Every `filter`, `diff`, `merge` and `hook` entry from `git config --list` is
+  switched off with `-c`. If a name can't be expressed that way (it contains
+  `=`, isn't UTF-8, or there are too many), the session refuses to open.
+- `GIT_ALLOW_PROTOCOL=none` and `GIT_NO_LAZY_FETCH=1`, so a partial clone
+  can't fetch through a transport the repository chose.
+- Inherited `GIT_*` variables dropped and `PATH` pinned to trusted folders.
+- Scope `user` (Pull Requests and Projects) keeps the user's global and system
+  config, including `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and
+  `GIT_CONFIG_NOSYSTEM`, so `safe.directory`, `insteadOf` and ignore rules
+  apply as in a terminal. That config is the user's own, and the overrides
+  above still beat it. Scope `isolated` (Files) also skips it by pointing
+  `HOME`, `XDG_CONFIG_HOME` and `GIT_CONFIG_*` nowhere.
+
+**User action** (`GitSession.action`). Runs git the way the user's terminal
+would: their environment, `PATH` (minus relative entries), global and system
+config, credentials, remotes and identity. Inherited repository-location and
+config-injection variables (`GIT_DIR`, `GIT_INDEX_FILE`,
+`GIT_CONFIG_PARAMETERS` and the like) are dropped; `GIT_AUTHOR_*`,
+`GIT_COMMITTER_*`, `GIT_SSH*`, `GIT_ASKPASS`, `GIT_SSL_*`, `GIT_HTTP_*`,
+`GIT_PROXY_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and
+`GIT_CONFIG_NOSYSTEM` are kept. Switched off because no action needs them: the pager,
+fsmonitor, `diff.external`, every diff driver's `textconv` and `command`, every
+merge driver, `log.showSignature`, and the `ext::` transport. Hooks stay on or
+go off per action (`hooks`), and an action can also refuse lazy fetches
+(`lazyFetch: false` sets `GIT_NO_LAZY_FETCH=1`) and index writes
+(`optionalLocks: false`). Filters always stay on, because they change the
+bytes: without them Git LFS files would be committed whole and git-crypt files
+committed in plain text.
+
+The "anything to commit?" check before Commit and Create PR is a `git status`
+with that action policy: filters on, hooks off, no lazy fetch, no index write.
+With filters off, a Git LFS or git-crypt file whose timestamps changed (after a
+`touch`, an editor save or a copy of the checkout) would look modified, and
+Create PR would refuse a tree with nothing to commit.
+
+**CLIs** (`cliGitEnv`). `gh` and `glab` run git themselves, so the same
+overrides travel in `GIT_CONFIG_PARAMETERS`. With `repository: false`,
+`GIT_DIR` points nowhere, so the CLI's git can't open any repository at all.
+In `read` mode the CLI's git gets the read-only protection with the user's
+config. In `action` mode it can still fetch missing objects with the user's
+credentials, and every hook and driver is off.
+
+### What can still run
+
+| Action | Still runs | Why |
+|---|---|---|
+| "Anything to commit?" check before Commit and Create PR (`git status`) | Clean and process filters on files whose timestamps changed | Without them a filtered file looks modified. Both actions run the same filters and hooks moments later. |
+| Commit (`git add`, `git commit`) | The repository's hooks (`pre-commit`, `prepare-commit-msg`, `commit-msg`, `post-commit`, `post-index-change`, `reference-transaction`, config-defined hooks), clean filters on staged files, the signing program when signing is on, and a partial clone's lazy-fetch transport (the repository's `uploadpack`, `core.sshCommand`, URL helpers) | Hooks on an explicit commit are git's contract (husky, pre-commit, Git LFS). Filters decide what gets committed. Signing and fetching follow the user's config, which can be per repository. |
+| Push | `pre-push` and `reference-transaction` hooks, `core.sshCommand`, credential helpers, `core.askPass`, `remote.<name>.receivepack` on a local remote, and remote helpers named by the URL | Git LFS uploads from `pre-push`. A per-repository SSH key or credential helper is common and is the user's push credential. |
+| Apply locally (`git apply` in the target, the patch build in the source) | Clean and smudge filters on the files the patch touches. On Git older than 2.45, a partial clone's lazy-fetch transport (the repository's `uploadpack`, `core.sshCommand`, URL helpers) | Without the filters an LFS or git-crypt file can't match its preimage or is written in the wrong form. Hooks are off: neither step is a commit. Apply sets `GIT_NO_LAZY_FETCH=1`, so a missing base object makes it fail instead of fetching, but Git only honours that variable from 2.45. |
+| `gh pr create --fill --head` | A partial clone's lazy-fetch transport (the repository's `uploadpack`, `core.sshCommand`, URL helpers) when gh's `git log --cherry` needs a missing object | `--head` means gh doesn't push or run `git status` (gh source, `pkg/cmd/pr/create`). Hooks and drivers are off. Create PR has already pushed with hooks on by then. |
+
+The hostile repository in `test/hostile-git.ts` sets every one of these knobs.
+Each plugin's tests show that plain git runs its code, that every read-only
+path runs none of it, and which markers each user action leaves.
 
 ## Settings pages
 

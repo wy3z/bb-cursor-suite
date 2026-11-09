@@ -8,7 +8,7 @@ import {
   resolveTrustedGit,
   safeGitArgs,
   scrubbedGitEnvPairs,
-} from "./git-env.js";
+} from "@wy3z/bb-suite/git-safety";
 import { spawnGitAtPath, type SpawnGitResult } from "./spawn-git.js";
 const O_CLOEXEC =
   (

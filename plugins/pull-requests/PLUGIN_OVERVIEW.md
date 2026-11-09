@@ -19,7 +19,8 @@ Your open GitHub pull requests in BB, grouped by what each one needs from you.
 ## How it works
 
 Every request goes through the GitHub CLI (`gh`) already signed in on the BB
-server's machine, with prompts disabled. Results are cached for a minute, and
+server's machine, with prompts disabled, from the temp folder and with a git
+that can't open any repository. Results are cached for a minute, and
 reads pause for 15 minutes if GitHub's rate limit is hit. The only write is a
 comment, and only when you press Comment.
 

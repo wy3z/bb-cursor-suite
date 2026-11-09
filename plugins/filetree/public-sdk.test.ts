@@ -25,7 +25,7 @@ describe("standalone plugin imports", () => {
         /^react-resizable-panels$/,
         /^@hugeicons\/(core-free-icons|react)$/,
         /^tailwind-merge$/,
-        /^@wy3z\/bb-suite\/git$/,
+        /^@wy3z\/bb-suite\/git(?:-safety)?$/,
         /^esbuild$/,
         /^vitest(?:\/(config|node))?$/,
       ],
