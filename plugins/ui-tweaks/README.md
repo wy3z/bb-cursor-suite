@@ -8,9 +8,9 @@ Anyone who uses BB every day and wants it to feel a little more like their own. 
 
 ## What it looks like
 
-![UI Tweaks' Interface settings](../../docs/media/ui-tweaks-settings.png)
+![UI Tweaks' Interface settings](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/ui-tweaks-settings.png)
 
-![The Icons section with four icon packs and the spinner setting](../../docs/media/ui-tweaks-icon-packs.png)
+![The Icons section with four icon packs and the spinner setting](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/ui-tweaks-icon-packs.png)
 
 - **Clearer hierarchy** (on by default): bolder thread titles, slightly larger chat prose, semibold bold text, and quieter page-header and side-panel icons.
 - **Hide Steer labels in threads** (off by default): removes the Steer tag on messages that steered a running agent.

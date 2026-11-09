@@ -8,11 +8,11 @@ People whose agents open pull requests and who would rather review them next to 
 
 ## What it looks like
 
-![The pull request board, grouped into Needs attention, Awaiting review, Approved and Drafts](../../docs/media/pull-requests-board.png)
+![The pull request board, grouped into Needs attention, Awaiting review, Approved and Drafts](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-board.png)
 
-![One pull request open in a thread's side panel](../../docs/media/pull-requests-detail.png)
+![One pull request open in a thread's side panel](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-detail.png)
 
-![The PRs tray above the composer, with the Listening chip beside it](../../docs/media/pull-requests-thread-tray.png)
+![The PRs tray above the composer, with the Listening chip beside it](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/pull-requests-thread-tray.png)
 
 - **A board** for one repository at a time, opened from the **Pull requests** button in the sidebar footer. Authored, Reviewing and All views, search, sorting, and Needs you and Starred filters.
 - **A page for each pull request** with status, checks, an assessment, the description, every changed file as a diff, and the conversation with inline review threads. Comment, rename, mark ready, merge, close or reopen from there.

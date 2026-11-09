@@ -8,11 +8,11 @@ Anyone who runs several agents at once and wants to see, at a glance, which ones
 
 ## What it looks like
 
-![The sidebar in Projects grouping, with pinned chats, child chats and a working count](../../docs/media/cursor-sidebar-projects.png)
+![The sidebar in Projects grouping, with pinned chats, child chats and a working count](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-projects.png)
 
-![The view menu: grouping, ordering, threads per group, what each row shows, and filters](../../docs/media/cursor-sidebar-view-menu.png)
+![The view menu: grouping, ordering, threads per group, what each row shows, and filters](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-view-menu.png)
 
-![The project icon picker: search, ten colours, Cursor's icon grid and an image upload](../../docs/media/cursor-sidebar-icon-picker.png)
+![The project icon picker: search, ten colours, Cursor's icon grid and an image upload](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/cursor-sidebar-icon-picker.png)
 
 - **Five groupings:** Projects, Updated, Status, Environment or None. One at a time.
 - **Child chats** sit right under their parent. A parent with working children shows a small count where its age would be.

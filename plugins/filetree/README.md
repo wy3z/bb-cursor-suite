@@ -8,9 +8,9 @@ Anyone who wants to see what an agent is working on without leaving the thread. 
 
 ## What it looks like
 
-![The Files tab: a searchable tree with Git decorations and Symbols file icons](../../docs/media/filetree-tree.png)
+![The Files tab: a searchable tree with Git decorations and Symbols file icons](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/filetree-tree.png)
 
-![The right panel split: the tree in one pane and a file open in the other](../../docs/media/filetree-split.png)
+![The right panel split: the tree in one pane and a file open in the other](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/filetree-split.png)
 
 - **A Files tab** you add from the right panel's **+** menu in any thread.
 - **Workspaces and project sources** in one switcher, with search by path, live updates and keyboard navigation.

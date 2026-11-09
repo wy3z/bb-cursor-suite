@@ -8,11 +8,11 @@ People who hand real work to agents and need to see where it stands: what is run
 
 ## What it looks like
 
-![The Projects board: For Review, In Progress, Queued and Done columns](../../docs/media/projects-board.png)
+![The Projects board: For Review, In Progress, Queued and Done columns](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-board.png)
 
-![A card up close: agents, changes, a pull request chip and sub-task progress](../../docs/media/projects-card.png)
+![A card up close: agents, changes, a pull request chip and sub-task progress](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-card.png)
 
-![The project pill above a composer and the compact list it opens](../../docs/media/projects-lead-panel.png)
+![The project pill above a composer and the compact list it opens](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/projects-lead-panel.png)
 
 - **Board and List views** of a tracker project, in Cursor's order: For Review, In Progress, Queued, Done and Canceled (hidden by default). Drag cards between and within columns, and filter by title or key.
 - **Live cards** with labels, priority, a chip for every agent and its live time, the agent's changes, pull request chips with review and CI state, sub-task progress, attachments, and the commit that landed the work.
