@@ -120,7 +120,7 @@ A local worktree is the default. A worker can run on a cloud machine instead:
 `--environment-provider` and fill its branch inputs:
 
 ```sh
-bb thread spawn --parent-self --environment-provider boat-sandbox \
+bb thread spawn --parent-self --project <id> --environment-provider boat-sandbox \
   --environment-inputs '{"branch":{"kind":"new","baseBranch":"main"}}' \
   --provider claude-code --model claude-opus-5-5 --prompt-file brief.md
 ```
