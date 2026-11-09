@@ -98,6 +98,8 @@ The VM has a real desktop. The agent opens Chrome, clicks through its own app an
 ![A cloud agent play-testing a small game on its VM desktop, shown in the Desktop tab](../media/desktop-take-control.png)
 *A Sonnet worker on a boat VM, play-testing the demo game in Chrome. Take Control is top right.*
 
+The lead can start cloud workers itself. The [skill's cloud section](https://github.com/wy3z/bb-cursor-suite/blob/main/plugins/projects/skills/projects/SKILL.md#workers-in-the-cloud) tells it when: I asked for it, the work needs a desktop or a browser, it's long or heavy, or it shouldn't touch my machine. It has to stay inside the caps and say so when it picks one.
+
 It's cheap. The demo VM cost about half a cent. The plugin suspends idle VMs after 15 minutes and refuses new ones past a monthly cap that you set.
 
 ## 9. Memory and focus
