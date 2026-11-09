@@ -138,6 +138,8 @@ Cards show the key, labels, priority, title (inline `code` rendered), a chip for
 
 Clicking a card or agent chip opens the agent as a tab of the lead thread; Ctrl or Cmd-click opens a split. With Pull Requests installed, a PR chip opens the pull request in BB; Ctrl, Cmd, Shift or middle-click opens GitHub.
 
+While the lead's tab strip is showing, Ctrl+Alt+1 to Ctrl+Alt+8 select the Nth tab and Ctrl+Alt+9 the last one, as in Cursor and browsers. On macOS that is Control+Option. The keys work while the composer has focus. They match the physical digit keys, ignore Shift and Cmd, and step aside for AltGr, so AltGr+digit still types characters such as @, [ and { on European layouts. A digit past the last tab, the tab already showing, or no strip at all leaves the key alone.
+
 ### Derived status
 
 Each card works out what its evidence says:

@@ -13,6 +13,7 @@ People who hand real work to agents and need to see where it stands: what is run
 - **Derived status.** Each card works out what its evidence says (a merged PR, a running agent, an idle agent with an open PR) and shows a "behind" hint when the stored status disagrees. The board never writes Done itself.
 - **A card menu** to delegate to any Tasks preset, apply an agent's worktree locally, create a pull request or open the task in Tasks.
 - **A project lead:** a thread you nominate to plan, delegate and report. It gets the `projects` skill and a short block of rules pinned to its instructions.
+- **Lead tabs.** Workers open as tabs of their lead. Ctrl+Alt+1 to 8 picks the Nth tab and Ctrl+Alt+9 the last, even while you type in the composer.
 - **The loop:** an optional scheduled board sweep, pings when cards drift from their evidence, and following every pull request the lead's workers link.
 - **Outer-loop messages:** any agent system can hand the lead work with `bb projects send` and read its replies, with nothing lost across restarts.
 - **Board icons,** using the suite's port of Cursor's icon picker. Its notices (Hugeicons, T3 Code) are in [suite-shared's THIRD-PARTY-NOTICES.md](../../packages/suite-shared/THIRD-PARTY-NOTICES.md).
