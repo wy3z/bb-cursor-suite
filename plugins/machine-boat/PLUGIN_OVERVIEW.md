@@ -139,7 +139,19 @@ So a systemd user service such as BB's daemon gets no login from boat on its own
 - It then reads the environment names of each active `bb-host-daemon-*.service`. A unit missing an imported name, or still holding a dropped one, is restarted only when the VM has just booted (create, restore, or resume from stopped), because no turn can be running yet. On the resume path that only extends a live VM's TTL, the script never restarts; it reports the unit as keeping its old logins until the next resume.
 - The progress line lists only known variable names and unit names matching `bb-host-daemon-*.service`; any other text from the VM is dropped. A failure is logged and never fails create or resume.
 
-Live proof on a second VM: a stand-in `bb-host-daemon-bcs104.service` started before the hand-off had no agent variable; after it the unit was restarted (new pid) with `CLAUDE_CODE_OAUTH_TOKEN`, the login probe went from nothing to `login:claude`, two more hand-offs (fresh-boot and live mode) left the pid unchanged, and `claude -p` run as a systemd user service answered. The token was in no file under `$HOME`, `/tmp` or `/etc` and not in the user journal. Codex through boat is unverified, because no ChatGPT login was connected; boat's docs say it arrives as `~/.codex/auth.json`.
+Live proof on a second VM: a stand-in `bb-host-daemon-bcs104.service` started before the hand-off had no agent variable; after it the unit was restarted (new pid) with `CLAUDE_CODE_OAUTH_TOKEN`, the login probe went from nothing to `login:claude`, two more hand-offs (fresh-boot and live mode) left the pid unchanged, and `claude -p` run as a systemd user service answered. The token was in no file under `$HOME`, `/tmp` or `/etc` and not in the user journal. Codex through boat is unverified (confirm), because no ChatGPT login was connected; boat's docs say it arrives as `~/.codex/auth.json`.
+
+A third VM ran the plugin's own `create`, `stop`, `resume` and `remove` with the hand-off wired in: each prepare reported `CLAUDE_CODE_OAUTH_TOKEN`, the login check answered `claude` (with a note that Codex is missing), and `claude -p` as a user service answered. That resume came back on the same machine with memory intact (same daemon pid, user manager environment kept), as boat does within 10 minutes of a stop, so the hand-off found nothing stale and restarted nothing. A consequence: if the token itself changes on boat, a VM resumed in place keeps the old value in the daemon until a resume that boots it fresh, because the hand-off compares names, not values.
+
+Where the token sits on disk, by a full scan (paths only; `/proc`, `/sys`, `/dev`, `/usr` and `/dev/shm` skipped) on a fourth VM:
+
+| When | Files holding the token |
+|---|---|
+| After create | `/run/ascii-secrets/env.sh` (600, boat's own) |
+| After a `claude -p` run | the same, nothing new |
+| After stop and resume | `/run/ascii-secrets/env.sh`, plus `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json` (600), written by boat at the same moment it rewrote `env.sh` |
+
+`/run` is normally tmpfs and not in the disk snapshot (confirm). The two `auth.json` files are boat's credentials for its own pi and Prime Agent harnesses; they are on disk, so a VM resumed once carries the login in its snapshots until it is deleted. The plugin doesn't remove them: boat rewrites them on every resume and saves the disk every minute, so a cleanup would race boat's own sync and break boat's harnesses without keeping the token out of snapshots.
 
 The guard's machine source (`createBoatLoginCheck`, passed as `launchCheck.machineLogins`) answers by host:
 
@@ -198,7 +210,7 @@ boat keeps a stopped VM's disk for at least 14 days; after that an automated cle
 
 ### Secrets
 
-Agent logins from a boat environment live in the VM's systemd user manager after the hand-off (memory only) and in boat's exec environment, never in a file the plugin writes; see Agent logins.
+Agent logins from a boat environment live in boat's exec environment and `/run/ascii-secrets/env.sh`, in the VM's systemd user manager after the hand-off (memory only), and, after any resume, in boat's `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json`. The plugin itself never writes them to a file; see Agent logins.
 
 With `noEnv`, boat still leaves its own `ASCII_TOKEN` (plus `ASCII_PORT`, `ASCII_API_URL` and `BOAT_ID`) in the VM's command environment; boat says it can only host ports of its own sandbox. `~/.config/ascii/boat/config.json` holds no key.
 
