@@ -27,6 +27,7 @@ import {
 } from "./lib/model";
 import { createSubscriptions, shortId, type SubscriptionView } from "./lib/subscriptions";
 import { gitActionsContract } from "@wy3z/bb-suite/contracts";
+import { ghProcess } from "./lib/gh-process";
 import {
   changeRequestsContract,
   environmentChangeRequestTag,
@@ -94,8 +95,14 @@ interface GhOutput {
 
 function runGh(args: string[], stdin?: string): Promise<GhOutput> {
   return new Promise((resolve, reject) => {
-    const child = spawn("gh", args, {
-      env: { ...process.env, GH_PROMPT_DISABLED: "1", GH_HOST: "github.com", NO_COLOR: "1" },
+    const gh = ghProcess();
+    if (gh === null) {
+      reject(new GhError("cliUnavailable"));
+      return;
+    }
+    const child = spawn(gh.file, args, {
+      cwd: gh.cwd,
+      env: gh.env,
       stdio: ["pipe", "pipe", "pipe"],
     });
     const out: Buffer[] = [];

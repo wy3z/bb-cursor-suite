@@ -106,6 +106,7 @@ describe("remote redaction", () => {
 });
 
 describe("glab on the host", () => {
+  const withPath = () => ({ ...process.env, PATH: `${fakeBin}:${process.env.PATH ?? ""}` });
   const withFake = (mode: string, path = fakeBin): { run: Runner; log: string } => {
     const log = join(root, `glab-${mode}.log`);
     return {
@@ -117,20 +118,20 @@ describe("glab on the host", () => {
 
   it("runs one GET with an explicit hostname from a neutral directory", async () => {
     const { run, log } = withFake("ok");
-    expect(await glabGet(run, "gitlab.com", "projects/77/merge_requests/4", neutral)).toEqual({ ok: true, status: 200, nextPage: 3, body: [{ iid: 4 }] });
+    expect(await glabGet(run, "gitlab.com", "projects/77/merge_requests/4", neutral, undefined, withPath())).toEqual({ ok: true, status: 200, nextPage: 3, body: [{ iid: 4 }] });
     expect(readFileSync(log, "utf8").trim().split("\n")).toEqual([neutral, "api", "--hostname", "gitlab.com", "--include", "projects/77/merge_requests/4"]);
   });
 
   it("reports an expired login as authentication", async () => {
-    expect(await glabGet(withFake("auth").run, "gitlab.com", "projects/77/merge_requests/4", neutral)).toEqual({ ok: false, failure: "authentication", status: 401 });
+    expect(await glabGet(withFake("auth").run, "gitlab.com", "projects/77/merge_requests/4", neutral, undefined, withPath())).toEqual({ ok: false, failure: "authentication", status: 401 });
   });
 
   it("reports an unreachable instance as offline", async () => {
-    expect(await glabGet(withFake("offline").run, "gitlab.com", "projects/77/merge_requests/4", neutral)).toEqual({ ok: false, failure: "offline", status: null });
+    expect(await glabGet(withFake("offline").run, "gitlab.com", "projects/77/merge_requests/4", neutral, undefined, withPath())).toEqual({ ok: false, failure: "offline", status: null });
   });
 
   it("reports a machine without glab as cliMissing", async () => {
     const noGlab: Runner = (_command, args, options) => runProcess(join(root, "missing-bin", "glab"), args, options);
-    expect(await glabGet(noGlab, "gitlab.com", "projects/77/merge_requests/4", neutral)).toEqual({ ok: false, failure: "cliMissing", status: null });
+    expect(await glabGet(noGlab, "gitlab.com", "projects/77/merge_requests/4", neutral, undefined, withPath())).toEqual({ ok: false, failure: "cliMissing", status: null });
   });
 });

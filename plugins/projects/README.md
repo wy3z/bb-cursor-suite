@@ -19,7 +19,10 @@ live cards, and a project lead workflow.
   review and CI state (Ready, Waiting for Reviewers, CI Failing, Conflicts,
   Draft, Merged, Closed; several PRs collapse into a stack with a menu), a
   sub-task progress pill with a menu, an attachments chip with an image viewer,
-  and the commit that landed the work when it went straight to main.
+  and the commit that landed the work when it went straight to main. Those
+  commits are read with `git log` behind the suite's read-only git protection
+  (`@wy3z/bb-suite/git-safety`), so the project checkout's own config can't
+  run hooks, filters, an fsmonitor, a signature checker or a fetch.
   Clicking a card or agent chip opens the agent as a tab of the project's
   lead thread, so the lead's side panel and the board stay put; Ctrl or
   Cmd-click opens a split instead.

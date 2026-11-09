@@ -20,7 +20,7 @@ import {
   type OpenatPrimitive,
 } from "./confinement.js";
 import { NativeFileHostError, remapFilesystemError } from "./errors.js";
-import { GIT_DRIVER_QUERY, gitDriverOverrides } from "./git-env.js";
+import { GIT_DRIVER_QUERY, gitDriverOverrides } from "@wy3z/bb-suite/git-safety";
 import {
   hostPathFlavor,
   isWindowsDriveHostPath,

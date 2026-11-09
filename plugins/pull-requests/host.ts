@@ -4,6 +4,7 @@ import { isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { cachedExecutable } from "@wy3z/bb-suite/git";
+import { cliGitEnv, gitDriverListing, GitSession, type GitInvocation } from "@wy3z/bb-suite/git-safety";
 import { parseRemoteUrl, type ParsedRemote } from "./lib/change-request";
 import { hostContract, type GitLabHttp, type InspectResult } from "./lib/host-contract";
 import { parseGlabApiOutput } from "./lib/providers/gitlab";
@@ -11,6 +12,7 @@ import { parseGlabApiOutput } from "./lib/providers/gitlab";
 export interface ProcessOutput {
   code: number | null;
   stdout: string;
+  bytes: Buffer;
   stderr: string;
   error: "missing" | "timeout" | "aborted" | "tooLarge" | "failed" | null;
 }
@@ -28,7 +30,7 @@ export type Runner = (command: string, args: readonly string[], options: RunOpti
 export const runProcess: Runner = (command, args, options) =>
   new Promise((resolve) => {
     if (options.signal?.aborted) {
-      resolve({ code: null, stdout: "", stderr: "", error: "aborted" });
+      resolve({ code: null, stdout: "", bytes: Buffer.alloc(0), stderr: "", error: "aborted" });
       return;
     }
     let settled = false;
@@ -39,7 +41,7 @@ export const runProcess: Runner = (command, args, options) =>
     let error: ProcessOutput["error"] = null;
     const executable = isAbsolute(command) ? command : cachedExecutable(command, options.env ?? process.env);
     if (executable === null) {
-      resolve({ code: null, stdout: "", stderr: "", error: "missing" });
+      resolve({ code: null, stdout: "", bytes: Buffer.alloc(0), stderr: "", error: "missing" });
       return;
     }
     const child = spawn(executable, [...args], { cwd: options.cwd, env: options.env, stdio: ["ignore", "pipe", "pipe"], shell: false });
@@ -48,7 +50,8 @@ export const runProcess: Runner = (command, args, options) =>
       settled = true;
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", onAbort);
-      resolve({ code, stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8"), error });
+      const bytes = Buffer.concat(out);
+      resolve({ code, stdout: bytes.toString("utf8"), bytes, stderr: Buffer.concat(err).toString("utf8"), error });
     };
     const kill = (reason: NonNullable<ProcessOutput["error"]>) => {
       error ??= reason;
@@ -73,25 +76,39 @@ export const runProcess: Runner = (command, args, options) =>
     child.on("close", (code) => finish(code));
   });
 
-const GIT_ENV = { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_PAGER: "cat" };
+const GIT_ENV = { GIT_TERMINAL_PROMPT: "0", LC_ALL: "C", GIT_PAGER: "cat" };
 const REMOTE_NAME_RE = /^[A-Za-z0-9._][A-Za-z0-9._/-]{0,99}$/;
 const MAX_REMOTES = 10;
 
-export async function inspectCheckout(run: Runner, path: string, signal?: AbortSignal): Promise<InspectResult> {
+export async function inspectCheckout(
+  run: Runner,
+  path: string,
+  signal?: AbortSignal,
+  source: NodeJS.ProcessEnv = process.env,
+): Promise<InspectResult> {
   try {
     const info = await stat(path);
     if (!info.isDirectory()) return { ok: false, path, error: "missing" };
   } catch {
     return { ok: false, path, error: "missing" };
   }
-  const git = (args: string[]) =>
-    run("git", ["-C", path, ...args], {
+  const gitPath = cachedExecutable("git", source);
+  if (gitPath === null) return { ok: false, path, error: "gitMissing" };
+  const exec = (invocation: GitInvocation) =>
+    run(gitPath, invocation.args, {
       cwd: path,
-      env: { ...process.env, ...GIT_ENV },
+      env: { ...invocation.env, ...GIT_ENV },
       timeoutMs: 10_000,
       maxBytes: 256 * 1024,
       signal,
     });
+  const options = { git: gitPath, scope: "isolated" as const, source };
+  const listing = await exec(gitDriverListing(options));
+  if (listing.error === "missing") return { ok: false, path, error: "gitMissing" };
+  if (listing.error !== null) return { ok: false, path, error: "failed" };
+  const session = GitSession.from({ code: listing.code, stdout: listing.bytes }, options);
+  if (session === null) return { ok: false, path, error: "failed" };
+  const git = (args: string[]) => exec(session.read(args));
   const probe = await git(["rev-parse", "--is-inside-work-tree"]);
   if (probe.error === "missing") return { ok: false, path, error: "gitMissing" };
   if (probe.error !== null) return { ok: false, path, error: "failed" };
@@ -133,10 +150,25 @@ export async function inspectCheckout(run: Runner, path: string, signal?: AbortS
   return { ok: true, path, branch, head: head && /^[0-9a-f]{40,64}$/.test(head) ? head : null, upstream, pushRemote, remotes };
 }
 
-export async function glabGet(run: Runner, hostname: string, apiPath: string, cwd: string, signal?: AbortSignal): Promise<GitLabHttp> {
-  const output = await run("glab", ["api", "--hostname", hostname, "--include", apiPath], {
+export async function glabGet(
+  run: Runner,
+  hostname: string,
+  apiPath: string,
+  cwd: string,
+  signal?: AbortSignal,
+  source: NodeJS.ProcessEnv = process.env,
+): Promise<GitLabHttp> {
+  const glab = cachedExecutable("glab", source);
+  if (glab === null) return { ok: false, failure: "cliMissing", status: null };
+  const output = await run(glab, ["api", "--hostname", hostname, "--include", apiPath], {
     cwd,
-    env: { ...process.env, NO_PROMPT: "true", GLAB_CHECK_UPDATE: "false", NO_COLOR: "1", CLICOLOR: "0" },
+    env: {
+      ...cliGitEnv({ git: cachedExecutable("git", source), repository: false, source }),
+      NO_PROMPT: "true",
+      GLAB_CHECK_UPDATE: "false",
+      NO_COLOR: "1",
+      CLICOLOR: "0",
+    },
     timeoutMs: 20_000,
     maxBytes: 8 * 1024 * 1024,
     signal,
