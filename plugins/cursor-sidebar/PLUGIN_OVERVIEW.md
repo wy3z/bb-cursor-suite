@@ -1,46 +1,166 @@
-## What it does
+Cursor Sidebar replaces BB's thread list with a port of Cursor's sidebar.
+Chats nest under their parent, pinned chats gather in one block, and you group them by project, update, status, environment or not at all.
+Agents can set a project's icon from a shell; everything else is for people.
 
-Cursor Sidebar fills BB's experimental thread-list slot and replaces the built-in list. Chats nest under the chat that spawned them, pinned chats gather in one block, and standalone chats file into folders. Native projects, pins and folders stay on the host; only the view settings live in the plugin's own SQLite database, so uninstalling it removes the settings and leaves your threads alone.
+## For agents
 
-## Grouping
+### CLI: `bb cursor-sidebar icon`
 
-Pick one grouping at a time, never stacked.
+```
+bb cursor-sidebar icon <set <file.png> | glyph <Name|--list> | clear | get> [--project <id|name>]
+```
+
+| Subcommand | Does | Output (stdout, plain text) |
+|---|---|---|
+| `get` | Shows the project's icon | `<project name>: folder (default)`, `glyph <Name> (<colour>)`, `uploaded image`, `emoji <e>`, `monogram <text> (<colour>)` or `unrecognised value "<raw>"` |
+| `glyph <Name>` | Sets a built-in glyph, matched case-insensitively | `<project name>: icon set to <Name>.` |
+| `glyph --list` | Lists the glyph names, one per line. Needs no project | the names |
+| `set <file.png>` | Stores a PNG as the icon. The path is read on the BB server's machine, relative to the caller's working directory | `<project name>: icon set from <absolute path>.` |
+| `clear` | Goes back to the folder | `<project name>: icon reset to the folder.` |
+
+- `--project` (or `-p`) takes a project id or a case-insensitive name. Without it the calling thread's project is used. Two projects with the same name are refused; pass the id.
+- The PNG must start with the PNG signature, be under 192 KB and at most 1024 px on each side. 64 to 256 px, square, with a transparent background is plenty.
+- Errors exit 1 with one line on stderr, for example `No project matches "web".`.
+- There is no `--json` option.
+
+```sh
+bb cursor-sidebar icon glyph Rocket
+bb cursor-sidebar icon set ./icon.png --project "Website Redesign"
+bb cursor-sidebar icon get
+```
+
+### Agent tools and MCP
+
+None of its own. Through BB's MCP server, the `run` tool can run the CLI above.
+
+### RPC (plugin id `cursor-sidebar`)
+
+The app's own surface; other plugins may call it with `sdk.plugins.callRpc`. Inputs are validated with zod.
+
+| Method | Input | Output |
+|---|---|---|
+| `listProjectIcons` | `{}` | `{ icons: { projectId, icon }[] }` |
+| `setProjectIcon` | `{ projectId, icon: string \| null }`. `icon` is a stored value (up to 200 chars) or a `data:image/png;base64,` URL up to 256 KB | `{ icons }` |
+| `iconGlyphs` | `{ names: string[] \| null }` | `{ glyphs: Record<name, element[]> }`, the glyph artwork |
+| `sidebarView` | `{}` | `{ view: SidebarView \| null }` |
+| `setSidebarView` | `{ view: SidebarView }` | `{ view }` |
+| `listThreadOrders` | `{}` | `{ orders: { scope, threadIds, revision }[] }` |
+| `reorderThreads` | `{ scope, threadIds, expectedRevision }` | `{ threadIds, revision, applied }`. A stale `expectedRevision` returns `applied: false` and the current order |
+| `listThreadSections` | `{}` | `{ sections: { id, name }[] }` |
+| `renameThreadSection` | `{ id, name }` | `{ section: { id, name } }` |
+| `deleteThreadSection` | `{ id }` | `{ updatedThreadCount }` |
+| `setThreadSection` | `{ threadIds (1-500), sectionId \| null }` | `{ updated: string[], failed: string[] }` |
+| `setThreadParent` | `{ threadId, parentThreadId \| null }` | `{ threadId, parentThreadId }` |
+| `deleteNativeProject` | `{ projectId }` | `{ ok: true }`. Deletes the BB project and its icon |
+| `listWorkspaces` | `{ environmentIds (max 100) }` | `{ workspaces: { environmentId, path, name, hostId }[] }` |
+| `listWorkspaceTabs` | `{ threadIds (max 100) }` | `{ available, threads: { threadId, workspaceId, workspaceName }[] }`. `available` is false without the Workspaces plugin |
+| `transcript` | `{ threadId }` (`thr_...`) | `{ text }`, from `bb thread log <id> --all --format minimal` |
+| `primaryHost` | `{}` | `{ hostId \| null }` |
+| `cloudHosts` | `{}` | `{ hostIds: string[] }` |
+
+`SidebarView` is `{ groupBy: "workspace" | "updated" | "status" | "environment" | "none", sortConversationsBy: "updated" | "status", sortGroupsBy: "manual" | "updated", sortProjectsBy: "manual" | "status", threadsPerGroup: 5 | 10 | 20 | 50 | null, statusFilter, ageFilter, environmentFilter, projectFilter, prFilter, show: { updated, environment, branch, host, pr, providerIcons, projectIcons } }`. `groupBy: "workspace"` is the Projects grouping.
+
+```ts
+await sdk.plugins.callRpc({
+  pluginId: "cursor-sidebar",
+  method: "listProjectIcons",
+  input: {},
+  outputSchema: z.object({ icons: z.array(z.object({ projectId: z.string(), icon: z.string() })) }),
+});
+```
+
+### Realtime channels
+
+`thread-order` (`{ scope }`), `project-icon`, `sidebar-view`, `thread-sections` (`{ id }`) and `cloud-hosts`.
+
+### What it reads from other plugins
+
+- Tasks (`tasks`): `listProjects`, `listAllTasks`, `createProject`.
+- Projects (`projects`): `listLeads`, `getMeta`, `listIcons`, `setIcon`, `setLead`, for board rows and their icons. Without Projects there are no board rows.
+- Pull Requests (`pull-requests`): `changeRequests` for the pull and merge request marks. Without it the sidebar asks GitHub PR Status (`bb--github-pr-status`) alone.
+- BB's git plugin (`bb--git`): `status`, for the row's git facts.
+- Workspaces (`workspaces`), when it runs: thread metadata, so a workspace's chats nest under its first chat.
+
+### Storage
+
+SQLite in the plugin's data directory: `sidebar_view`, `project_icon`, `thread_order`, `thread_order_revision`, `thread_lifecycle` and `project_visibility`. Native projects, pins and folders stay in BB.
+
+## Reference
+
+### Grouping
 
 - **Projects** nests each chat under its project.
 - **Updated** groups chats by last activity: Today, Yesterday, Last 7 days, Last 30 days, Older.
-- **Status** groups by the strongest status in the group, in a fixed order: Needs your input, Failed, Unread, Working, Idle.
+- **Status** groups by the strongest status in the group, in this order: Needs your input, Failed, Unread, Working, Idle.
 - **Environment** groups by the machine the chat ran on, including chats with none.
-- **None** draws one flat list with no section headings. Pinned chats and child trees keep their own headings.
+- **None** draws one flat list. Pinned chats still come first under **Pinned**, child chats still nest, and the rows follow the chat order.
 
-## Project icons
+Every grouping uses the same sections: Pinned first, then the grouping's own headings, then **Chats** for standalone chats. An empty heading is never drawn. Under Projects, a project with no visible chat is hidden, except the one picked in the switcher, which says **No threads**.
 
-Each project can wear a glyph, an emoji, a one or two letter monogram or an uploaded PNG image. Open the picker from a project heading's Actions menu, from a chat row's right-click menu, or from the project switcher while one project is picked. The dialog has a searchable glyph grid, an emoji grid, a monogram field, an 18-colour palette, a live preview and an image upload that keeps PNG transparency. Rows show the project icon outside Projects grouping, and the Show menu turns that off.
+### Toolbar and headings
 
-The `bb cursor-sidebar icon` command sets, reads and clears a project icon from a shell. A chat can set its own project's icon; other chats can name the project with `--project`.
+One fixed row sits above the list: the project switcher on the left and the view menu on the right. A section heading is a small muted label that folds its block. When a working chat inside a folded or filtered project is out of sight, a small spinner sits on the project folder's corner. Chats under a Projects board count towards the board row, not their repository.
 
-## View controls
+### Rows
 
-The toolbar holds the project switcher on the left and the view menu on the right. The switcher reads All projects, one project's name, or a count, and offers every project plus New project. Picking one project narrows every grouping and drops that project's heading under Projects grouping.
+A row can show its project icon, a status glyph and a metadata line. When a chat has working child chats, its age becomes a small accent pill with their count. Every row shares one left edge, with icons in one 14 px column. Child chats sit under their parent with no indent and a small corner arrow before the age; the pull request and provider marks sit there too.
 
-The view menu sets the grouping, chat order, project order and group order. It also sets how many inactive chats a section previews: 5, 10, 20, 50 or All, with Show more for the next page. The Show section toggles the updated time, environment, branch, machine, pull or merge request mark and project icons on rows. Filters cover status, age, environment and pull or merge request state. The mark, hover facts, filter and project counts read one shared status: Pull Requests decides whether a branch is on GitHub or GitLab, GitHub rows keep the builtin GitHub PR Status answer, and without Pull Requests the sidebar uses GitHub PR Status alone. Expand All, Collapse All and Mark All as Read act on the loaded list.
+### The view menu
+
+| Control | What it changes |
+| --- | --- |
+| **Grouping** | Projects, Updated, Status, Environment or None |
+| **Chat order** | Updated or Status |
+| **Project order** | Manual, or by worst status then most recent use. Projects grouping only |
+| **Group order** | Updated or Default. Every grouping except Projects and None |
+| **Threads per group** | 5, 10, 20, 50 or All. 10 by default |
+| **Show** | Updated time, environment, branch, machine, the pull or merge request mark, provider icons and project icons |
+| **Status filter** | Needs your input, Failed, Unread, Working, Idle |
+| **Age filter** | Today, Yesterday, Last 7 days, Last 30 days, Older |
+| **Environment filter** | Which environments appear, including chats with none |
+| **PR / MR filter** | Draft, Open, Merged, Closed, No PR / MR. A row whose request is loading or can't be checked stays visible |
+| **Expand All / Collapse All** | Every section and group |
+| **Mark All as Read** | Every loaded chat that is unread |
+
+**Threads per group** bounds every section and the child chats under a parent. **Show N more** reveals the next page. A chat that is working, needs input, is selected or pinned always shows.
 
 A warning mark on the menu button means a view change has not reached the server. The notice inside the menu has a Retry button.
 
-## Row details
+### Project switcher
 
-A row can show its project icon, a status glyph and metadata. When a chat has child chats that are working, the age at the end of the row becomes a small accent pill with their count. The pill disappears when nothing below it is running. Every row shares one left edge with no indent or tree lines: icons sit in one 14px column and titles start in the next. Child chats sit under their parent with a small corner arrow before the age, and the pull request and provider marks sit there too. The header and footer icons share that column, and a truncated title fades out as far before the cloud mark as the cloud mark sits before the time.
+It reads **All projects**, one project's name, or **N projects**. Click it for every project and **New project…**, which opens BB's Add project dialog. Picking one project narrows every grouping, and under Projects grouping it drops that project's heading. While one project is picked, the menu also offers **Set icon…**.
 
-## Navigation
+### Project icons
 
-The plugin also adds two sidebar navigation layouts, Compact and Cursor, and BB switches to the first one a plugin adds unless you have picked one yourself. So after install the sidebar uses Compact instead of BB's Rail or Top list, and a note above the thread list says so until you dismiss it. Compact puts Search in the header and every other destination behind a Plugins button in the footer; Cursor lists the destinations as rows. To go back to BB's own navigation, pick Rail or Top list under Settings → Appearance → Navigation.
+Open the picker from a project heading's right-click or Actions menu (**Set icon…**), the switcher, or a chat row's right-click menu (**Set project icon…**). It is a port of Cursor's picker, shared with Projects (`@wy3z/bb-suite/project-icon/picker`): search, Cursor's ten colours, Cursor's icon grid with **No icon** first, and an image button to upload or paste a PNG, shrunk to 64 px. Emoji and monogram icons saved by an earlier picker still show, but the picker no longer makes them. Board rows wear the board's own icon from Projects.
 
-## Mobile
+The icons also replace BB's folder in the composer: the project label under the prompt box, the project button on the New thread screen and its picker. BB has no project icon field, so these are matched by project name.
 
-Touch uses the same list with gestures instead of hover. Tap a row to open it and tap a project name to fold it. Swipe left to pin and right to archive; a swipe has to travel 72px. Hold until a row lifts to drag it, or let go without moving to open its actions menu. Hold a project heading and pick Move up or Move down when project order is Manual.
+### Mobile
 
-## Requirements
+| | Do this |
+| --- | --- |
+| Open a chat | Tap the row |
+| Fold a project | Tap its name |
+| Pin a chat | Swipe the row left |
+| Archive a chat | Swipe the row right |
+| Move a chat or a project | Hold until the row lifts, then drag |
+| Open the actions menu | Hold until the row lifts, then let go without moving |
+| Reorder a project without dragging | Hold the heading, then pick Move up or Move down. Manual project order only |
 
-BB 0.49 or newer, with plugin SDK 0.6.132 or newer. No account or external service is needed.
+A swipe has to travel 72 px to commit. Dropping a lifted chat on the middle of another chat in the same project nests it, and shows a **Make child** label first.
+
+### Workspaces
+
+With the Workspaces plugin running, a workspace's chats nest under its first chat, and that row shows the workspace's name. Top-level chats that share a worktree count as one workspace.
+
+### Navigation
+
+The plugin adds two sidebar navigation layouts, **Compact** (`cursor-sidebar/compact`) and **Cursor** (`cursor-sidebar/cursor`). BB switches to the first one a plugin adds unless you have picked one, so after install the sidebar uses Compact, and a note above the list says so until dismissed. Compact puts Search in the header and other destinations behind a **Plugins** button in the footer. Cursor lists the destinations as rows.
+
+### Requirements
+
+BB 0.49 or newer, with plugin SDK 0.6.132 or newer. No account or external service.
 
 ---
 

@@ -3,9 +3,9 @@ name: files
 description: Browse a thread's workspace or project sources, search paths, inspect Git status, read text, or prepare a file download with the FileTree plugin.
 ---
 
-# FileTree
+# Files
 
-Use `bb files roots` first when selecting a project source. Commands default to the current thread and its active workspace; pass `--thread ID` or `--root ID` explicitly to choose another scope.
+Use `bb files roots` first when you need a project source rather than the thread's workspace. Commands default to the current thread and its active workspace; pass `--thread ID` or `--root ID` to choose another scope.
 
 ```sh
 bb files roots
@@ -16,10 +16,14 @@ bb files read README.md
 bb files download slides.pptx
 ```
 
-Quote paths and queries containing spaces. Paths are normalized root-relative paths; absolute paths and traversal are rejected. Commands return JSON, and failures exit nonzero with an explanation.
+Quote paths and queries containing spaces. Paths are root-relative; absolute paths and traversal are rejected. Every command prints JSON and exits 0; a failure exits 1 with one line on stderr.
 
-`read` returns UTF-8 text up to 128 KiB. `download` prepares a verified snapshot up to 25 MiB and returns a server-relative URL valid for five minutes. Use the connected BB server's authenticated origin to fetch it. Do not post or log download URLs externally.
+- `roots` returns `{ kind: "ready", activeRootId, roots }` or `{ kind: "unavailable", reason }`. Each root has a `rootId`, `label` and `rootPath`.
+- `list` returns up to 1000 `entries` (`kind`, `name`, `path`); `search` returns up to 200 `matches`. Both set `truncated` when there were more.
+- `git` returns `kind: "ready"` with `branch`, `headSha` and `changes` (`path`, `indexStatus`, `worktreeStatus`, `conflicted`), or `kind: "not-repository"` / `"unavailable"` with a `reason`.
+- `read` returns `{ path, content, sha256 }` for UTF-8 text up to 128 KiB. Larger or binary files are refused; use `download`.
+- `download` prepares a verified snapshot up to 25 MiB and returns a server-relative `contentUrl` valid for five minutes. Fetch it through the connected BB server's authenticated origin. Do not post or log download URLs anywhere else.
 
-These operations do not modify workspace files. The UI opens from a thread's right-panel launcher and supports previews, word wrap, manual refresh, opening live files in BB’s preferred editor, copied paths/text, and downloads. File attachments are unavailable. The CLI read/list/search/git commands always retrieve fresh data; preview wrapping is a UI presentation setting.
+These commands never modify workspace files, and each call reads fresh data. For people, Files is a tab added from the right panel's **+** menu; picking a file opens it in BB's own viewer.
 
-If a root becomes stale, list roots again. If Files says it can't browse a machine, that host's operating system or architecture has no native addon (it ships darwin-arm64, darwin-x64, linux-arm64, linux-x64 and win32-x64); do not replace descriptor confinement with pathname checks.
+If a root id stops working, list roots again. If Files says it can't browse a machine, that host's operating system or architecture has no native addon (it ships darwin-arm64, darwin-x64, linux-arm64, linux-x64 and win32-x64); do not replace descriptor confinement with pathname checks.

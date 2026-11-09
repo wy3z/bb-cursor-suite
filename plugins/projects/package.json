@@ -15,6 +15,7 @@
   "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/projects#readme",
   "type": "module",
   "files": [
+    "PLUGIN_OVERVIEW.md",
     "README.md",
     "app.css",
     "app.tsx",
