@@ -83,7 +83,7 @@ Created with `monitoring: false` (boat keeps no command history or output), `noE
 | reconcileCleanup | the same lookup by name label |
 | TTL renewal | `PATCH /sandboxes/{id}` with `ttlSeconds` (deadline becomes now plus the TTL) |
 
-Measured on the trial (`small`): create to connected daemon 11 s; composed thread provisioned (VM, daemon, clone, branch) in 15 s; suspend 3 to 5 s; warm resume 4 s.
+Measured on the trial (`small`): create to connected daemon 11 s; composed thread provisioned (VM, daemon, clone, branch) in 15 s; suspend 3 to 5 s; resume within 10 minutes 4 s; resume after 10 minutes (new machine, new IP, disk restored) 8 s. A cold restore recreates symlinks, so their mtimes change; regular files keep theirs.
 
 ### How the enrolment secret travels
 
@@ -93,7 +93,7 @@ boat's command API has no stdin, and keeps every command and its output for 90 d
 
 BB's installer puts the daemon under `~/.bb-machines/<server>` and runs it as a systemd user service (`linger` is on in boat's image), with `ExecStart` pinned to nvm's Node 24 in `/home/user/.nvm`. All of it is in the snapshot, so resume restarts it without reinstalling.
 
-boat preinstalls `claude`, `codex`, `pi` and `cursor-agent` in `/usr/local/bin` and updates them to their latest releases when it prepares a machine. BB reports them installed with `installSource: external`. The shared `message.dispatch` hook runs two checks on turns for this provider: the login guard (`CLAUDE_CODE_OAUTH_TOKEN` or the Account Pooler for Claude, the Account Pooler for Codex, `OPENCODE_API_KEY` for OpenCode and Pi, plus a GitHub credential), then the CLI install check, which installs a missing CLI in the background while the turn waits.
+boat preinstalls `claude`, `codex`, `pi` and `cursor-agent` in `/usr/local/bin` and updates them to their latest releases when it prepares a machine. BB reports them installed with `installSource: external`. If a CLI disappears while a thread's agent runtime is loaded, the install check reinstalls it (into `~/.local/bin`) but that runtime keeps the old path until `bb thread stop`; a new turn after that uses the new one. The shared `message.dispatch` hook runs two checks on turns for this provider: the login guard (`CLAUDE_CODE_OAUTH_TOKEN` or the Account Pooler for Claude, the Account Pooler for Codex, `OPENCODE_API_KEY` for OpenCode and Pi, plus a GitHub credential), then the CLI install check, which installs a missing CLI in the background while the turn waits.
 
 ### Finding the thread's own machine
 
