@@ -13,6 +13,7 @@ import { ProjectIconArt } from "@wy3z/bb-suite/project-icon/picker";
 import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
 import { projectsContract } from "./meta";
 import { useBoardIcons } from "./BoardIcon";
+import { useMountedHost } from "./mount-host";
 import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, registerTabHost, shownThread, tabStore, viewStore } from "@wy3z/bb-suite/thread-tabs";
 
 const HOST_ATTR = "data-bb-projects-tabs";
@@ -27,49 +28,6 @@ function subscribeCompact(listener: () => void) {
 
 function useCompactViewport(): boolean {
   return useSyncExternalStore(subscribeCompact, () => window.matchMedia(COMPACT_QUERY).matches);
-}
-
-function useMountedHost(active: boolean, key: string, locate: () => HTMLElement | null, mount: (slot: HTMLElement, node: HTMLElement) => void, className: string, attr: string) {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!active) {
-      setHost(null);
-      return;
-    }
-    let current: HTMLElement | null = null;
-    let marked: HTMLElement | null = null;
-    const attach = () => {
-      const slot = locate();
-      if (current && slot && current.parentElement === slot) return;
-      current?.remove();
-      marked?.removeAttribute(attr);
-      current = null;
-      marked = null;
-      if (!slot) {
-        setHost(null);
-        return;
-      }
-      const node = document.createElement("div");
-      node.className = className;
-      mount(slot, node);
-      marked = slot.closest<HTMLElement>("header") ?? slot;
-      marked.setAttribute(attr, "");
-      current = node;
-      setHost(node);
-    };
-    attach();
-    const observer = new MutationObserver(() => attach());
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      observer.disconnect();
-      marked?.removeAttribute(attr);
-      current?.remove();
-      setHost(null);
-    };
-  }, [active, key]);
-
-  return host;
 }
 
 function locateTabSlot(): HTMLElement | null {
@@ -283,10 +241,11 @@ export function ManagerTabs() {
     [leadId, select, selectedId, tabs],
   );
 
-  const tabHost = useMountedHost(leadId !== null, `${leadId}:${threadId}`, locateTabSlot, (slot, node) => slot.prepend(node), "bbp-tabs-host", HOST_ATTR);
-  const chatHost = useMountedHost(overlayId !== null, `${leadId}:${threadId}`, locateThreadWindow, (slot, node) => slot.append(node), "bbp-chat-host", CHAT_ATTR);
+  const tabMount = useMountedHost(leadId !== null, `${leadId}:${threadId}`, locateTabSlot, (slot, node) => slot.prepend(node), "bbp-tabs-host", HOST_ATTR);
+  const chatHost = useMountedHost(overlayId !== null, `${leadId}:${threadId}`, locateThreadWindow, (slot, node) => slot.append(node), "bbp-chat-host", CHAT_ATTR).host;
+  const tabHost = tabMount.host;
 
-  const canShowTabs = leadId === null || tabHost !== null;
+  const canShowTabs = leadId === null || tabMount.state !== "missing";
   useEffect(() => (canShowTabs ? registerTabHost() : undefined), [canShowTabs]);
 
   if (!tabHost || !leadId) return null;
