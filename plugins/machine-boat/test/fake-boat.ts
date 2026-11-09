@@ -56,6 +56,8 @@ export class FakeBoat {
     ],
   };
   deletedCostUsd = 0;
+  desktopProvisioning = 0;
+  desktopUrl = "https://bx-test.on.boat.dev/stream.html?hostId=1&appId=2&theme=dark#token=secretdesktoptoken";
   trialTtlCap: number | null = 7200;
   nowIso = "2026-11-09T12:00:00.000Z";
   idempotency = new Map<string, FakeSandbox>();
@@ -249,6 +251,13 @@ export class FakeBoat {
     if (sandbox && method === "DELETE" && rest === "/files") {
       this.files.delete(`${sandbox.id}:${url.searchParams.get("path")}`);
       return this.ok({ type: "file.deleted" });
+    }
+    if (sandbox && method === "POST" && rest === "/desktop") {
+      if (this.desktopProvisioning > 0) {
+        this.desktopProvisioning -= 1;
+        return this.ok({ type: "desktop.provisioning", provisioning: true, message: "Preparing desktop" });
+      }
+      return this.ok({ type: "desktop.url", success: true, desktopUrl: this.desktopUrl, mode: "moonlight" });
     }
     if (sandbox && method === "POST" && rest === "/commands") {
       const command = String(body?.command ?? "");
