@@ -1,185 +1,29 @@
-# bb-plugin-pull-requests
+# Pull Requests
 
-A GitHub pull request board for BB, opened from a button in the sidebar
-footer. It's a port of the pull request feature in
-Zeron (zeronsh, MIT, v0.2.132), rebuilt on BB's plugin SDK.
+Your GitHub pull requests in BB, grouped by what each one needs from you. Open any of them beside a thread to read checks, diffs and the conversation, then hand the work to an agent.
 
-## Requirements
+## Who it's for
 
-- bb >= 0.49.
-- `gh` on the BB server's machine, signed in to github.com (`gh auth login`).
-  The active account is the one used: run `gh auth switch` to change it.
+People whose agents open pull requests and who would rather review them next to the thread that wrote them than in another tab. It uses the `gh` CLI you are already signed in to. GitLab merge requests for a thread's branch are shown read-only.
 
-## What was ported
+## What it looks like
 
-| Zeron source | Here |
-| --- | --- |
-| `crates/proto/src/change_request_assessment.rs` | `lib/model.ts`: CI state, blockers, attention, actions, missing info |
-| `crates/engine/src/source_control.rs` (+ review threads) | `server.ts`: the same GraphQL queries, CI rollup, rename following, error classes, cache and rate-limit pause |
-| `crates/ui/src/pull_requests.rs` | `components/pr/board.tsx` |
-| `crates/ui/src/pull_request_detail.rs` | `components/pr/detail.tsx` |
-| `crates/ui/src/pull_request_handoff.rs` | `lib/handoff.ts` |
+![The pull request board, grouped into Needs attention, Awaiting review, Approved and Drafts](../../docs/media/pull-requests-board.png)
 
-Not ported: Zeron's device switcher (BB runs `gh` on the server's machine),
-its custom code viewer (BB's `experimental_Diff` is used instead), comment
-@-mention completion, and image lightboxes.
+![One pull request open in a thread's side panel](../../docs/media/pull-requests-detail.png)
 
-## In threads
+![The PRs tray above the composer, with the Listening chip beside it](../../docs/media/pull-requests-thread-tray.png)
 
-- **A PRs tray above the composer**: a "PRs"
-  chip with the open count opens a tray headed "N Open", newest first, then
-  merged and closed ones under "N Done" (three at a time). Each row has a
-  status icon, the title, `#N` and a status word (Draft, Conflicts,
-  CI Failing, Ready, Waiting for Reviewers); hovering swaps the word for Add to
-  chat, which puts the URL in the composer. A click opens it in the side
-  panel, Ctrl or middle-click opens GitHub. The branch's pull request (from
-  GitHub PR Status) is highlighted. The tray also lists the pull requests the thread
-  subscribes to, and the branch, linked and subscribed pull requests of its
-  child threads (and theirs, all the
-  way down, archived ones skipped); hovering such a title names the child. Status rules live in `lib/status.ts`. The
-  chip and tray are styled by this plugin's own `bb-pr-` classes in `app.css`,
-  so no other plugin has to be installed.
-- **Linking.** `bb pull-requests link <url>` (also `unlink`, `list`) links a
-  pull request to the thread running the command, or `--thread <id>`. Links
-  live in the thread's plugin metadata, at most 12 per thread.
-- **Subscriptions** (moved here from the Subscriptions plugin, GitHub only):
-  a thread can follow pull requests and gets one `[Subscription update]`
-  message when they change (state, commits, reviews, comments, checks, labels,
-  assignees). Subscribe from **Subscribe** in the pull request
-  viewer's **...** menu, `bb pull-requests subscribe|unsubscribe <pr…>`,
-  `bb pull-requests subscriptions`, or the `pull_request_subscriptions` agent
-  tool. A "Listening N" chip above the composer opens a tray of what the
-  thread follows; a row opens the pull request, hover swaps the last-check
-  time for remove. The checker (`lib/subscriptions.ts`) runs as the `watch`
-  background service: every 60s by default, the first check is a silent
-  baseline, changes within 10s go out as one message, a message still queued
-  is rewritten rather than stacked. Both intervals are plugin settings.
-- **Links in messages**, in the composer: any markdown link
-  to a github.com pull request gets a live lifecycle icon (open, draft, merged,
-  closed), reads `#N` when its text is just the URL or number, and has a hover
-  card (title, status, "Opened 4h ago by @x on owner/repo"). A click opens it
-  in the side panel; Ctrl or middle-click opens GitHub. BB renders message markdown
-  itself, so an app overlay decorates the links in place.
-  `::pull-request{url="…"}` on its own line renders the same link.
-- **Tabs** read "PR #N", as in Cursor, and the icon takes the lifecycle
-  colour (open, draft, merged, closed). Tab titles are plain text, so the
-  title ends in an invisible marker that `app.css` matches.
-- **From other plugins.** Dispatch a cancelable, bubbling
-  `bb-pull-requests:open` `CustomEvent` with `detail: { url }` from the
-  clicked element (see `components/pr/open-event.ts`). When the element sits
-  in a thread view, the pull request opens in that thread's side panel;
-  elsewhere it opens in this plugin's full-page view. Either way the event is
-  cancelled, so `dispatchEvent` returning `true` means this plugin is not
-  installed and you should open the URL yourself. Projects uses this for its
-  PR chips.
-- **Agents** learn both from `skills/pull-requests/SKILL.md`.
+- **A board** for one repository at a time, opened from the **Pull requests** button in the sidebar footer. Authored, Reviewing and All views, search, sorting, and Needs you and Starred filters.
+- **A page for each pull request** with status, checks, an assessment, the description, every changed file as a diff, and the conversation with inline review threads. Comment, rename, mark ready, merge, close or reopen from there.
+- **Hand-offs** that start a new thread to review the PR, address feedback, fix failing checks or resolve conflicts. The prompt waits in the composer for you to read first.
+- **A PRs tray** above every composer with the thread's pull requests, its children's, and the branch's own.
+- **Live links:** any GitHub pull request link in a message gets a status icon and a hover card.
+- **Subscriptions:** a thread can follow pull requests and get one message when they change. A **Listening** chip shows what it follows.
+- **Git actions** for the other suite plugins: commit, push, create PR and apply locally.
+- **GitLab merge requests** for a thread's branch, read through `glab` on the environment's machine.
 
-## GitLab merge requests (read-only)
-
-A thread's branch can have a GitLab merge request. Pull Requests finds it
-without the GitLab MR Status plugin:
-
-- It reads the checkout's branch, upstream and remotes on the environment's own
-  machine (the plugin's `host.ts`), so linked worktrees and enrolled remote
-  hosts work. Nothing is fetched and no git config changes.
-- It asks GitLab through that machine's signed-in `glab`
-  (`glab api --hostname <host>`, GET only). It never reads glab's token or
-  config. Without glab, or signed out, the MR shows a setup message, not a
-  fake mark.
-- gitlab.com works as is. Add self-hosted instances in the plugin's settings
-  ("Self-hosted GitLab instances"): `git.example.com` (HTTPS and SSH remotes on
-  that host), `git.example.com:8443` (HTTPS on that port only), or
-  `alias=https://git.example.com` for an SSH host alias. HTTPS remotes must
-  match the host and port exactly; two instances can't claim one SSH alias.
-  GitLab installed under a path (`https://host/gitlab`) is reported as not
-  supported yet. Other hosts are never guessed from their name.
-- Only an open same-project MR for the branch is shown. Two open MRs for one
-  branch are reported as ambiguous, and a branch with more open MRs than BB
-  reads is reported as incomplete. Merged or closed MRs that only share the
-  branch name aren't shown until BB can prove they belong to the checkout.
-- Remote URLs never leave the machine: the host returns only the parsed host,
-  port and project path, with no credentials, query or fragment.
-
-`changeRequests` (keyed by environment id, contract in
-`@wy3z/bb-suite/change-requests`) serves GitHub and GitLab to other plugins;
-GitHub rows come from the builtin GitHub PR Status plugin. Cursor Sidebar uses
-it to show `!iid` marks, which open the MR in this plugin's pull request tab.
-The GitLab tab shows the title, state, branches, pipeline and description,
-with no merge, comment, subscription or agent actions yet.
-
-## Git safety
-
-Every git, `gh` and `glab` call goes through `@wy3z/bb-suite/git-safety` (see
-the [suite-shared README](../../packages/suite-shared/README.md#git-safety)), so
-a checkout's own config can't run code during a read. User actions run git the
-way your terminal would, minus what they don't need.
-
-| Where | Calls | Kind |
-|---|---|---|
-| `host.ts` inspect (branch, upstream, remotes for GitLab MRs) | `rev-parse --is-inside-work-tree`, `symbolic-ref -q --short HEAD`, `rev-parse -q --verify HEAD`, `remote`, `config --get` (branch remote, merge, pushRemote, `remote.pushDefault`), `remote get-url` | Read-only, with your global config |
-| `host.ts` GitLab | `glab api --hostname … --include` | CLI with no repository |
-| `server.ts` (board, detail, diff, comments, title, ready, merge, close) | `gh api graphql`, `gh pr view/diff/edit/ready/merge/close/reopen <url>`, `gh api POST …/comments` | CLI with no repository, run from the temp folder |
-| Commit, Push, Create PR and Apply checks | `rev-parse --show-toplevel`, `rev-parse --abbrev-ref HEAD`, `ls-files --others --exclude-standard`, `diff --cached --quiet`, `log -1`, `rev-parse --git-common-dir`, `rev-parse HEAD`, `merge-base`, `apply --numstat` | Read-only, with your global config |
-| Commit and Create PR "anything to commit?" check | `status --porcelain --ignore-submodules=dirty` | Action policy: filters on, hooks off, no lazy fetch, no index write |
-| Create PR lookup | `gh pr view <branch>` | CLI, read-only git |
-| Commit | `add -u` or `add -A`, `commit -F -` | User action, hooks on |
-| Push (also after Commit and Create PR) | `push -u origin HEAD:refs/heads/<branch>` | User action, hooks on |
-| Create PR | `gh pr create --fill --head <branch>` | CLI action: hooks and drivers off, lazy fetch allowed |
-| Apply locally | `read-tree`, `add -A` and `diff --binary --no-ext-diff --no-textconv` into a temporary index in the source; `apply --check`, `apply --binary` in the target | User action, hooks off, no lazy fetch |
-
-What can still run, and why, is in the suite-shared table: clean filters in
-the "anything to commit?" check, your repository's hooks and clean filters on
-Commit, push hooks and the remote's own SSH command or credential helper on
-Push, clean and smudge filters on Apply, and a partial clone's lazy-fetch
-transport on Commit, Create PR and (on Git older than 2.45) Apply. A commit
-with an empty message goes through BB's own commit
-(`bb.sdk.environments.commit`), which this plugin doesn't run itself.
-
-The "anything to commit?" check ignores changes inside a submodule's own
-worktree, since Commit can't stage those anyway; a submodule that moved to
-another commit still counts.
-
-## GitHub ownership and the old subscriptions
-
-This plugin is the only watcher and tool for GitHub pull requests. The
-Subscriptions plugin now follows Linear issues only, and its "Listening" chip
-shows those.
-
-Subscriptions recorded before the split (rows in the Subscriptions plugin's
-database) are adopted on this plugin's first start: that database is read
-read-only through `bb.server.experimental_dataDir`, each `owner/repo#N` becomes
-`https://github.com/owner/repo/pull/N`, and the last snapshot is carried over.
-Every adopted pull request is recorded in a `legacy_import` table, so the import
-is idempotent, a restart does not duplicate anything, and a subscription removed
-here is never resurrected from the old file. Because it reads the file rather
-than calling that plugin, it works whether the Subscriptions plugin is enabled,
-disabled, or not yet updated, and it never writes to its database. Pending
-legacy changes are not carried over.
-
-To keep one pull request pill, turn off GitHub PR Status's own one:
-`bb plugin config bb--github-pr-status set showPullRequest false`. That also
-drops its Mark ready and Merge buttons above the composer; set it back to
-`true` to restore them.
-
-## Icons from Cursor Sidebar
-
-`components/ui/icon*.tsx`, `components/ui/host-icon-names.ts` and
-`components/project-icons/` are copied from `bb-plugin-cursor-sidebar`, so
-icons render the same in both plugins. The only change is that
-`host-icon-names.ts` also exports a `HostIconName` type, so names BB draws
-itself type-check. The project-icon colours are copied into `app.css`.
-
-Project icons (glyph, emoji, monogram or uploaded image) are read at runtime
-from Cursor Sidebar's `listProjectIcons` RPC and shown in the repository
-picker and the detail header. Without that plugin, projects show the folder.
-Re-copy these files when Cursor Sidebar's icon code changes.
-
-## How the footer button works
-
-`experimental_sidebarFooter` actions can only open the plugin's settings
-page, so the button is registered as a disclosure whose component calls
-`useBbNavigate().toPluginPanel(...)` on mount and dismisses itself.
-The panel also appears in BB's navigation like any plugin page.
+The full behaviour reference, including exactly which git commands run and with what protection, is in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md).
 
 ## Install
 
@@ -187,6 +31,20 @@ The panel also appears in BB's navigation like any plugin page.
 bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin pull-requests --tag-prefix pull-requests/
 ```
+
+Needs BB 0.49 or newer and `gh` on the BB server's machine, signed in to github.com (`gh auth login`). The active account is the one used; `gh auth switch` changes it.
+
+To keep one pull request pill above the composer, turn off GitHub PR Status's own:
+
+```sh
+bb plugin config bb--github-pr-status set showPullRequest false
+```
+
+That also drops its Mark ready and Merge buttons above the composer. Set it back to `true` to restore them.
+
+## For agents
+
+Agents link pull requests to their thread with `bb pull-requests link` and follow them with `bb pull-requests subscribe` or the `pull_request_subscriptions` tool. Every command, the tool and the RPC methods are in [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md#for-agents), and the `pull-requests` skill in [skills/pull-requests/SKILL.md](skills/pull-requests/SKILL.md) teaches them.
 
 ## Develop
 

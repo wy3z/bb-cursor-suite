@@ -1,19 +1,27 @@
 # BB Cursor Suite
 
-Plugins that make [BB](https://getbb.app) look and work like Cursor. Each plugin installs and works on its own; together they cover the sidebar, the composer, files, project boards and pull requests.
+Run Claude Code, Codex and the other agents BB supports behind a Cursor-style interface. Six plugins give [BB](https://getbb.app) Cursor's sidebar, composer, file tree, project boards and pull request views, and each one installs and works on its own.
 
 Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
 
+## Who it's for
+
+People who like how Cursor lays out agent work and want that layout in BB, with whichever agent they already use. Take the whole suite, or pick the one or two pieces you miss.
+
+## What it looks like
+
+![BB with the suite: Cursor Sidebar, the Cursor Composer with its pills, and the Files tab](docs/media/suite-hero.png)
+
 | Plugin | Folder | What it does |
 |---|---|---|
-| Cursor Sidebar | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
-| Cursor Composer | `plugins/agent-pills` | A Cursor-style composer for BB, with optional pills for child threads and background tasks above it. |
-| Files | `plugins/filetree` | Browse thread workspaces and project sources with search, Git status and document previews. |
-| Projects | `plugins/projects` | Board and list views over BB Tasks, with live agents, pull requests and changes on every card. |
-| Pull Requests | `plugins/pull-requests` | GitHub pull requests and GitLab merge requests in BB, grouped by what each one needs. |
-| UI Tweaks | `plugins/ui-tweaks` | Small, configurable improvements to BB's interface. |
+| [Cursor Sidebar](plugins/cursor-sidebar) | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
+| [Cursor Composer](plugins/agent-pills) | `plugins/agent-pills` | A Cursor-style composer for BB, with optional pills for child threads and background tasks above it. |
+| [Files](plugins/filetree) | `plugins/filetree` | Browse thread workspaces and project sources with search and Git status. |
+| [Projects](plugins/projects) | `plugins/projects` | Board and list views over BB Tasks, with live agents, pull requests and changes on every card. |
+| [Pull Requests](plugins/pull-requests) | `plugins/pull-requests` | GitHub pull requests and GitLab merge requests in BB, grouped by what each one needs. |
+| [UI Tweaks](plugins/ui-tweaks) | `plugins/ui-tweaks` | Small, configurable improvements to BB's interface. |
 
-`packages/suite-shared` holds the contracts, time formatting and design tokens the plugins share. Release tags carry a vendored copy, so a plugin installed from Git never needs the rest of the repository.
+`packages/suite-shared` holds the contracts, time formatting, settings kit, git safety and design tokens the plugins share. Release tags carry a vendored copy, so a plugin installed from Git never needs the rest of the repository.
 
 ## Install
 
@@ -37,6 +45,10 @@ bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^0.30.1 --plug
 Cursor Composer, Files, Projects and Pull Requests are on 1.x. Cursor Sidebar stays on 0.3.x and UI Tweaks on 0.30.x, so the installs already out there keep getting updates: moving them to a new range means a reinstall, which deletes their settings.
 
 Installs of Cursor Sidebar from `bb-plugin-cursor-sidebar` on a `^0.3.x` range keep updating from the root-level `vX.Y.Z` tags on the `legacy/cursor-sidebar` branch. UI Tweaks keeps publishing to `wy3z/bb-plugin-ui-tweaks`.
+
+## For agents
+
+Each plugin's `PLUGIN_OVERVIEW.md` lists every `bb` CLI command, agent tool, RPC method and setting it adds, with arguments, output and an example. Files, Projects and Pull Requests also ship a skill under `skills/`. [packages/suite-shared/README.md](packages/suite-shared/README.md) documents the shared modules.
 
 ## Develop
 
