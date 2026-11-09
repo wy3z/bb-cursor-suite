@@ -150,8 +150,12 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
     vendor can pause the agent, and control as `{ holder, mine,
     agentPaused, since, expiresAt }`. `mine` says whether the caller's
     `clientId` holds control; another window's id is never returned.
-  - `view` (`{ threadId, theme? }`): a fresh https view URL and the time it
-    must be opened by.
+  - `view` (`{ threadId, theme?, touch? }`): a fresh https view URL and the
+    time it must be opened by. `touch: true` says the viewer is on a touch
+    screen, so a vendor can keep its own touch controls (boat keeps its
+    overlay for the on-screen keyboard). A Cursor Composer that sends it needs
+    a vendor plugin built from the same suite version, because the body is
+    validated strictly.
   - `control` (`{ threadId, clientId, action: "take" | "renew" | "release" }`).
 
   `DESKTOP_PROVIDERS` maps a machine provider id to the plugin that serves its

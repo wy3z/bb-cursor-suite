@@ -31,7 +31,7 @@ export interface DesktopVendor {
   displayName: string;
   interactive: boolean;
   probe(host: DesktopHost, signal: AbortSignal): Promise<DesktopProbe>;
-  view(host: DesktopHost, request: { theme: "light" | "dark" | null; signal: AbortSignal }): Promise<DesktopView>;
+  view(host: DesktopHost, request: { theme: "light" | "dark" | null; touch?: boolean; signal: AbortSignal }): Promise<DesktopView>;
   pauseAgent?(host: DesktopHost, request: { leaseMs: number; signal: AbortSignal }): Promise<boolean>;
   resumeAgent?(host: DesktopHost, signal: AbortSignal): Promise<void>;
 }
@@ -261,11 +261,11 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     return { ...base, state: probed.state, message: probed.message, control: controlOf(host.hostId, clientId) };
   }
 
-  async function view(threadId: string, theme: "light" | "dark" | null): Promise<DesktopView> {
+  async function view(threadId: string, theme: "light" | "dark" | null, touch: boolean): Promise<DesktopView> {
     const host = await hostOf(threadId);
     if (host.phase !== "active") refuse(409, `${vendor.displayName}: the machine is paused. Resume it to see its desktop.`);
     try {
-      return await vendor.view(host, { theme, signal: AbortSignal.timeout(vendorTimeoutMs) });
+      return await vendor.view(host, { theme, touch, signal: AbortSignal.timeout(vendorTimeoutMs) });
     } catch (error) {
       probes.delete(host.hostId);
       if (error instanceof DesktopRefusal) throw error;
@@ -357,7 +357,7 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
   }
 
   route("status", ({ threadId, clientId }) => status(threadId, clientId));
-  route("view", ({ threadId, theme }) => view(threadId, theme ?? null));
+  route("view", ({ threadId, theme, touch }) => view(threadId, theme ?? null, touch === true));
   route("control", ({ threadId, clientId, action }) => control(threadId, clientId, action));
 
   bb.background.service(`${vendor.providerId}-desktop-control`, {

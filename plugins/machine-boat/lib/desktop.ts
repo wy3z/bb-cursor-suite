@@ -196,7 +196,7 @@ export function createBoatDesktop(deps: BoatDesktopDeps): DesktopVendor {
       return { state: "unavailable", message: `The boat sandbox is ${sandbox.state}.` };
     },
 
-    async view(host, { theme, signal }): Promise<DesktopView> {
+    async view(host, { theme, touch, signal }): Promise<DesktopView> {
       const sandboxId = await sandboxIdOf(host);
       for (let attempt = 1; ; attempt += 1) {
         signal.throwIfAborted();
@@ -209,7 +209,7 @@ export function createBoatDesktop(deps: BoatDesktopDeps): DesktopVendor {
         }
         if (answer !== null && answer.url !== null && !answer.provisioning) {
           if (!isBoatStreamUrl(answer.url)) throw new Error(`boat.dev answered with a desktop address that isn't an https address on ${STREAM_HOST_SUFFIX.slice(1)}`);
-          return { url: withoutViewerOverlay(answer.url), expiresAt: now() + DESKTOP_URL_MS - URL_MARGIN_MS };
+          return { url: touch === true ? answer.url : withoutViewerOverlay(answer.url), expiresAt: now() + DESKTOP_URL_MS - URL_MARGIN_MS };
         }
         if (attempt >= PROVISION_ATTEMPTS) throw new Error("boat.dev is still preparing the desktop; try again in a minute");
         await sleep(2_000);

@@ -77,6 +77,14 @@ describe("desktop view", () => {
     expect(call.search.get("vnc")).toBeNull();
   });
 
+  test("keeps boat's overlay on a touch screen, for its keyboard button", async () => {
+    const t = setup();
+    const view = await t.desktop.view(HOST, { theme: "dark", touch: true, signal: signal() });
+    expect(view.url).toBe(t.boat.desktopUrl);
+    const fine = await t.desktop.view(HOST, { theme: "dark", touch: false, signal: signal() });
+    expect(fine.url).toContain("&overlay=0#");
+  });
+
   test("polls while boat prepares the desktop", async () => {
     const t = setup();
     t.boat.desktopProvisioning = 2;

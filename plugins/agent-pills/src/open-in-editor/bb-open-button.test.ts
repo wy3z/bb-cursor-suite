@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { JSDOM } from "jsdom";
-import { HIDDEN_ATTRIBUTE, findBbOpenButton, touchesOpenButton, watchBbOpenButton } from "./bb-open-button";
+import { HIDDEN_ATTRIBUTE, findBbOpenButton, findBbOpenMenuItems, touchesOpenButton, watchBbOpenButton } from "./bb-open-button";
 import { isCloudProvider, resetCloudLookups, threadOnCloudMachine, type CloudLookupSdk } from "./cloud";
 
 const OPEN_BUTTON = `<span class="inline-flex" data-thread-header-responsive-action="" id="action"><span class="inline-flex items-center gap-1.5"><div class="inline-flex items-center"><button type="button" aria-label="Open workspace in Cursor (Ctrl + O)" id="open"><img alt=""></button><span class="inline-flex"><button type="button" aria-label="Choose another app to open workspace"><span data-icon="ChevronDown"></span></button></span></div></span></span>`;
@@ -9,6 +9,7 @@ const PANE = `
   <div data-split-pane-id="pane-1" id="pane">
     <header>
       <div data-testid="app-page-header-content-row">
+        <span><button type="button" id="trigger" aria-label="Thread actions" aria-haspopup="menu" aria-expanded="false" data-state="closed"></button></span>
         <div><div class="flex items-center gap-1" data-thread-header-workflow-actions="" id="header">${OPEN_BUTTON}</div></div>
       </div>
     </header>
@@ -128,11 +129,92 @@ describe("watchBbOpenButton", () => {
   });
 });
 
+const item = (label: string, icon = "FolderOpen", id = "") =>
+  `<button type="button" role="menuitem"${id ? ` id="${id}"` : ""}><span aria-hidden="true" data-icon="${icon}"></span>${label}</button>`;
+
+const DRAWER = `
+  <div data-bb-portaled-overlay="" aria-labelledby="drawer-title" aria-modal="true" data-persistent-drawer-content="" data-state="open" role="dialog" id="drawer">
+    <h2 id="drawer-title">Thread actions</h2>
+    <div id="items">${item("Open workspace in Cursor", "FolderOpen", "first")}${item("Open workspace in Zed", "FolderOpen", "second")}<hr id="rule">${item("Copy link", "Copy", "copy")}<hr id="later">${item("Archive", "Archive")}</div>
+  </div>`;
+
+function openMenu(html: string, drawer = DRAWER): Document {
+  return load(html.replace('aria-expanded="false" data-state="closed"', 'aria-expanded="true" data-state="open"') + drawer);
+}
+
+describe("findBbOpenMenuItems", () => {
+  it("finds the leading run of Open workspace items and its separator in the open Thread actions drawer", () => {
+    const document = openMenu(PANE);
+    expect(findBbOpenMenuItems(document.getElementById("anchor"))?.map((element) => element.id)).toEqual(["first", "second", "rule"]);
+  });
+
+  it("does nothing while the pane's menu is closed", () => {
+    expect(findBbOpenMenuItems(load(PANE + DRAWER).getElementById("anchor"))).toBeNull();
+  });
+
+  it("matches a dropdown labelled by the trigger as well as the drawer", () => {
+    const menu = `<div role="menu" data-state="open" aria-labelledby="trigger">${item("Open workspace in Cursor", "FolderOpen", "first")}<div role="separator" id="rule"></div>${item("Rename", "Edit")}</div>`;
+    const document = openMenu(PANE, menu);
+    expect(findBbOpenMenuItems(document.getElementById("anchor"))?.map((element) => element.id)).toEqual(["first", "rule"]);
+  });
+
+  it("gives up when the drawer isn't titled Thread actions, or two menus are open", () => {
+    expect(findBbOpenMenuItems(openMenu(PANE, DRAWER.replace(">Thread actions<", ">Actions<")).getElementById("anchor"))).toBeNull();
+    const second = `<div aria-labelledby="t2" data-persistent-drawer-content="" data-state="open" role="dialog"><h2 id="t2">Thread actions</h2><div>${item("Open workspace in Cursor")}<hr></div></div>`;
+    expect(findBbOpenMenuItems(openMenu(PANE, DRAWER + second).getElementById("anchor"))).toBeNull();
+  });
+
+  it("gives up when another pane's menu is the open one, or two are open", () => {
+    const other = PANE.replace('id="anchor"', "").replace('id="pane"', "").replace('id="trigger"', 'id="other-trigger"');
+    const elsewhere = load(other.replace('aria-expanded="false" data-state="closed"', 'aria-expanded="true" data-state="open"') + PANE + DRAWER);
+    expect(findBbOpenMenuItems(elsewhere.getElementById("anchor"))).toBeNull();
+    const both = openMenu(other.replace('aria-expanded="false" data-state="closed"', 'aria-expanded="true" data-state="open"') + PANE);
+    expect(findBbOpenMenuItems(both.getElementById("anchor"))).toBeNull();
+  });
+
+  it("gives up when the items aren't one run bounded by separators, or lack the folder icon", () => {
+    expect(findBbOpenMenuItems(openMenu(PANE, DRAWER.replace('<hr id="rule">', "")).getElementById("anchor"))).toBeNull();
+    const split = DRAWER.replace(item("Open workspace in Zed", "FolderOpen", "second"), item("Copy link", "Copy") + item("Open workspace in Zed", "FolderOpen", "second"));
+    expect(findBbOpenMenuItems(openMenu(PANE, split).getElementById("anchor"))).toBeNull();
+    expect(findBbOpenMenuItems(openMenu(PANE, DRAWER.replace('data-icon="FolderOpen"', 'data-icon="Folder"')).getElementById("anchor"))?.map((element) => element.id)).toBeUndefined();
+  });
+
+  it("keeps a lone trailing run's leading separator so no line is left at the end", () => {
+    const tail = `<div data-bb-portaled-overlay="" aria-labelledby="dt" data-persistent-drawer-content="" data-state="open" role="dialog"><h2 id="dt">Thread actions</h2><div>${item("Rename", "Edit")}<hr id="rule">${item("Open workspace in Cursor", "FolderOpen", "first")}</div></div>`;
+    expect(findBbOpenMenuItems(openMenu(PANE, tail).getElementById("anchor"))?.map((element) => element.id)).toEqual(["first", "rule"]);
+  });
+});
+
+describe("watchBbOpenButton and the menu", () => {
+  it("hides the menu entries when the drawer opens after the trigger, and restores them when disposed", async () => {
+    const document = load(PANE);
+    const previous = globalThis.MutationObserver;
+    globalThis.MutationObserver = window(document).MutationObserver;
+    try {
+      const stop = watchBbOpenButton(document.getElementById("anchor")!);
+      const trigger = document.getElementById("trigger")!;
+      trigger.setAttribute("aria-expanded", "true");
+      trigger.setAttribute("data-state", "open");
+      await settle();
+      document.body.insertAdjacentHTML("beforeend", DRAWER);
+      await settle();
+      expect(["first", "second", "rule"].every((id) => document.getElementById(id)!.hasAttribute(HIDDEN_ATTRIBUTE))).toBe(true);
+      expect(document.getElementById("copy")!.hasAttribute(HIDDEN_ATTRIBUTE)).toBe(false);
+      expect(document.getElementById("action")!.hasAttribute(HIDDEN_ATTRIBUTE)).toBe(true);
+      stop();
+      expect(document.querySelectorAll(`[${HIDDEN_ATTRIBUTE}]`)).toHaveLength(0);
+    } finally {
+      globalThis.MutationObserver = previous;
+    }
+  });
+});
+
 describe("touchesOpenButton", () => {
   it("reacts to header and composer changes and ignores the timeline", () => {
     const document = load(`${PANE}<div id="timeline"><p>text</p></div>`);
     const none = document.querySelectorAll("nothing");
     expect(touchesOpenButton({ target: document.getElementById("open")!, addedNodes: none, removedNodes: none })).toBe(true);
+    expect(touchesOpenButton({ target: document.getElementById("trigger")!, addedNodes: none, removedNodes: none })).toBe(true);
     expect(touchesOpenButton({ target: document.getElementById("timeline")!, addedNodes: none, removedNodes: none })).toBe(false);
     expect(touchesOpenButton({ target: document.getElementById("timeline")!, addedNodes: document.querySelectorAll("#header"), removedNodes: none })).toBe(true);
     expect(touchesOpenButton({ target: document.getElementById("timeline")!, addedNodes: none, removedNodes: document.querySelectorAll("[data-app-composer]") })).toBe(true);

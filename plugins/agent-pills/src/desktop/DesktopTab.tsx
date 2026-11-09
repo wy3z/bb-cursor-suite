@@ -15,6 +15,7 @@ import {
   shouldRenew,
   statusMessage,
   urlExpired,
+  viewInput,
   type ControlView,
 } from "./model";
 import { callDesktop, desktopClientId, setStatusControl, useDesktopProvider, useDesktopStatus, type DesktopTarget } from "./store";
@@ -29,6 +30,10 @@ function theme(): "light" | "dark" | null {
   if (typeof document === "undefined") return null;
   const root = document.documentElement;
   return preferredTheme(root, getComputedStyle(root).colorScheme || null);
+}
+
+function coarsePointer(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
 }
 
 function crossOriginLoaded(frame: HTMLIFrameElement): boolean {
@@ -109,7 +114,7 @@ export function DesktopStage({
   const open = useCallback(async () => {
     setViewError(null);
     try {
-      const next = await callDesktop(pluginId, "view", { threadId, theme: theme() });
+      const next = await callDesktop(pluginId, "view", viewInput(threadId, theme(), coarsePointer()));
       pendingRef.current = next.url;
       expiresRef.current = next.expiresAt;
       setExpiresAt(next.expiresAt);
@@ -269,11 +274,6 @@ export function DesktopStage({
               {viewError ?? "Connecting to Desktop…"}
             </p>
           )}
-          {interactive && !live && opened ? (
-            <button type="button" className="bb-desktop__take" disabled={busy} onClick={() => void take()}>
-              {takeLabel}
-            </button>
-          ) : null}
         </div>
       </div>
     </div>
