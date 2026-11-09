@@ -8,7 +8,7 @@ export const settingDescriptors = {
     type: "string",
     label: "Image",
     description:
-      "Leave empty for the built-in Debian image (Node 22, git, gh, Chromium and fonts; install agent CLIs with bb machine provider-cli install). A custom image needs sh, Node.js 22.19 or newer, curl, git and ps, and should run as a non-root user.",
+      "Leave empty for the built-in Debian image (Node 22, git, gh, Chromium, fonts, Claude Code and Codex). A custom image needs sh, Node.js 22.19 or newer, curl, git and ps, and should run as a non-root user.",
     default: "",
     experimental_schema: z.string().trim().max(256).regex(/^[^\s]*$/, "No spaces in an image reference"),
   },

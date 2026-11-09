@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   KEEPALIVE,
+  LABEL_IMAGE,
   LABEL_KEY,
   LABEL_MANAGED,
   LABEL_NAME,
@@ -10,7 +11,7 @@ import {
   runArgs,
 } from "../lib/backend.ts";
 import type { DockerResult, DockerRunOptions } from "../lib/docker.ts";
-import { BUILTIN_BASE_TAG, BUILTIN_DOCKERFILE, builtinImageTag } from "../lib/image.ts";
+import { BUILTIN_BASE_TAG, BUILTIN_DOCKERFILE, CLAUDE_CODE_VERSION, CODEX_VERSION, builtinImageTag } from "../lib/image.ts";
 import { policyFrom, readDockerSettings, type DockerSettings } from "../lib/settings.ts";
 
 const settings: DockerSettings = readDockerSettings({});
@@ -142,19 +143,24 @@ describe("runArgs", () => {
 });
 
 describe("docker backend", () => {
-  test("builds the built-in image from stdin once, tagged by content and as base", async () => {
+  test("builds the base target, then the agents layer on top, from stdin, once", async () => {
     const fake = fakeDocker();
     const backend = backendWith(fake);
     const progress = report();
     const handle = await backend.create({ key: "k1", name: "bb-docker-k1", inputs: null, ttlMs: 0, signal: signal(), report: progress.progress });
-    const build = fake.calls.find((call) => call.args[0] === "build")!;
-    expect(build.options.stdin).toBe(BUILTIN_DOCKERFILE);
-    expect(build.args).toContain(builtinImageTag());
-    expect(build.args).toContain(BUILTIN_BASE_TAG);
-    expect(build.args.at(-1)).toBe("-");
+    const [base, agents] = fake.calls.filter((call) => call.args[0] === "build");
+    for (const build of [base!, agents!]) {
+      expect(build.options.stdin).toBe(BUILTIN_DOCKERFILE);
+      expect(build.args.at(-1)).toBe("-");
+      expect(build.args).toContain(`${LABEL_IMAGE}=1`);
+      expect(build.args).not.toContain(`${LABEL_MANAGED}=1`);
+    }
+    expect(base!.args.slice(1, 5)).toEqual(["--target", "base", "--tag", BUILTIN_BASE_TAG]);
+    expect(agents!.args).not.toContain("--target");
+    expect(agents!.args).toContain(builtinImageTag());
     expect(handle).toMatchObject({ running: true, expiresAt: 1_000_000 + 7_200_000, meta: { image: builtinImageTag() } });
     await backend.create({ key: "k2", name: "bb-docker-k2", inputs: null, ttlMs: 0, signal: signal(), report: progress.progress });
-    expect(fake.calls.filter((call) => call.args[0] === "build")).toHaveLength(1);
+    expect(fake.calls.filter((call) => call.args[0] === "build")).toHaveLength(2);
     expect(fake.calls.filter((call) => call.args[0] === "network" && call.args[1] === "create")).toHaveLength(1);
   });
 
@@ -241,6 +247,26 @@ describe("docker backend", () => {
     });
     const result = await backend.availability!();
     expect(result.status).toBe("setup-required");
+  });
+});
+
+describe("built-in image", () => {
+  test("layers pinned Claude Code and Codex above base, each in its own layer, as the unprivileged user", () => {
+    const [base, agents] = BUILTIN_DOCKERFILE.split(/\n(?=FROM )/);
+    expect(base).toMatch(/^FROM node:22\.19\.0-bookworm-slim@sha256:[0-9a-f]{64} AS base\n/);
+    expect(base).toContain("chromium");
+    expect(base).not.toContain("claude-code");
+    expect(agents).toMatch(/^FROM base AS agents\n/);
+    expect(agents).toContain(`@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`);
+    expect(agents).toContain(`@openai/codex@${CODEX_VERSION}`);
+    for (const version of [CLAUDE_CODE_VERSION, CODEX_VERSION]) expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    const installs = agents!.split("\n").filter((line) => line.startsWith("RUN "));
+    expect(installs).toHaveLength(2);
+    expect(installs[0]).toContain("claude-code");
+    expect(installs[1]).toContain("@openai/codex");
+    expect(base).not.toContain("@openai/codex");
+    expect(agents).not.toContain("USER root");
+    expect(BUILTIN_DOCKERFILE.trimEnd().split("\n").filter((line) => line.startsWith("USER "))).toEqual(["USER node"]);
   });
 });
 

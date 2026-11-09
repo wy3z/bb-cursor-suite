@@ -1,7 +1,7 @@
 import type { SandboxAvailability, SandboxBackend, SandboxHandle, SandboxProgress } from "@wy3z/bb-suite/machine-backend/server";
 import { sandboxNameForKey } from "@wy3z/bb-suite/machine-backend/server";
 import { docker, DockerError, isMissing, type DockerRunner } from "./docker.ts";
-import { BUILTIN_BASE_TAG, BUILTIN_DOCKERFILE, builtinImageTag } from "./image.ts";
+import { BUILTIN_BASE_TAG, BUILTIN_BASE_TARGET, BUILTIN_DOCKERFILE, builtinImageTag } from "./image.ts";
 import type { DockerSettings } from "./settings.ts";
 
 export const PROVIDER_ID = "docker-sandbox";
@@ -166,12 +166,15 @@ export function createDockerBackend(options: DockerBackendOptions): SandboxBacke
     const tag = builtinImageTag();
     if (await imageExists(tag, signal)) return tag;
     report.step("Building the sandbox image (first run only, a few minutes)…");
-    await docker(run, ["build", "--tag", tag, "--tag", BUILTIN_BASE_TAG, "--label", `${LABEL_IMAGE}=1`, "-"], {
-      stdin: BUILTIN_DOCKERFILE,
-      signal,
-      timeoutMs: BUILD_MS,
-      onOutput: (chunk) => report.log(chunk),
-    });
+    const build = (args: string[]) =>
+      docker(run, ["build", ...args, "--label", `${LABEL_IMAGE}=1`, "-"], {
+        stdin: BUILTIN_DOCKERFILE,
+        signal,
+        timeoutMs: BUILD_MS,
+        onOutput: (chunk) => report.log(chunk),
+      });
+    await build(["--target", BUILTIN_BASE_TARGET, "--tag", BUILTIN_BASE_TAG]);
+    await build(["--tag", tag]);
     return tag;
   }
 

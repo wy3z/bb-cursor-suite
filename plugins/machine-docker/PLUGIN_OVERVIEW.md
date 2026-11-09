@@ -11,7 +11,7 @@ bb thread spawn --project <id> --environment-provider docker-sandbox \
   --environment-inputs '{"branch":{"kind":"new","baseBranch":"main"}}' --prompt "..."
 bb machine create --provider docker-sandbox
 bb machine list --all
-bb machine provider-cli install <machine> claude-code
+bb machine provider-cli status <machine>
 bb machine suspend <machine>
 bb machine resume <machine>
 bb machine remove <machine>
@@ -49,13 +49,13 @@ There is no spend cap: local containers cost nothing.
 |---|---|---|
 | Container | `bb-docker-<key slug>` | `app.getbb.docker-sandbox=1`, `app.getbb.docker-sandbox.name=<name>`, `app.getbb.docker-sandbox.key=<key>` |
 | Network | `bb-docker-sandbox`, bridge, inter-container traffic off | `app.getbb.docker-sandbox=1` |
-| Built-in image | `bb-docker-sandbox:<dockerfile hash>` and `bb-docker-sandbox:base` | `app.getbb.docker-sandbox-image=1` |
+| Built-in image | `bb-docker-sandbox:<dockerfile hash>` (agents layer) and `bb-docker-sandbox:base` (no agent CLIs) | `app.getbb.docker-sandbox-image=1` |
 
 Containers run as the image user (`node` in the built-in image) with `--init`, `--cap-drop ALL`, `--security-opt no-new-privileges`, `--pids-limit 4096`, no bind mounts, no volumes, no published ports and no environment variables beyond the image's. Secrets reach the container only through BB: the enrolment bundle on `docker exec` stdin and Machine environment values delivered to the daemon at run time.
 
 PID 1 is a small shell loop that exits at the deadline in `/tmp/.bb-sandbox-expires-at`, written at start and on every TTL renewal. When it exits the container stops, which BB sees as compute gone; `bb machine suspend` then records it as suspended and `resume` starts it again.
 
-The built-in image is layered for extension: build on `FROM bb-docker-sandbox:base`, switch to `USER root` for packages, back to `USER node` at the end, and set **Image** to your tag.
+The built-in Dockerfile has two stages. `base` is Debian, Node, git, gh, Chromium and fonts, ending as `USER node`. `agents` is `FROM base` with one layer per CLI, each installed by `node` into `/home/node/.local` with `npm install --global` at a pinned version: `@anthropic-ai/claude-code@2.1.319`, then `@openai/codex@0.159.0` (BB 0.49's own sandbox pin; BB's Codex provider needs at least 0.136.0). Nothing runs as root after `base`. To extend it, build on `FROM bb-docker-sandbox:base` or on the agents tag, switch to `USER root` for packages, back to `USER node` at the end, and set **Image** to your tag.
 
 ### Lifecycle
 
@@ -71,9 +71,16 @@ The built-in image is layered for extension: build on `FROM bb-docker-sandbox:ba
 
 The daemon dials out to BB's machine address, usually bb Connect. Docker's bridge network cannot reach a server bound to loopback, and a host firewall with a default-drop input policy blocks container-to-host traffic as well, so a direct URL only works if the firewall allows it.
 
-### Agent CLIs
+### Agent CLIs and logins
 
-Not baked into the image and not installed by BB at thread start. Run `bb machine provider-cli install <machine> <provider>` once per sandbox (Claude Code took 18 s into `/home/node/.local/bin`); it survives suspend and resume. A composed thread on a new sandbox fails its first turn until then; `bb thread retry` after installing.
+Claude Code and Codex are baked into the built-in image, so `bb machine provider-cli status` reports both installed on a new sandbox and its first turn starts without an install. BB never installs CLIs when a thread starts, so the plugin's `message.dispatch` handler covers the rest. When a turn targets an active Docker Sandbox host, it reads `hosts.providerCliStatus` for the requested provider (4 s budget; if the status can't be read, the turn proceeds). If the CLI is missing it answers `wait`, runs `hosts.installProviderCli` in the background, and calls `recheck` when that finishes. A failed install, or a provider BB has no installer for, rejects the turn with the `bb machine provider-cli install` command to run. BB doesn't tell machine `create` which provider a thread needs; dispatch is the first point that knows. The same handler runs the shared cloud-login check first.
+
+| Provider | Login in a sandbox (enforced by the launch check) |
+|---|---|
+| `claude-code` | `CLAUDE_CODE_OAUTH_TOKEN` in Machine environment (`claude setup-token`, then `bb machine env set CLAUDE_CODE_OAUTH_TOKEN [--project <id>]`, value on stdin), or Claude routed through the Account Pooler |
+| `codex` | Account Pooler with a usable Codex account (`bb pool account add --provider codex --login`) and `bb pool routing codex`. BB's Codex provider reads `~/.codex/auth.json` or the pooled `CODEX_OPENAI_BASE_URL` and `CODEX_POOL_AUTH_TOKEN`; copying `auth.json` into a sandbox is not supported |
+| `acp-opencode`, `pi` | `OPENCODE_API_KEY` in Machine environment |
+| any | GitHub: BB's forwarded `gh` login or a `GH_TOKEN` row |
 
 ### Finding the thread's own machine
 
