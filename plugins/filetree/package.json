@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Files",
-    "description": "Browse thread workspaces and project sources with search, Git status, and document previews.",
+    "description": "Browse thread workspaces and project sources with search and Git status.",
     "branding": {
       "icon": "Folder"
     },
@@ -96,5 +96,5 @@
     "directory": "plugins/filetree"
   },
   "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/filetree#readme",
-  "description": "Browse thread workspaces and project sources with search, Git status, and document previews."
+  "description": "Browse thread workspaces and project sources with search and Git status."
 }

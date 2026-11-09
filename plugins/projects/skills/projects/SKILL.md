@@ -56,8 +56,9 @@ you in three shapes:
 ## Replying to the outer loop
 
 Senders do not read your thread. Several agents may be sending; each reads
-only what you send back to it with `bb projects reply`, which only the lead
-thread can run:
+only what you send back to it with `bb projects reply`. Only the lead can run
+it, plus the thread a request was delivered to, answering that request with
+`--to` (so a request still gets its answer after the lead changes):
 
 ```sh
 bb projects reply <PREFIX> --to <req id> --kind result "Fixed in PR #12, waiting on review"

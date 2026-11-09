@@ -3,14 +3,15 @@
 To develop or rebuild it, use Node.js 22 or newer, npm, and the stable BB CLI on PATH:
 
 ```sh
-git clone https://github.com/wy3z/bb-plugin-filetree.git
-cd bb-plugin-filetree
-npm ci            # at the repository root
+git clone https://github.com/wy3z/bb-cursor-suite.git
+cd bb-cursor-suite
+npm ci                     # at the repository root
+cd plugins/filetree
 npm run verify
 bb plugin install .
 ```
 
-The repository contains **FileTree** (`bb-plugin-filetree`, plugin ID `filetree`).
+The plugin is **Files** (`bb-plugin-filetree`, plugin ID `filetree`).
 
 The plugin pins public SDK 0.6.132 and requires BB 0.49 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. The descriptor-based native addon is embedded in the host artifact for darwin-arm64, darwin-x64, linux-arm64, linux-x64 and win32-x64, so the enrolled host does not need a compiler. On any other host, or when the addon can't load (for example on musl), the Files tab shows why instead of a file tree. Confinement fails closed.
 
@@ -18,7 +19,7 @@ To prepare an installable package after the build:
 
 ```sh
 npm pack
-bb plugin install ./bb-plugin-filetree-0.3.0.tgz
+bb plugin install ./bb-plugin-filetree-<version>.tgz
 ```
 
 The repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `npm run build` regenerates them from source. Commit updated generated assets with source changes before publishing.
@@ -43,18 +44,7 @@ The first run after a C change fails its final verification step, because the co
 
 ## CLI
 
-Commands return JSON. `--thread` defaults to the invoking BB thread; `--root` defaults to that thread's active workspace. Root identifiers come from `roots` and become invalid when the source moves or changes hosts.
-
-```sh
-bb files roots --thread THREAD_ID
-bb files list src --thread THREAD_ID
-bb files search "preview worker" --thread THREAD_ID
-bb files git --thread THREAD_ID
-bb files read README.md --thread THREAD_ID
-bb files download slides.pptx --thread THREAD_ID --root ROOT_ID
-```
-
-`read` accepts UTF-8 text up to 128 KiB. `download` returns a relative `contentUrl` for the BB server, valid for five minutes; fetch it through the same authenticated BB origin. Files over 25 MiB are rejected. File operations are read-only.
+`bb files` is documented, with every output shape, in [PLUGIN_OVERVIEW.md](../PLUGIN_OVERVIEW.md#for-agents).
 
 ## SDK and RPC
 
@@ -72,4 +62,4 @@ npm run verify
 
 Tests cover confinement races, Git helper isolation (including a hostile repository whose fsmonitor, filters, hooks and partial-clone remote would run code under a plain `git status`), stale-root rejection, bounded SDK reads and immutable downloads, previews, cancellation, persistent tree state, and omission of the removed actions. The smoke task loads the built host artifact from a fresh directory, exercises its embedded native addon, rejects a symlink escape, and exercises directory listing and search. Server tests cover immutable 25 MiB downloads, integrity failures, cancellation and capacity recovery.
 
-Controls and the responsive drawer in `vendor/` come from BB’s 0.42.1 registry/shared UI. The split view uses `react-resizable-panels`, with saved widths and a collapsible file tree. The plugin remains independently buildable. It preserves deferred content realization and avoids hiding or making the app root inert.
+Controls and the responsive drawer in `vendor/` come from BB’s 0.42.1 registry/shared UI. The plugin remains independently buildable. It preserves deferred content realization and avoids hiding or making the app root inert.

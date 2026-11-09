@@ -1,9 +1,14 @@
 # bb-suite
 
-Shared pieces for the wy3z BB plugin suite (agent-pills, pull-requests,
-cursor-sidebar, projects, filetree, ui-tweaks): RPC contracts and plugin ids,
-time formatting, the settings kit, and design tokens. Plugins depend on it as `"@wy3z/bb-suite": "file:../../packages/suite-shared"`
-and `bb plugin build` bundles it.
+The shared code behind the BB Cursor Suite: RPC contracts and plugin ids, the project icon picker, time formatting, the settings kit, design tokens, git safety and a few helpers. It is not a plugin and is never installed on its own.
+
+## Who it's for
+
+People working on the suite's plugins (agent-pills, pull-requests, cursor-sidebar, projects, filetree, ui-tweaks). Plugins depend on it as `"@wy3z/bb-suite": "file:../../packages/suite-shared"`, and `bb plugin build` bundles it. Release tags carry a vendored copy under `plugins/<id>/vendor/bb-suite`.
+
+## For agents
+
+This package adds no CLI commands, agent tools or RPC methods of its own. It defines the contracts the plugins serve to each other; each plugin's `PLUGIN_OVERVIEW.md` documents the methods it serves. The modules:
 
 - `@wy3z/bb-suite/contracts`: the Tasks plugin subset the suite reads, BB's git
   status read, the git actions served by pull-requests (commit, push, create
@@ -46,7 +51,7 @@ and `bb plugin build` bundles it.
   orphan handling), the machine resource schema, cap and concurrency refusal
   messages, `findSecretLike` and `redactSecrets`. Frontend-safe: zod only.
 - `@wy3z/bb-suite/machine-backend/server`: `registerSandboxBackend(bb, backend,
-  policy)` for vendor machine plugins. The vendor supplies `create`, `exec`,
+  policy)` for vendor machine plugins. No plugin in this repository uses it. The vendor supplies `create`, `exec`,
   `snapshot`, `stop`, `resume`, `remove` and `listByName`, plus optional
   `findSnapshot` and `extendTtl`. `snapshot` must return only once the saved
   state is durable (`snapshotId: null` means the compute keeps its state
@@ -130,7 +135,16 @@ and `bb plugin build` bundles it.
   the page under one `Symbol.for` key, so Projects' tab strip and the Cursor
   sidebar share them even though each plugin bundles its own copy.
 - `@wy3z/bb-suite/time`: `shortAge` ("now", "5m", "3d", "2w", "1mo"),
+  `shortAgo` ("5m ago", "just now"), `longAge` ("5 minutes ago"),
   `duration` ("2h 5m") and `elapsed`.
+- `@wy3z/bb-suite/git`: finds a trustworthy `git` (or another tool, with
+  `findExecutable`) on hosts where it isn't in `/usr/bin`, such as NixOS,
+  Guix and Homebrew. `PATH` entries must not be group or world writable and
+  must belong to the user or root; known install folders follow. On Windows it
+  checks Git for Windows' install folders, then `PATH`. `gitBinary()` caches
+  the result, and `missingToolMessage(name)` words the error.
+- `@wy3z/bb-suite/menu-keyboard`: `useMenuKeyboard(rootRef, open, close)`
+  and its helpers, arrow-key and Escape handling for the suite's menus.
 - `@wy3z/bb-suite/tokens.css`: the suite palette (`--bbs-*`) and pill metrics.
 - `@wy3z/bb-suite/settings`: the settings kit every plugin page uses, drawn to
   match BB's own plugin settings card: `SettingsCard`, `SettingsRow` (label,

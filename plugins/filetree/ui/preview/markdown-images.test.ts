@@ -74,19 +74,17 @@ describe("markdown local image paths", () => {
     );
   });
 
-  it("rewrites this plugin README screenshot to an absolute host path", async () => {
-    const content = await readFile(
-      new URL("../../README.md", import.meta.url),
-      "utf8",
-    );
-    const rewritten = rewriteMarkdownImageSrcs({
-      content,
-      markdownPath: "README.md",
-      rootPath: "/workspace",
-    });
-    expect(rewritten).toContain(
-      "](/workspace/docs/screenshots/files.png)",
-    );
-    expect(rewritten).not.toContain("](docs/screenshots/files.png)");
+  it("leaves an absolute screenshot URL untouched", () => {
+    const content =
+      "![Files](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/filetree-tree.png)";
+    expect(
+      rewriteMarkdownImageSrcs({
+        content,
+        markdownPath: "README.md",
+        rootPath: "/workspace",
+      }),
+    ).toBe(content);
   });
+
+
 });
