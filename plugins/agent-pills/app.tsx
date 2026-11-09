@@ -12,6 +12,7 @@ import {
 import { DEVICE_ONLY, SettingsCard, SettingsToggleRow } from "@wy3z/bb-suite/settings";
 import { AgentPillsSummary } from "./src/PillRow";
 import { ChangesPill, useChanges } from "./src/ChangesPill";
+import { ParentPill, useParentPillVisible } from "./src/ParentPill";
 import { useActivity } from "./src/pill-data";
 import { CompactPill, useCompactToggleVisible } from "./src/CompactPill";
 import {
@@ -66,6 +67,15 @@ function PillsSettings() {
 }
 
 export default definePluginApp((app) => {
+  app.slots.experimental_threadContextSegment({
+    id: "parent-thread",
+    title: "Parent thread",
+    group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.thread,
+    order: 11,
+    summary: ParentPill,
+    useVisible: useParentPillVisible,
+  });
+
   app.slots.experimental_threadContextSegment({
     id: "activity-pills",
     title: "Agent activity",
