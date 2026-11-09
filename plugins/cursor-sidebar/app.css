@@ -6,14 +6,19 @@
 
 :root {
   --cs-row-inset: 8px;
+  --cs-highlight-inset: 4px;
   --cs-left-extra: 4px;
   --cs-row-pad-l: 5px;
   --cs-row-pad-r: 6px;
+  --cs-heading-pad: 6px;
+  --cs-row-gutter-l: calc(var(--cs-row-pad-l) + var(--cs-row-inset) + var(--cs-left-extra) - var(--cs-highlight-inset));
+  --cs-row-gutter-r: calc(var(--cs-row-pad-r) + var(--cs-row-inset) - var(--cs-highlight-inset));
+  --cs-heading-gutter-l: calc(var(--cs-heading-pad) + var(--cs-row-inset) + var(--cs-left-extra) - var(--cs-highlight-inset));
+  --cs-heading-gutter-r: calc(var(--cs-heading-pad) + var(--cs-row-inset) - var(--cs-highlight-inset));
   --cs-icon: 14px;
   --cs-icon-gap: 6px;
   --cs-text-pad: 2px;
-  --cs-heading-pad: 6px;
-  --cs-text-x: calc(var(--cs-row-pad-l) + var(--cs-icon) + var(--cs-icon-gap) + var(--cs-text-pad));
+  --cs-text-x: calc(var(--cs-row-gutter-l) + var(--cs-icon) + var(--cs-icon-gap) + var(--cs-text-pad));
   --cs-trail-gap: var(--cs-icon-gap);
   --cs-status-dot: 6px;
   --cs-time-color: #737373;
@@ -33,17 +38,17 @@ html.dark {
 }
 .cs-row,
 .cs-heading.cs-project-heading {
-  padding-left: var(--cs-row-pad-l);
-  padding-right: var(--cs-row-pad-r);
+  padding-left: var(--cs-row-gutter-l);
+  padding-right: var(--cs-row-gutter-r);
   column-gap: var(--cs-icon-gap);
 }
 .cs-heading {
-  padding-left: var(--cs-heading-pad);
-  padding-right: var(--cs-heading-pad);
+  padding-left: var(--cs-heading-gutter-l);
+  padding-right: var(--cs-heading-gutter-r);
 }
 .cs-heading.cs-heading--icon {
-  padding-left: var(--cs-row-pad-l);
-  padding-right: var(--cs-row-pad-r);
+  padding-left: var(--cs-row-gutter-l);
+  padding-right: var(--cs-row-gutter-r);
 }
 .cs-heading--icon .cs-heading-button {
   column-gap: var(--cs-icon-gap);
@@ -53,11 +58,11 @@ html.dark {
 }
 .cs-row-note {
   padding-left: var(--cs-text-x);
-  padding-right: var(--cs-row-pad-r);
+  padding-right: var(--cs-row-gutter-r);
 }
 .cs-row-inset {
-  padding-left: calc(var(--cs-row-inset) + var(--cs-left-extra));
-  padding-right: var(--cs-row-inset);
+  padding-left: var(--cs-highlight-inset);
+  padding-right: var(--cs-highlight-inset);
 }
 .cs-nav-icon {
   width: var(--cs-icon);
@@ -465,13 +470,6 @@ html.dark {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
 }
 
-/* Section headings share one right edge. The phone/touch layout adds a little
-   right padding above these rows, so pull the row flush with the top-bar
-   controls there; the desktop sidebar needs no change. */
-@media (max-width: 767px) and (pointer: coarse) {
-  [data-cursor-sidebar-root] .cs-heading { margin-right: -8px; }
-}
-
 /* While BB's keybind guide is up, a row shows the digit that opens it, in the
    host's own chip shape. */
 .cs-shortcut-key {
@@ -537,7 +535,7 @@ html.dark {
   gap: var(--cs-icon-gap);
   width: 100%;
   min-height: 1.75rem;
-  padding: 0.25rem var(--cs-row-pad-r) 0.25rem var(--cs-row-pad-l);
+  padding: 0.25rem var(--cs-row-gutter-r) 0.25rem var(--cs-row-gutter-l);
   border: 0;
   border-radius: 0.375rem;
   background: transparent;
