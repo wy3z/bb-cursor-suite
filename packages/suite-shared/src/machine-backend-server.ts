@@ -25,6 +25,7 @@ import {
   type SandboxPolicyInput,
   type SandboxResource,
   type SandboxUsage,
+  type VendorSpendRefusal,
 } from "./machine-backend";
 import { createCloudLaunchCheck, type CloudLaunchCheckOptions } from "./cloud-launch-server";
 import {
@@ -105,6 +106,7 @@ export interface SandboxBackend<S extends SandboxInputsSchema = undefined> {
     report: SandboxProgress;
   }): Promise<void>;
   listByName(name: string, signal: AbortSignal): Promise<SandboxHandle[]>;
+  vendorSpendRefusal?(): Promise<VendorSpendRefusal | null>;
   extendTtl?(request: {
     sandboxId: string;
     name: string;
@@ -169,12 +171,20 @@ const allocationSchema = z.object({
   pendingSnapshotOps: z.array(z.string()).default([]),
   unverifiedSnapshotOps: z.array(z.string()).default([]),
   rev: z.number().int().nonnegative().default(0),
+  hourlyRateUsd: z.number().nonnegative().nullable().default(null),
 });
 type Allocation = z.output<typeof allocationSchema>;
 
 const ALLOCATION_PREFIX = "sandbox/alloc/";
 const IDLE_PREFIX = "sandbox/idle/";
-const USAGE_PREFIX = "sandbox/usage/";
+const SPEND_PREFIX = "sandbox/spend/";
+const spendSchema = z.object({
+  runningMs: z.number().nonnegative().catch(0),
+  usd: z.number().nonnegative().catch(0),
+  unpricedMs: z.number().nonnegative().catch(0),
+});
+type MonthSpend = z.output<typeof spendSchema>;
+const HOUR = 60 * 60_000;
 const UNVERIFIED_PREFIX = "sandbox/unverified/";
 const unverifiedSchema = z.object({
   name: z.string(),
@@ -273,6 +283,7 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
       pendingSnapshotOps: [],
       unverifiedSnapshotOps: [],
       rev: 0,
+      hourlyRateUsd: null,
     };
   }
 
@@ -291,12 +302,30 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
     return next;
   }
 
+  async function readSpend(month: string): Promise<MonthSpend> {
+    const parsed = spendSchema.safeParse((await kv.get(`${SPEND_PREFIX}${month}`)) ?? {});
+    return parsed.success ? parsed.data : { runningMs: 0, usd: 0, unpricedMs: 0 };
+  }
+
   async function addUsage(base: Allocation, at: number): Promise<void> {
     if (base.accruedAt === null) return;
     const delta = Math.max(0, at - base.accruedAt);
     if (delta === 0) return;
     const month = usageMonth(at);
-    await kv.set(`${USAGE_PREFIX}${month}`, (await readUsageMs(month)) + delta);
+    const spend = await readSpend(month);
+    await kv.set(`${SPEND_PREFIX}${month}`, {
+      runningMs: spend.runningMs + delta,
+      usd: spend.usd + (base.hourlyRateUsd === null ? 0 : (delta / HOUR) * base.hourlyRateUsd),
+      unpricedMs: spend.unpricedMs + (base.hourlyRateUsd === null ? delta : 0),
+    });
+  }
+
+  async function lockedRate(): Promise<number | null> {
+    try {
+      return (await readPolicy()).hourlyRateUsd;
+    } catch {
+      return null;
+    }
   }
 
   async function commitAllocation(
@@ -314,6 +343,8 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
       const patch = build(current, at);
       if (patch === null) return null;
       const next: Allocation = { ...current, ...patch, rev: stored === null ? 0 : stored.rev + 1 };
+      if (next.accruedAt === null) next.hourlyRateUsd = null;
+      else if (next.hourlyRateUsd === null) next.hourlyRateUsd = await lockedRate();
       await writeAllocation(next);
       await addUsage(base, at);
       return next;
@@ -341,11 +372,6 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
     return out;
   }
 
-  async function readUsageMs(month: string): Promise<number> {
-    const value = await kv.get(`${USAGE_PREFIX}${month}`);
-    return typeof value === "number" && Number.isFinite(value) ? value : 0;
-  }
-
   async function patchAllocation(
     key: string,
     name: string,
@@ -362,23 +388,39 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
     const current = await readPolicy();
     const at = now();
     const month = usageMonth(at);
-    let runningMs = await readUsageMs(month);
+    const stored = await readSpend(month);
+    let { runningMs, usd, unpricedMs } = stored;
     for (const allocation of await listAllocations()) {
-      if (allocation.accruedAt !== null) runningMs += Math.max(0, at - allocation.accruedAt);
+      if (allocation.accruedAt === null) continue;
+      const delta = Math.max(0, at - allocation.accruedAt);
+      runningMs += delta;
+      if (allocation.hourlyRateUsd === null) unpricedMs += delta;
+      else usd += (delta / HOUR) * allocation.hourlyRateUsd;
     }
-    return {
-      month,
-      runningMs,
-      estimatedUsd: current.hourlyRateUsd === null ? null : (runningMs / (60 * MINUTE)) * current.hourlyRateUsd,
-      capUsd: current.monthlyCapUsd,
-    };
+    const estimatedUsd =
+      current.hourlyRateUsd === null
+        ? usd > 0
+          ? usd
+          : null
+        : usd + (unpricedMs / HOUR) * current.hourlyRateUsd;
+    return { month, runningMs, estimatedUsd, capUsd: current.monthlyCapUsd };
+  }
+
+  async function vendorRefusal(): Promise<VendorSpendRefusal | null> {
+    if (!backend.vendorSpendRefusal) return null;
+    try {
+      const refusal = await backend.vendorSpendRefusal();
+      return refusal === null ? null : { ...refusal, message: redactSecrets(refusal.message) };
+    } catch (error) {
+      return { reason: "unreadable", message: `${label}: couldn't check this month's spend with the vendor (${errorText(error)}).` };
+    }
   }
 
   async function spendRefusal(current: SandboxPolicy): Promise<string | null> {
     if (current.monthlyCapUsd !== null && current.hourlyRateUsd === null) {
       return missingRateMessage(label, current.monthlyCapUsd);
     }
-    return monthlyCapRefusal(label, await usage());
+    return monthlyCapRefusal(label, await usage()) ?? (await vendorRefusal())?.message ?? null;
   }
 
   function holdsSlot(allocation: Allocation): boolean {
@@ -654,9 +696,12 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
     const { owned, complete } = await owners();
     await importAllocations(owned);
     await sweepAllocations(owned, complete, current, at);
-    const capped = monthlyCapRefusal(label, await usage());
-    const unbudgeted = current.monthlyCapUsd !== null && current.hourlyRateUsd === null;
+    const ownCap = monthlyCapRefusal(label, await usage());
+    const vendor = ownCap === null ? await vendorRefusal() : null;
+    const capped = ownCap ?? (vendor?.reason === "cap" ? vendor.message : null);
+    const unbudgeted = (current.monthlyCapUsd !== null && current.hourlyRateUsd === null) || vendor !== null;
     if (capped !== null) bb.log.warn(`${capped} Suspending running sandboxes.`);
+    else if (vendor !== null) bb.log.warn(`${vendor.message} Not extending any sandbox's TTL until it can be read.`);
     const idleMs = current.idleMinutes === null ? null : current.idleMinutes * MINUTE;
     const renewMs = current.ttlRenewMinutes * MINUTE;
     for (const { host, resource } of owned.values()) {
@@ -799,7 +844,7 @@ export function registerSandboxBackend<S extends SandboxInputsSchema = undefined
       if (current.monthlyCapUsd !== null && current.hourlyRateUsd === null) {
         return { status: "setup-required", message: missingRateMessage(label, current.monthlyCapUsd) };
       }
-      const capped = monthlyCapRefusal(label, await usage());
+      const capped = monthlyCapRefusal(label, await usage()) ?? (await vendorRefusal())?.message ?? null;
       return capped === null ? base : { status: "unavailable", message: capped };
     },
     async validate({ inputs }) {

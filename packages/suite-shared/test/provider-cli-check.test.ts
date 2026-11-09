@@ -120,6 +120,40 @@ describe("provider CLI check", () => {
   });
 });
 
+describe("provider CLI check deadlines and caching", () => {
+  test("gives up on an install that never finishes and tells the user how to finish it", async () => {
+    let clock = 0;
+    let finish: (events: unknown[]) => void = () => undefined;
+    const f = fake(codex(false), () => new Promise((resolve) => (finish = resolve)));
+    const check = createProviderCliCheck(f.bb, "fake-sandbox", { label: "Fake Sandbox", now: () => clock });
+    expect(await check(context())).toMatchObject({ action: "wait" });
+    clock = 9 * 60_000;
+    expect(await check(context())).toMatchObject({ action: "wait" });
+    clock = 10 * 60_000;
+    const decision = await check(context());
+    expect(decision).toMatchObject({ action: "reject" });
+    expect((decision as { message: string }).message).toContain("bb machine provider-cli install host_abc codex");
+    finish([{ type: "completed", provider: "codex", exitCode: 0, signal: null, success: true }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(f.calls.recheck).toBe(0);
+    expect(await check(context())).toEqual({ action: "proceed" });
+    expect(f.calls.status).toBe(1);
+  });
+
+  test("remembers an installed CLI for a few minutes instead of asking the machine on every message", async () => {
+    let clock = 0;
+    const f = fake(codex(true));
+    const check = createProviderCliCheck(f.bb, "fake-sandbox", { now: () => clock });
+    expect(await check(context())).toEqual({ action: "proceed" });
+    clock = 4 * 60_000;
+    expect(await check(context())).toEqual({ action: "proceed" });
+    expect(f.calls.status).toBe(1);
+    clock = 6 * 60_000;
+    expect(await check(context())).toEqual({ action: "proceed" });
+    expect(f.calls.status).toBe(2);
+  });
+});
+
 describe("chainDispatchChecks", () => {
   test("stops at the first non-proceed decision", async () => {
     let second = 0;

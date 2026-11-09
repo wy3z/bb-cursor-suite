@@ -80,6 +80,11 @@ export function concurrencyRefusal(displayName: string, running: number, maxConc
   return `${displayName}: ${running} of ${maxConcurrent} ${noun} already running (max concurrent ${maxConcurrent}). Suspend or remove one, or raise the limit in the plugin settings.`;
 }
 
+export interface VendorSpendRefusal {
+  reason: "cap" | "unreadable";
+  message: string;
+}
+
 export function missingRateMessage(displayName: string, capUsd: number): string {
   return `${displayName}: set an hourly rate so the ${formatUsd(capUsd)} monthly cap can be enforced.`;
 }

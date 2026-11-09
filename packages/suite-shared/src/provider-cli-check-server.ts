@@ -11,12 +11,14 @@ export interface ProviderCliCheckOptions {
   label?: string;
   statusTimeoutMs?: number;
   retryAfterMs?: number;
+  installTimeoutMs?: number;
+  installedCacheMs?: number;
   now?: () => number;
 }
 
 export type DispatchCheck = (context: MessageDispatchHookContext) => Promise<MessageDispatchHookDecision>;
 
-type Job = { state: "running" } | { state: "done" } | { state: "failed"; message: string };
+type Job = { state: "running"; startedAt: number; id: number } | { state: "done" } | { state: "failed"; message: string };
 
 const PROCEED: MessageDispatchHookDecision = { action: "proceed" };
 
@@ -32,14 +34,18 @@ export function createProviderCliCheck(
   const label = options.label ?? machineProviderId;
   const statusTimeoutMs = options.statusTimeoutMs ?? 4_000;
   const retryAfterMs = options.retryAfterMs ?? 60_000;
+  const installTimeoutMs = options.installTimeoutMs ?? 10 * 60_000;
+  const installedCacheMs = options.installedCacheMs ?? 5 * 60_000;
   const now = options.now ?? Date.now;
   const jobs = new Map<string, Job>();
+  const installedUntil = new Map<string, number>();
+  let nextJob = 0;
 
   function failure(displayName: string, machine: string, hostId: string, provider: string, reason: string): string {
     return `${label}: ${displayName} isn't installed on ${machine} and installing it failed${reason ? ` (${reason})` : ""}. Run \`bb machine provider-cli install ${hostId} ${provider}\` and send again.`;
   }
 
-  async function install(key: string, hostId: string, provider: string, displayName: string, machine: string): Promise<void> {
+  async function install(id: number, key: string, hostId: string, provider: string, displayName: string, machine: string): Promise<void> {
     bb.log.info(`${label}: installing ${displayName} on ${machine} before its turn starts`);
     let job: Job;
     try {
@@ -58,6 +64,9 @@ export function createProviderCliCheck(
     } catch (error) {
       job = { state: "failed", message: failure(displayName, machine, hostId, provider, errorText(error)) };
     }
+    if (job.state === "done") installedUntil.set(key, now() + installedCacheMs);
+    const current = jobs.get(key);
+    if (current?.state !== "running" || current.id !== id) return;
     jobs.set(key, job);
     await bb.experimental_hooks.recheck("message.dispatch").catch((error: unknown) => {
       bb.log.warn(`${label}: recheck after installing ${displayName} failed: ${errorText(error)}`);
@@ -72,6 +81,14 @@ export function createProviderCliCheck(
     const key = `${host.id}:${provider}`;
     const machine = host.name ?? host.id;
     const job = jobs.get(key);
+    if (job?.state === "running" && now() - job.startedAt >= installTimeoutMs) {
+      jobs.delete(key);
+      bb.log.warn(`${label}: installing the ${provider} CLI on ${machine} didn't finish within ${Math.round(installTimeoutMs / 60_000)} minutes`);
+      return {
+        action: "reject",
+        message: `${label}: installing the ${provider} CLI on ${machine} didn't finish within ${Math.round(installTimeoutMs / 60_000)} minutes. Run \`bb machine provider-cli install ${host.id} ${provider}\` and send again.`,
+      };
+    }
     if (job?.state === "running") {
       return { action: "wait", reason: `Installing the ${provider} CLI on ${machine}…`, sendAt: now() + retryAfterMs };
     }
@@ -79,6 +96,7 @@ export function createProviderCliCheck(
       jobs.delete(key);
       return job.state === "failed" ? { action: "reject", message: job.message } : PROCEED;
     }
+    if ((installedUntil.get(key) ?? 0) > now()) return PROCEED;
     let entry;
     try {
       entry = (await bb.sdk.hosts.providerCliStatus({ hostId: host.id, signal: AbortSignal.timeout(statusTimeoutMs) }))[provider];
@@ -86,15 +104,20 @@ export function createProviderCliCheck(
       bb.log.warn(`${label}: could not read provider CLI status for ${host.id}: ${errorText(error)}`);
       return PROCEED;
     }
-    if (entry === undefined || entry.installed) return PROCEED;
+    if (entry === undefined) return PROCEED;
+    if (entry.installed) {
+      installedUntil.set(key, now() + installedCacheMs);
+      return PROCEED;
+    }
     if (entry.installAction === null) {
       return {
         action: "reject",
         message: `${label}: ${entry.displayName} isn't installed on ${machine} and BB has no installer for it. Install \`${entry.executableName}\` on the machine.`,
       };
     }
-    jobs.set(key, { state: "running" });
-    void install(key, host.id, provider, entry.displayName, machine);
+    nextJob += 1;
+    jobs.set(key, { state: "running", startedAt: now(), id: nextJob });
+    void install(nextJob, key, host.id, provider, entry.displayName, machine);
     return { action: "wait", reason: `Installing ${entry.displayName} on ${machine}…`, sendAt: now() + retryAfterMs };
   };
 }

@@ -53,7 +53,15 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
 - `@wy3z/bb-suite/machine-backend/server`: `registerSandboxBackend(bb, backend,
   policy)` for vendor machine plugins. Boat Sandbox (`plugins/machine-boat`) uses it. The vendor supplies `create`, `exec`,
   `snapshot`, `stop`, `resume`, `remove` and `listByName`, plus optional
-  `findSnapshot` and `extendTtl`. `snapshot` must return only once the saved
+  `findSnapshot`, `extendTtl` and `vendorSpendRefusal`. The last one reports
+  the vendor's own meter (`{ reason: "cap" | "unreadable", message }` or
+  `null`); the helper checks it with its own estimate on create, resume,
+  `validate`, `availability`, every TTL extension and every sweep. A `cap`
+  answer suspends running sandboxes; either answer refuses admissions and
+  TTL extensions, and a hook that throws counts as `unreadable`. The
+  helper's own estimate is kept in USD per month at the rate each
+  allocation started or resumed at, so a later rate change never reprices
+  past time. `snapshot` must return only once the saved
   state is durable (`snapshotId: null` means the compute keeps its state
   across `stop`, in which case `stop` returns the surviving sandbox id). It
   receives an `operationKey` that the helper records before the call.
@@ -126,7 +134,11 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   no installer for, rejects with the `bb machine provider-cli install`
   command. Pass `providerCliCheck: false` to leave it out, or compose
   `createProviderCliCheck` and `chainDispatchChecks` yourself; BB allows one
-  `message.dispatch` handler per plugin. `@wy3z/bb-suite/testing/sandbox-fakes`
+  `message.dispatch` handler per plugin, so `launchCheck: false` alone no
+  longer means the helper registers no handler. An install that hasn't
+  finished after 10 minutes rejects the turn with the install command, and
+  an installed CLI is remembered for 5 minutes so most messages skip the
+  status read. `@wy3z/bb-suite/testing/sandbox-fakes`
   exports the fake BB and backend the helper's own tests use. Server-only.
 - `@wy3z/bb-suite/git-safety`: every git call the suite makes inside a
   checkout goes through this module, so a repository's own config can't run
