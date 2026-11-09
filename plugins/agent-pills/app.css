@@ -1814,6 +1814,11 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   display: contents;
 }
 
+[data-bb-agent-pills-open-in-hidden],
+[data-plugin-composer-action]:has([data-bb-agent-pills-open-in-anchor]) {
+  display: none !important;
+}
+
 .bb-agent-pills-env__slot {
   display: inline-flex;
   min-width: 0;
@@ -2175,28 +2180,19 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   align-items: flex-start;
   justify-content: center;
   min-height: 0;
-}
-
-.bb-desktop__stage:fullscreen {
-  align-items: center;
-  background: #000;
+  overflow-y: auto;
 }
 
 .bb-desktop__screen {
   position: relative;
-  width: 100%;
-  max-height: 100%;
+  flex: 0 0 auto;
+  box-sizing: content-box;
+  width: calc(100% - 2px);
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--bbs-line);
-  border-radius: var(--bbs-radius-md);
+  border: 1px solid var(--border, var(--bbs-line));
+  border-radius: var(--radius, var(--bbs-radius-md));
   background: #000;
-}
-
-.bb-desktop__stage:fullscreen .bb-desktop__screen {
-  width: min(100vw, calc(100vh * 16 / 9));
-  border: 0;
-  border-radius: 0;
 }
 
 .bb-desktop__screen[data-live] {
@@ -2222,34 +2218,6 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   color: rgba(255, 255, 255, 0.72);
   font-size: var(--bbs-text-body);
   text-align: center;
-}
-
-.bb-desktop__take {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: var(--bbs-pill-radius);
-  background: rgba(20, 20, 20, 0.72);
-  color: #fff;
-  font-family: inherit;
-  font-size: var(--bbs-text-body);
-  font-weight: 500;
-  cursor: pointer;
-  backdrop-filter: blur(6px);
-}
-
-.bb-desktop__take:hover:not(:disabled) {
-  background: rgba(20, 20, 20, 0.86);
-}
-
-.bb-desktop__take:focus-visible {
-  outline: 2px solid var(--bbs-accent);
-  outline-offset: 1px;
 }
 
 @media (max-width: 767px) {

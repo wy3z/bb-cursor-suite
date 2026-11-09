@@ -66,7 +66,9 @@ export const desktopViewSchema = z.object({
 export type DesktopView = z.output<typeof desktopViewSchema>;
 
 export const desktopStatusInput = z.object({ threadId, clientId: desktopClientId }).strict();
-export const desktopViewInput = z.object({ threadId, theme: z.enum(["light", "dark"]).nullable().optional() }).strict();
+export const desktopViewInput = z
+  .object({ threadId, theme: z.enum(["light", "dark"]).nullable().optional(), touch: z.boolean().optional() })
+  .strict();
 export const desktopControlInput = z.object({ threadId, clientId: desktopClientId, action: z.enum(["take", "renew", "release"]) }).strict();
 
 export const DESKTOP_ROUTES = {

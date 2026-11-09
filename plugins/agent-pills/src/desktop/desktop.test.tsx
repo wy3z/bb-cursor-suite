@@ -12,6 +12,7 @@ import {
   shouldRenew,
   statusMessage,
   urlExpired,
+  viewInput,
 } from "./model";
 
 const runtime = globalThis as unknown as { __bbPluginRuntime?: unknown };
@@ -82,6 +83,11 @@ describe("pill visibility", () => {
 });
 
 describe("helpers", () => {
+  it("asks for the vendor's touch viewer only on a coarse pointer", () => {
+    expect(viewInput("thr_1", "dark", true)).toEqual({ threadId: "thr_1", theme: "dark", touch: true });
+    expect(viewInput("thr_1", null, false)).toEqual({ threadId: "thr_1", theme: null });
+  });
+
   it("treats a missing or old URL as expired", () => {
     expect(urlExpired(null, 5)).toBe(true);
     expect(urlExpired({ expiresAt: 10 }, 5)).toBe(false);

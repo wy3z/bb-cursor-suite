@@ -31,8 +31,8 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; m
       if (probeFails) throw new Error("boat is down");
       return { state: "ready", message: null };
     },
-    view: async () => {
-      calls.push("view");
+    view: async (_target, { touch }) => {
+      calls.push(touch ? "view touch" : "view");
       return { url: "https://desktop.example/stream.html?hostId=1#token=fake", expiresAt: clock.t + 570_000 };
     },
     pauseAgent: async (_target, { leaseMs }) => {
@@ -243,6 +243,15 @@ describe("registerDesktopProvider", () => {
     expect((await paused.view()).status).toBe(409);
     expect((await paused.status()).body.result.state).toBe("stopped");
     expect(paused.calls).toEqual([]);
+  });
+
+  it("tells the vendor whether the viewer is on a touch screen", async () => {
+    const t = setup();
+    await t.view();
+    await t.call("/desktop/view", { threadId: "thr_1", theme: "dark", touch: true });
+    await t.call("/desktop/view", { threadId: "thr_1", theme: "dark", touch: false });
+    expect(t.calls.filter((call) => call.startsWith("view"))).toEqual(["view", "view touch", "view"]);
+    expect((await t.call("/desktop/view", { threadId: "thr_1", touch: "yes" })).status).toBe(400);
   });
 
   it("pauses the agent while a user holds control and hands it back on release", async () => {

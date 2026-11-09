@@ -15,6 +15,7 @@ import {
   shouldRenew,
   statusMessage,
   urlExpired,
+  viewInput,
   type ControlView,
 } from "./model";
 import { callDesktop, desktopClientId, setStatusControl, useDesktopProvider, useDesktopStatus, type DesktopTarget } from "./store";
@@ -29,6 +30,10 @@ function theme(): "light" | "dark" | null {
   if (typeof document === "undefined") return null;
   const root = document.documentElement;
   return preferredTheme(root, getComputedStyle(root).colorScheme || null);
+}
+
+function coarsePointer(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
 }
 
 function crossOriginLoaded(frame: HTMLIFrameElement): boolean {
@@ -90,7 +95,6 @@ export function DesktopStage({
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const stageRef = useRef<HTMLDivElement | null>(null);
   const pendingRef = useRef<string | null>(null);
   const loadedRef = useRef(false);
   const expiresRef = useRef<number | null>(null);
@@ -110,7 +114,7 @@ export function DesktopStage({
   const open = useCallback(async () => {
     setViewError(null);
     try {
-      const next = await callDesktop(pluginId, "view", { threadId, theme: theme() });
+      const next = await callDesktop(pluginId, "view", viewInput(threadId, theme(), coarsePointer()));
       pendingRef.current = next.url;
       expiresRef.current = next.expiresAt;
       setExpiresAt(next.expiresAt);
@@ -214,7 +218,6 @@ export function DesktopStage({
     [control],
   );
 
-  const fullscreen = typeof document !== "undefined" && document.fullscreenEnabled === true;
   const live = interactive && mode === "you";
   const takeLabel = mode === "elsewhere" ? "Take control here" : "Take Control";
   const opened = expiresAt !== null;
@@ -239,17 +242,6 @@ export function DesktopStage({
           <button type="button" className="bb-desktop__icon" aria-label="Reconnect" title="Reconnect" disabled={busy} onClick={() => void open()}>
             <Icon name="RotateCcw" aria-hidden />
           </button>
-          {fullscreen ? (
-            <button
-              type="button"
-              className="bb-desktop__icon"
-              aria-label="Full screen"
-              title="Full screen"
-              onClick={() => void stageRef.current?.requestFullscreen?.().catch(() => undefined)}
-            >
-              <Icon name="Maximize2" aria-hidden />
-            </button>
-          ) : null}
         </div>
       </div>
       {live && status.control.agentPaused ? <p className="bb-desktop__hint">The agent's computer tools wait until you release control.</p> : null}
@@ -259,7 +251,7 @@ export function DesktopStage({
           {note}
         </p>
       ) : null}
-      <div className="bb-desktop__stage" ref={stageRef}>
+      <div className="bb-desktop__stage">
         <div className="bb-desktop__screen" data-live={live ? "" : undefined}>
           {opened ? (
             <iframe
@@ -282,11 +274,6 @@ export function DesktopStage({
               {viewError ?? "Connecting to Desktop…"}
             </p>
           )}
-          {interactive && !live && opened ? (
-            <button type="button" className="bb-desktop__take" disabled={busy} onClick={() => void take()}>
-              {takeLabel}
-            </button>
-          ) : null}
         </div>
       </div>
     </div>

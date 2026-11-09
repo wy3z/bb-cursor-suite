@@ -11,6 +11,7 @@ import {
   codexTimeoutScript,
   createBoatDesktop,
   isBoatStreamUrl,
+  withoutViewerOverlay,
   pauseScript,
   resumeScript,
 } from "../lib/desktop.ts";
@@ -55,15 +56,33 @@ function setup() {
 
 const signal = () => AbortSignal.timeout(10_000);
 
+describe("viewer overlay", () => {
+  test("adds overlay=0 to the query and keeps the token fragment", () => {
+    expect(withoutViewerOverlay("https://bx.on.boat.dev/stream.html?hostId=1&appId=2#token=a?b&c")).toBe(
+      "https://bx.on.boat.dev/stream.html?hostId=1&appId=2&overlay=0#token=a?b&c",
+    );
+    expect(withoutViewerOverlay("https://bx.on.boat.dev/stream.html#token=t")).toBe("https://bx.on.boat.dev/stream.html?overlay=0#token=t");
+    expect(withoutViewerOverlay("https://bx.on.boat.dev/stream.html?overlay=1&theme=dark")).toBe("https://bx.on.boat.dev/stream.html?theme=dark&overlay=0");
+  });
+});
+
 describe("desktop view", () => {
   test("returns boat's desktop URL with a deadline inside its 10 minutes", async () => {
     const t = setup();
     const view = await t.desktop.view(HOST, { theme: "dark", signal: signal() });
-    expect(view.url).toBe(t.boat.desktopUrl);
+    expect(view.url).toBe("https://bx-test.on.boat.dev/stream.html?hostId=1&appId=2&theme=dark&overlay=0#token=secretdesktoptoken");
     expect(view.expiresAt).toBe(1_000_000 + 570_000);
     const call = t.boat.calls("POST", `/sandboxes/${t.sandbox.id}/desktop`)[0]!;
     expect(call.search.get("theme")).toBe("dark");
     expect(call.search.get("vnc")).toBeNull();
+  });
+
+  test("keeps boat's overlay on a touch screen, for its keyboard button", async () => {
+    const t = setup();
+    const view = await t.desktop.view(HOST, { theme: "dark", touch: true, signal: signal() });
+    expect(view.url).toBe(t.boat.desktopUrl);
+    const fine = await t.desktop.view(HOST, { theme: "dark", touch: false, signal: signal() });
+    expect(fine.url).toContain("&overlay=0#");
   });
 
   test("polls while boat prepares the desktop", async () => {
@@ -97,6 +116,7 @@ describe("desktop view", () => {
     t.boat.desktopUrl = "https://on.boat.dev.evil.example/stream.html#token=x";
     await expect(t.desktop.view(HOST, { theme: null, signal: signal() })).rejects.toThrow("on.boat.dev");
     expect(isBoatStreamUrl("https://bx-1.on.boat.dev/stream.html#token=x")).toBe(true);
+    expect(isBoatStreamUrl(withoutViewerOverlay("https://bx-1.on.boat.dev/stream.html#token=x"))).toBe(true);
     expect(isBoatStreamUrl("https://on.boat.dev/stream.html")).toBe(false);
   });
 

@@ -25,6 +25,7 @@ import {
 import { COMPOSER_ATTRIBUTE } from "./src/channels";
 import { startComposerLayout } from "./src/composer-layout";
 import { EnvironmentPickerAction } from "./src/environment-picker/EnvironmentPicker";
+import { OpenInEditorGuard } from "./src/open-in-editor/OpenInEditorGuard";
 import { DesktopPill, useDesktopPillVisible } from "./src/desktop/DesktopPill";
 import { DesktopTab, useDesktopTabVisible } from "./src/desktop/DesktopTab";
 import { DESKTOP_TAB } from "./src/desktop/model";
@@ -137,6 +138,12 @@ export default definePluginApp((app) => {
     id: "environment-picker",
     scopes: ["new-thread"],
     actions: [{ id: "environment", component: EnvironmentPickerAction }],
+  });
+
+  app.composer.customize({
+    id: "open-in-editor-guard",
+    scopes: ["thread"],
+    actions: [{ id: "open-in-editor-guard", component: OpenInEditorGuard }],
   });
 
   app.slots.settingsSection({

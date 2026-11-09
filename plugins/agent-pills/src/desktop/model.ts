@@ -19,6 +19,14 @@ export function shouldRenew(hiddenSince: number | null, now: number, limitMs: nu
   return hiddenSince === null || now - hiddenSince < limitMs;
 }
 
+export function viewInput(
+  threadId: string,
+  theme: "light" | "dark" | null,
+  coarse: boolean,
+): { threadId: string; theme: "light" | "dark" | null; touch?: true } {
+  return coarse ? { threadId, theme, touch: true } : { threadId, theme };
+}
+
 export const CONTROL_LABEL: Record<ControlView, string> = {
   agent: "Agent has control",
   you: "You have control",
