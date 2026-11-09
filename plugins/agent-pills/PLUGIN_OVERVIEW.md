@@ -60,7 +60,7 @@ await sdk.plugins.callRpc({
 - Pull Requests (`pull-requests`): `gitCommit`, `gitPush`, `gitCreatePullRequest` and `gitApplyLocally`, the git actions behind the Changes tray and Apply locally. The contract is `gitActionsContract` in `@wy3z/bb-suite/contracts`. Without Pull Requests installed and enabled, those buttons are disabled and say "Needs Pull Requests".
 - BB's git plugin (`bb--git`): `status`, for the Changes pill, and its Diff tab.
 - A desktop vendor, for the Desktop pill and tab. This is the plugin `DESKTOP_PROVIDERS` in `@wy3z/bb-suite/desktop` names for the thread's machine provider; today that's `machine-boat` for `boat-sandbox`.
-  - It calls the vendor's `/desktop/status`, `/desktop/view` and `/desktop/control` routes with a same-origin `fetch`, not RPC. The vendor answers only the BB app's own requests.
+  - It calls the vendor's `/desktop/status`, `/desktop/view` and `/desktop/control` routes with a same-origin `fetch`, not RPC. The vendor answers only requests from BB's own page, which other plugins' frontends share.
   - When that plugin isn't installed and enabled, or answers with an error, the pill and tab stay hidden and nothing is reported.
   - The registry is compiled into this plugin, so a new vendor needs a new release of it.
 - BB's SDK, for the Desktop pill and tab: `environments.get` and `hosts.get`, to find the thread's machine provider.
@@ -131,7 +131,7 @@ The thread's computer, the way Cursor shows a cloud agent's desktop.
 - **Take Control / Release control.**
   - Take Control (in the bar or over the stream) asks the vendor to pause the agent's computer tools, then focuses the stream so your mouse and keyboard go to the VM.
   - The agent's computer calls wait until you release, and the tab says so. If there was nothing to pause, it says the agent can still use the desktop.
-  - When you release and the agent's turn is running, it's told to take a fresh screenshot before acting.
+  - When you release, every agent on that machine with a turn running is told to take a fresh screenshot before acting.
 - **When control ends.**
   - The window renews control every 30 seconds, but not once the page has been hidden for 30 seconds, so a forgotten background tab hands control back within about 2 minutes.
   - A hold lasts at most 30 minutes, then goes back to the agent; take control again to carry on.

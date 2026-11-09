@@ -1,5 +1,8 @@
 import { readSandboxResource } from "@wy3z/bb-suite/machine-backend/server";
 import { DESKTOP_URL_MS, isViewUrl, type DesktopHost, type DesktopProbe, type DesktopVendor, type DesktopView } from "@wy3z/bb-suite/desktop/server";
+import { BoatApiError, LIVE_STATES, READY_STATES, isNotFound, redactBoat, type BoatApi } from "./api.ts";
+import { DISPLAY_NAME, PROVIDER_ID } from "./backend.ts";
+import { execInSandbox } from "./exec.ts";
 
 export const STREAM_HOST_SUFFIX = ".on.boat.dev";
 
@@ -8,9 +11,6 @@ export function isBoatStreamUrl(value: string): boolean {
   const host = new URL(value).hostname.toLowerCase();
   return host.endsWith(STREAM_HOST_SUFFIX) && host.length > STREAM_HOST_SUFFIX.length;
 }
-import { BoatApiError, LIVE_STATES, READY_STATES, isNotFound, redactBoat, type BoatApi } from "./api.ts";
-import { DISPLAY_NAME, PROVIDER_ID } from "./backend.ts";
-import { execInSandbox } from "./exec.ts";
 
 export const COMPUTER_UNIT = "cua-driver.service";
 export const RELEASE_UNIT = "bb-desktop-release";

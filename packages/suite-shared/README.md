@@ -167,27 +167,35 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   serves those routes for a vendor plugin. The vendor supplies `probe`,
   `view`, and optionally `pauseAgent` (resolving `false` when there was
   nothing to pause) and `resumeAgent`. The helper:
-  - **Who may call.** It answers only requests that look like the BB app's
-    own `fetch`. It refuses Connect machine and OAuth credentials (the gate's
-    `x-bb-gate-auth: machine` / `oauth`, which callers can't forge through
-    Connect), and anything without the browser's same-origin fetch metadata
-    (`Sec-Fetch-Site: same-origin`, a `cors` or `same-origin`
-    `Sec-Fetch-Mode` and an `Origin`). That shuts out the bb CLI,
-    `bb plugin rpc call`, other plugins' servers and agents on cloud
-    machines. It is not a boundary against software on a trusted loopback or
-    direct route that forges browser headers: BB gives that software the
-    user's full access anyway.
+  - **Who may call.** It answers only requests that look like a BB app page's
+    own `fetch`:
+    - Through Connect, only a signed-in session passes. The gate's
+      `x-bb-gate-auth` is set by Connect from the verified credential and
+      can't be forged through it, and `machine`, `oauth` or any other value
+      is refused.
+    - Every request also needs the browser's same-origin fetch metadata
+      (`Sec-Fetch-Site: same-origin`, a `cors` or `same-origin`
+      `Sec-Fetch-Mode` and an `Origin`).
+
+    That shuts out the bb CLI, `bb plugin rpc call`, other plugins' servers
+    and agents on cloud machines. It doesn't separate plugins inside BB's
+    page: any plugin's frontend shares that page, so its `fetch` is genuinely
+    same-origin and can reach the routes. Nor is it a boundary against
+    software on a trusted loopback or direct route that forges browser
+    headers: BB gives that software the user's full access anyway.
   - **Scope.** It resolves the thread to its host, and refuses threads on
     another provider's machine or on none.
   - **Control.** One lease per host, in memory. Taking control calls
-    `pauseAgent` and counts as machine activity; renewals don't. The lease
+    `pauseAgent`. Taking and renewing both count as machine activity, so a
+    hold isn't idle-suspended. The lease
     ends after 2 minutes without a renewal, after 30 minutes in total (the
     renewal is refused and the agent resumed), on release, or when the
     plugin stops, and each of those calls `resumeAgent`. When the machine
     is paused or stopped the lease is simply dropped, because the stop ended
     the pause. A transient probe failure keeps the lease. When the agent was
-    paused and its thread has a turn running, it gets an agent-only steer
-    saying control came back and to take a fresh screenshot.
+    paused, every thread on that machine with a turn running gets an
+    agent-only steer saying control came back and to take a fresh
+    screenshot, because they all share the screen.
   - **Storage.** Nothing is stored: the view URL goes straight back to the
     caller and is never logged.
 

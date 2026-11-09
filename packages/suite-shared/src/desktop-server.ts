@@ -41,7 +41,7 @@ export interface DesktopPluginApi {
   readonly http: Pick<BbPluginApi["http"], "route">;
   readonly background: Pick<BbPluginApi["background"], "service">;
   readonly sdk: {
-    readonly threads: Pick<PluginBbSdk["threads"], "get" | "send">;
+    readonly threads: Pick<PluginBbSdk["threads"], "get" | "list" | "send">;
     readonly environments: Pick<PluginBbSdk["environments"], "get">;
     readonly hosts: Pick<PluginBbSdk["hosts"], "get">;
   };
@@ -64,7 +64,6 @@ export interface DesktopRegistration {
 
 interface Lease {
   host: DesktopHost;
-  threadId: string;
   clientId: string;
   since: number;
   expiresAt: number;
@@ -151,19 +150,22 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     return lease;
   }
 
-  async function tellAgent(lease: Lease): Promise<void> {
+  async function tellAgents(lease: Lease): Promise<void> {
     if (!lease.agentPaused) return;
+    let running: string[];
     try {
-      const thread = await bb.sdk.threads.get({ threadId: lease.threadId });
-      if (thread.runtime.displayStatus !== "active") return;
-      await bb.sdk.threads.send({
-        threadId: lease.threadId,
-        mode: "steer",
-        input: [{ type: "text", text: AGENT_NOTE, mentions: [], visibility: "agent-only" }],
-      });
+      const threads = await bb.sdk.threads.list({ hostId: lease.host.hostId, archived: false });
+      running = threads.filter((thread) => thread.runtime.displayStatus === "active").map((thread) => thread.id);
     } catch {
       return;
     }
+    await Promise.all(
+      running.map((threadId) =>
+        bb.sdk.threads
+          .send({ threadId, mode: "steer", input: [{ type: "text", text: AGENT_NOTE, mentions: [], visibility: "agent-only" }] })
+          .catch(() => undefined),
+      ),
+    );
   }
 
   async function resume(host: DesktopHost, why: string): Promise<void> {
@@ -178,10 +180,10 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
 
   async function end(lease: Lease, why: string): Promise<void> {
     await resume(lease.host, why);
-    void tellAgent(lease);
+    void tellAgents(lease);
   }
 
-  function arm(host: DesktopHost, threadId: string, clientId: string, since: number, agentPaused: boolean): DesktopControl {
+  function arm(host: DesktopHost, clientId: string, since: number, agentPaused: boolean): DesktopControl {
     drop(host.hostId);
     const expiresAt = Math.min(now() + leaseMs, since + maxHoldMs);
     const timer = setTimeout(
@@ -197,7 +199,7 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
     );
     const handle = timer as { unref?: () => void };
     handle.unref?.();
-    leases.set(host.hostId, { host, threadId, clientId, since, expiresAt, agentPaused, timer });
+    leases.set(host.hostId, { host, clientId, since, expiresAt, agentPaused, timer });
     return controlOf(host.hostId, clientId);
   }
 
@@ -315,11 +317,9 @@ export function registerDesktopProvider(bb: DesktopPluginApi, vendor: DesktopVen
           refuse(409, `${vendor.displayName}: couldn't pause the agent's computer tools: ${text(error)}`);
         }
       }
-      if (action === "take") {
-        active(host.hostId);
-        return arm(host, threadId, clientId, now(), agentPaused);
-      }
-      return arm(host, threadId, clientId, lease!.since, agentPaused);
+      active(host.hostId);
+      if (action === "take") return arm(host, clientId, now(), agentPaused);
+      return arm(host, clientId, lease!.since, agentPaused);
     });
   }
 

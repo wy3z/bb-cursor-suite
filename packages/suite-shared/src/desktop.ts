@@ -97,6 +97,7 @@ export function browserRequestRefusal(header: DesktopRequestHeaders): string | n
   const gate = header("x-bb-gate-auth")?.trim().toLowerCase();
   if (gate === "machine") return "machine credentials can't use another machine's desktop";
   if (gate === "oauth") return "connected apps can't use the desktop";
+  if (gate !== undefined && gate !== "" && gate !== "session") return "only a signed-in BB app session can use the desktop";
   if (header("sec-fetch-site")?.trim().toLowerCase() !== "same-origin") return "only the BB app can use the desktop";
   const mode = header("sec-fetch-mode")?.trim().toLowerCase();
   if (mode !== "cors" && mode !== "same-origin") return "only the BB app can use the desktop";

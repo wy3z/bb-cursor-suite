@@ -57,7 +57,10 @@ The suite's vendor-neutral desktop contract (`DESKTOP_ROUTES` in `@wy3z/bb-suite
 | `/desktop/view` | `{ threadId, theme?: "light" \| "dark" \| null }` | `{ url, expiresAt }`: a fresh boat desktop URL (`https://<host>.on.boat.dev/stream.html?…#token=…`) and the time it must be opened by (boat's 10 minutes less 30 s). |
 | `/desktop/control` | `{ threadId, clientId, action: "take" \| "renew" \| "release" }` | The `control` object above. |
 
-- **Who can call.** Every route answers only requests that look like the BB app's own `fetch`. Connect machine and OAuth credentials are refused. So is anything without the browser's same-origin fetch metadata: the bb CLI, `bb plugin rpc call`, other plugins' servers, and an agent on a cloud VM. From a boat VM, both routes answer 403 to the agent's bb proxy.
+- **Who can call.** Every route answers only requests that look like a BB app page's own `fetch`.
+  - Through Connect, only a signed-in session passes: machine, OAuth and any other credential kind are refused. Connect sets that from the verified credential.
+  - Everything also needs the browser's same-origin fetch metadata. That shuts out the bb CLI, `bb plugin rpc call`, other plugins' servers and an agent on a cloud VM. From a boat VM, both routes answer 403 to the agent's bb proxy.
+  - Other plugins' frontends share BB's page, so their `fetch` is genuinely same-origin and can reach the routes.
   - This is not a boundary against software on the BB server machine that forges browser headers; BB gives that software the user's full access anyway.
 - **Scope.** A thread on another provider's machine, or on none, is refused.
 - **The URL** goes straight back to the caller. It is never logged, stored, cached or put in an error, and `?token=`, `&token=` and `#token=` values are redacted from every boat error. Only https addresses on `*.on.boat.dev` are accepted.
@@ -135,9 +138,9 @@ Every boat VM runs a desktop, even with `noEnv`: Xorg on `:0` (1920x1080, lightd
   - Every renewal restarts it. If the timer can't be armed, the script thaws at once and the request fails.
 - **Release** stops that timer and runs `thaw` (and `SIGCONT`).
 - **Limits.**
-  - Only taking control bumps the idle sweep; renewals don't.
+  - Taking and renewing control both bump the idle sweep, so a hold isn't suspended at the 15-minute idle mark.
   - A hold ends after 2 minutes without a renewal, or after 30 minutes in total.
-  - When the agent was paused and its thread has a turn running, the agent gets an agent-only note to take a fresh screenshot before its next computer action.
+  - When the agent was paused, every thread on the VM with a turn running gets an agent-only note to take a fresh screenshot before its next computer action, since they all share the screen.
 - **Codex.** Codex's MCP tool timeout defaults to 60 seconds, so a Codex call would fail rather than wait.
   - After every create and resume, the plugin installs `~/.local/share/bb-boat/codex-computer-timeout.sh` and a `bb-codex-computer-timeout.path` user unit that watches `~/.codex/config.toml`.
   - Whenever boat (re)writes that file, `tool_timeout_sec = 3600` is put straight under `[mcp_servers.computer]`. An existing value there is replaced; other servers are untouched.

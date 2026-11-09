@@ -15,6 +15,7 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; m
   const calls: string[] = [];
   const activity: string[] = [];
   const sent: unknown[] = [];
+  const listed: string[] = [];
   const warnings: string[] = [];
   const routes = new Map<string, Route>();
   let service: { start(signal: AbortSignal): void | Promise<void> } | null = null;
@@ -60,6 +61,14 @@ function setup(options: { phase?: string; provider?: string; leaseMs?: number; m
         get: async ({ threadId }: { threadId: string }) => {
           if (threadId === "thr_missing") throw new Error("not found");
           return { environmentId: threadId === "thr_local" ? null : "env_1", runtime: { displayStatus: options.threadStatus ?? "active" } };
+        },
+        list: async ({ hostId }: { hostId: string }) => {
+          listed.push(hostId);
+          return [
+            { id: "thr_1", runtime: { displayStatus: options.threadStatus ?? "active" } },
+            { id: "thr_2", runtime: { displayStatus: "active" } },
+            { id: "thr_3", runtime: { displayStatus: "idle" } },
+          ];
         },
         send: async (args: unknown) => {
           sent.push(args);
@@ -142,9 +151,11 @@ describe("browserRequestRefusal", () => {
     expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "session" })).toBeNull();
   });
 
-  it("refuses machine and connected-app credentials from the Connect gate", () => {
+  it("allows only a signed-in session through the Connect gate", () => {
     expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "machine" })).toContain("machine credentials");
     expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "oauth" })).toContain("connected apps");
+    expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "public" })).toContain("signed-in BB app session");
+    expect(from({ ...APP_HEADERS, "x-bb-gate-auth": "service" })).toContain("signed-in BB app session");
   });
 
   it("refuses requests without the browser's same-origin fetch metadata, like the bb CLI's", () => {
@@ -252,15 +263,16 @@ describe("registerDesktopProvider", () => {
     expect(t.calls).toEqual(["pause 120000", "pause 120000", "resume"]);
   });
 
-  it("counts only taking control as machine activity", async () => {
+  it("counts taking and renewing control as machine activity, nothing else", async () => {
     const t = setup();
     await t.status();
     await t.view();
     await t.control("take");
     await t.control("renew");
+    await t.control("renew", "client_bbbb");
     await t.control("release");
     await settle();
-    expect(t.activity).toEqual(["host_1"]);
+    expect(t.activity).toEqual(["host_1", "host_1"]);
   });
 
   it("ends a hold after the maximum, resumes the agent and refuses the renew", async () => {
@@ -277,19 +289,24 @@ describe("registerDesktopProvider", () => {
     expect((await t.control("take")).body.result).toMatchObject({ holder: "user", since: 1_061_000 });
   });
 
-  it("tells a running agent that control came back, only when it was paused", async () => {
+  it("tells every running agent on the machine that control came back, only when it was paused", async () => {
     const t = setup();
     await t.control("take");
     await t.control("release");
     await settle();
     await settle();
-    expect(t.sent).toEqual([{ threadId: "thr_1", mode: "steer", input: [{ type: "text", text: AGENT_NOTE, mentions: [], visibility: "agent-only" }] }]);
+    const note = { mode: "steer", input: [{ type: "text", text: AGENT_NOTE, mentions: [], visibility: "agent-only" }] };
+    expect(t.sent).toEqual([
+      { threadId: "thr_1", ...note },
+      { threadId: "thr_2", ...note },
+    ]);
 
     const idle = setup({ threadStatus: "idle" });
     await idle.control("take");
     await idle.control("release");
     await settle();
-    expect(idle.sent).toEqual([]);
+    await settle();
+    expect(idle.sent).toEqual([{ threadId: "thr_2", ...note }]);
 
     const unpaused = setup({ paused: false });
     const taken = await unpaused.control("take");
