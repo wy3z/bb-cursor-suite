@@ -14,6 +14,7 @@ import type { ProjectIcon } from "@wy3z/bb-suite/project-icon";
 import { projectsContract } from "./meta";
 import { useBoardIcons } from "./BoardIcon";
 import { useMountedHost } from "./mount-host";
+import { handleTabShortcut } from "./tab-shortcuts";
 import { addTab, applyOpenPlan, conversationHidden, findHeader, findLead, locateThreadWindow, planThreadOpen, registerTabHost, shownThread, tabStore, viewStore } from "@wy3z/bb-suite/thread-tabs";
 
 const HOST_ATTR = "data-bb-projects-tabs";
@@ -247,6 +248,13 @@ export function ManagerTabs() {
 
   const canShowTabs = leadId === null || tabMount.state !== "missing";
   useEffect(() => (canShowTabs ? registerTabHost() : undefined), [canShowTabs]);
+
+  useEffect(() => {
+    if (!tabHost || !leadId) return;
+    const onKey = (event: KeyboardEvent) => void handleTabShortcut(event, tabs, selectedId, select);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [leadId, select, selectedId, tabHost, tabs]);
 
   if (!tabHost || !leadId) return null;
 
