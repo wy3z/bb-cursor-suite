@@ -15,6 +15,8 @@ Anyone who wants agents off their own machine: long or parallel work, untrusted 
 - Cost guards, all in the plugin settings: idle suspend after 15 minutes, a 2-hour auto-stop that boat enforces even if BB is down (renewed while a thread is active, never past the cap), 2 VMs at once, and a $30 monthly cap checked against boat's own meter before every create and resume and on every minute's sweep. If boat's meter can't be read for 10 minutes, new and resumed VMs are refused and no auto-stop is extended until it can.
 - Agent logins come from your boat account: connect Claude (and ChatGPT for Codex) on boat.dev and name a boat environment that passes only Agents credentials. With the environment setting empty, nothing from your boat account reaches the VM: no logins, no boat CLI key, no boat GitHub app token, no boat secrets. boat always leaves its own `ASCII_TOKEN` on the VM; it can only publish the VM's own ports on public URLs, so anything running on the VM can expose itself.
 
+![A thread on a Boat Sandbox VM with the Desktop tab open on the agent's screen and the Take Control button](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/desktop-take-control.png)
+
 Configure it under **Settings → Plugins → Boat Sandbox**: API key, size, boat environment, idle minutes, TTL hours, max concurrent, monthly cap and the 14-day keep.
 
 ### Agent logins

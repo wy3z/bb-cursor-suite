@@ -19,6 +19,10 @@ Anyone who uses BB every day and wants it to feel a little more like their own. 
 - **Alt+1 to Alt+9** switch to the first nine tabs of the focused right panel. Rebind them under BB's keyboard shortcuts as **Right panel: switch to tab N**.
 - **Sidebar animation:** the left sidebar opens and closes with the same motion as the right panel. A switch, **Disable sidebar and panel animations**, makes both instant.
 
+![UI Tweaks settings: animations, Clearer hierarchy, Steer labels, syntax highlighting, prompt position and height](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/ui-tweaks-settings.png)
+
+![The icon pack cards (BB Default, Lucide, Iconoir, Tabler Outline) and the spinner options](https://raw.githubusercontent.com/wy3z/bb-cursor-suite/main/docs/media/ui-tweaks-icon-packs.png)
+
 Configure everything under **Settings → Plugins → UI Tweaks**. Settings are saved on the BB server, so every device signed in to the same BB shares them.
 
 ## Install
