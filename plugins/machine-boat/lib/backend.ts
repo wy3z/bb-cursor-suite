@@ -33,6 +33,7 @@ export interface BoatBackendOptions {
   stopTimeoutMs?: number;
   log?: { info(message: string): void; warn(message: string): void };
   afterReady?: (sandboxId: string, signal: AbortSignal) => Promise<void>;
+  shareLogins?: (sandboxId: string, restart: boolean, signal: AbortSignal) => Promise<string>;
 }
 
 export interface VendorSpend {
@@ -188,7 +189,17 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     return options.settings();
   }
 
-  async function prepare(sandbox: BoatSandbox, signal: AbortSignal, report: SandboxProgress): Promise<BoatSandbox> {
+  async function prepare(sandbox: BoatSandbox, signal: AbortSignal, report: SandboxProgress, booted = true): Promise<BoatSandbox> {
+    if (options.shareLogins !== undefined) {
+      try {
+        report.log(await options.shareLogins(sandbox.id, booted, signal));
+      } catch (error) {
+        signal.throwIfAborted();
+        const note = `${DISPLAY_NAME}: couldn't hand boat's agent logins to BB's daemon on ${sandbox.id}: ${message(error)}`;
+        report.log(note);
+        options.log?.warn(note);
+      }
+    }
     if (options.afterReady === undefined) return sandbox;
     try {
       await options.afterReady(sandbox.id, signal);
@@ -436,7 +447,8 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
       if (sandbox.dataExpiredAt !== null) {
         return restoreFromKeep(name, { id, stoppedAt: sandbox.stoppedAt }, `boat.dev cleaned up the disk of ${id}`, ttlMs, signal, report);
       }
-      if (!LIVE_STATES.has(sandbox.state) || sandbox.state === "archiving") {
+      const booted = !LIVE_STATES.has(sandbox.state) || sandbox.state === "archiving";
+      if (booted) {
         for (let attempt = 1; ; attempt += 1) {
           try {
             await withTtlCap(ttlSecondsFor(ttlMs), (ttl) =>
@@ -457,7 +469,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
       } else {
         await withTtlCap(ttlSecondsFor(ttlMs), (ttl) => api.updateSandbox(id, { ttlSeconds: ttl }, signal));
       }
-      const ready = await prepare(await waitReady(id, signal, report), signal, report);
+      const ready = await prepare(await waitReady(id, signal, report), signal, report, booted);
       if (current.keepStoppedDays > 0) await dropSaved(name, signal, report);
       return handleOf(ready);
     },

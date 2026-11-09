@@ -89,7 +89,8 @@ describe("cloud launch check", () => {
     sdk.state.pool = pool({ claude: false, codex: false }, [{ provider: "claude", enabled: true, status: "ready", error: null }]);
     const rejected = await decide(sdk, context("claude-code"));
     expect(rejected.action).toBe("reject");
-    expect(rejected.message).toStartWith("Cloud thread blocked: Claude Code has no login for cloud machines. Fix: run `claude setup-token`");
+    expect(rejected.message).toStartWith("Cloud thread blocked: Claude Code has no login for cloud machines. Fix: let the cloud machine supply one");
+    expect(rejected.message).not.toContain("bb machine env set CLAUDE_CODE_OAUTH_TOKEN");
   });
 
   it("requires Account Pooler routing with a usable Codex account for codex", async () => {
@@ -97,7 +98,7 @@ describe("cloud launch check", () => {
     sdk.state.globalEnv = ["CLAUDE_CODE_OAUTH_TOKEN", "OPENCODE_API_KEY"];
     const noPool = await decide(sdk, context("codex"));
     expect(noPool.action).toBe("reject");
-    expect(noPool.message).toContain("Codex has no pooled login for cloud machines");
+    expect(noPool.message).toContain("Codex has no login for cloud machines");
     expect(noPool.message).toContain("bb pool account add --provider codex --login");
     sdk.state.pool = pool({ claude: false, codex: true }, [{ provider: "codex", enabled: true, status: "error", error: "refresh failed" }]);
     expect((await decide(sdk, context("codex"))).action).toBe("reject");
@@ -139,6 +140,49 @@ describe("cloud launch check", () => {
     expect(rejected.message).not.toContain("abc123");
   });
 
+  it("accepts a login the cloud machine supplies, asking it only when BB's env and pool have none", async () => {
+    const asked: Array<string | null> = [];
+    let report = { logins: ["claude"] as string[], note: null as string | null };
+    const sdk = setup({
+      launchCheck: {
+        machineLogins: async (ctx) => {
+          asked.push((ctx as { host: { id: string } | null }).host?.id ?? null);
+          return report;
+        },
+      },
+    });
+    expect(await decide(sdk, context("claude-code"))).toEqual({ action: "proceed" });
+    expect(await decide(sdk, context("claude-code", "sandbox-host"))).toEqual({ action: "proceed" });
+    expect(asked).toEqual([null, "host_sb"]);
+    const codex = await decide(sdk, context("codex", "sandbox-host"));
+    expect(codex.action).toBe("reject");
+    expect(codex.message).toContain("Codex has no login for cloud machines");
+    report = { logins: [], note: "vm_1 has no agent login from boat" };
+    const none = await decide(sdk, context("claude-code", "sandbox-host"));
+    expect(none.message).toEndWith(" vm_1 has no agent login from boat.");
+    sdk.state.globalEnv = ["CLAUDE_CODE_OAUTH_TOKEN"];
+    asked.length = 0;
+    expect(await decide(sdk, context("claude-code", "sandbox-host"))).toEqual({ action: "proceed" });
+    expect(asked).toEqual([]);
+    report = { logins: ["codex"], note: null };
+    expect(await decide(sdk, context("codex", "sandbox-host"))).toEqual({ action: "proceed" });
+    expect(sdk.state.poolReads).toBeGreaterThan(0);
+  });
+
+  it("blocks with the reason, redacted, when the machine can't be checked", async () => {
+    const sdk = setup({
+      launchCheck: {
+        machineLogins: async () => {
+          throw new Error("probe failed, token=abc123");
+        },
+      },
+    });
+    const rejected = await decide(sdk, context("claude-code", "sandbox-host"));
+    expect(rejected.action).toBe("reject");
+    expect(rejected.message).toContain("Couldn't check the cloud machine for agent logins (probe failed, token=[redacted]).");
+    expect(rejected.message).not.toContain("abc123");
+  });
+
   it("uses vendor-supplied rules", async () => {
     const rules: CloudLoginRules = {
       ...DEFAULT_CLOUD_LOGIN_RULES,
@@ -163,5 +207,9 @@ describe("evaluateCloudLogin", () => {
     expect(
       evaluateCloudLogin("codex", { ...facts, pool: { routing: { codex: true }, usableProviders: ["codex"] } }),
     ).toEqual({ ok: true });
+    expect(evaluateCloudLogin("codex", { ...facts, machineLogins: ["codex"] })).toEqual({ ok: true });
+    expect(evaluateCloudLogin("claude-code", { ...facts, machineLogins: ["codex"] }, undefined, "only codex").ok).toBe(false);
+    const gitless = evaluateCloudLogin("claude-code", { ...facts, builtInGit: false, machineLogins: ["claude"] }, undefined, "vm note");
+    expect(gitless.ok ? "" : gitless.message).not.toContain("vm note");
   });
 });

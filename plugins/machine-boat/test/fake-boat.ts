@@ -55,6 +55,7 @@ export class FakeBoat {
       { type: "large", available: false, reason: "not during the free trial" },
     ],
   };
+  environmentList: Array<Record<string, unknown>> = [];
   deletedCostUsd = 0;
   desktopProvisioning = 0;
   desktopUrl = "https://bx-test.on.boat.dev/stream.html?hostId=1&appId=2&theme=dark#token=secretdesktoptoken";
@@ -161,6 +162,7 @@ export class FakeBoat {
     const rest = match?.[2] ?? "";
 
     if (method === "GET" && path === "/limits") return this.ok(this.limits);
+    if (method === "GET" && path === "/environments") return this.ok({ ok: true, type: "environments.list", environments: this.environmentList });
     if (method === "GET" && path === "/me") return this.ok({ user: { login: "tester", email: "t@example.com", accountStatus: "active" } });
     if (method === "GET" && path === "/sandboxes") {
       const labels = url.searchParams.getAll("label").map((pair) => pair.split("=") as [string, string]);

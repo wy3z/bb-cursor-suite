@@ -13,16 +13,38 @@ Anyone who wants agents off their own machine: long or parallel work, untrusted 
 - Headless browser checks on the VM: `bb browser-automation open --backend local --headless --machine <vm>` starts Chrome there, so an agent can test a dev server running beside it, take screenshots, show them inline and attach them to tasks.
 - Suspend and resume. Suspend is boat's stop, which snapshots the disk and stops billing; resume brings the same VM back from that snapshot and restarts the daemon without reinstalling anything.
 - Cost guards, all in the plugin settings: idle suspend after 15 minutes, a 2-hour auto-stop that boat enforces even if BB is down (renewed while a thread is active, never past the cap), 2 VMs at once, and a $30 monthly cap checked against boat's own meter before every create and resume and on every minute's sweep. If boat's meter can't be read for 10 minutes, new and resumed VMs are refused and no auto-stop is extended until it can.
-- Nothing from your boat account reaches the VM by default: no boat CLI key, no boat GitHub app token, no boat secrets or agent logins. BB supplies the logins it needs. boat always leaves its own `ASCII_TOKEN` on the VM; it can only publish the VM's own ports on public URLs, so anything running on the VM can expose itself.
+- Agent logins come from your boat account: connect Claude (and ChatGPT for Codex) on boat.dev and name a boat environment that passes only Agents credentials. With the environment setting empty, nothing from your boat account reaches the VM: no logins, no boat CLI key, no boat GitHub app token, no boat secrets. boat always leaves its own `ASCII_TOKEN` on the VM; it can only publish the VM's own ports on public URLs, so anything running on the VM can expose itself.
 
 Configure it under **Settings → Plugins → Boat Sandbox**: API key, size, boat environment, idle minutes, TTL hours, max concurrent, monthly cap and the 14-day keep.
 
 ### Agent logins
 
-A VM has no logins of its own, and BB checks before a turn starts that the agent can sign in there:
+Keep agent logins on boat.dev, not in BB. Before each turn BB checks that the agent can sign in on the VM.
 
-- **Claude Code:** run `claude setup-token`, then `bb machine env set CLAUDE_CODE_OAUTH_TOKEN --project <id>` with the token on stdin. Routing Claude through the Account Pooler works too.
-- **Codex:** enable the Account Pooler, add a Codex account with `bb pool account add --provider codex --login`, and turn routing on with `bb pool routing codex`.
+1. On boat.dev, open **Agents & Proxying** and click **Sign in** on the Claude row (Pro or Max). Do the same on the ChatGPT row if you run Codex in cloud threads.
+2. On the **Environment** page, add an environment for BB, for example `bb`. Turn **Safe for third parties** off, since these VMs are just for you. Turn **GitHub**, **Secrets** and **boat credentials** off and leave **Agents credentials** on. Don't add repositories, variables or secret files. From a signed-in boat CLI: `boat env new bb`, then `boat env set bb --safe-for-third-parties false --github false --secrets false --boat-credentials false --agents-credentials true`.
+3. In BB, set **Settings → Plugins → Boat Sandbox → boat environment** to `bb`.
+4. If you put `CLAUDE_CODE_OAUTH_TOKEN` in BB's machine env before, remove it with `bb machine env unset CLAUDE_CODE_OAUTH_TOKEN` (add `--project <id>` if you set it for one project).
+
+Your default `base` environment works too, as long as only Agents credentials is on. A separate environment is the safer habit, because `base` is what every other sandbox on your boat account gets.
+
+**Why not BB's machine env.** BB's global and project machine env reach every machine, including the computer BB itself runs on. There, a `claude setup-token` token takes over from your own Claude Code login. That token can only run models, so BB's usage panel shows Claude Code as signed out and loses your plan limits.
+
+**Why "just me" and not "Safe for third parties".** Safe for third parties withholds every login. boat's AI credentials proxy can then give the VM placeholder keys and keep the real ones on boat. That's the stricter choice for VMs other people use, and boat charges extra for it.
+
+**What else an environment brings.** Each switch you leave on adds to every new VM:
+
+- **GitHub:** boat's GitHub app token, a `gh` login in `~/.config/gh/hosts.yml`, git credentials, the environment's repositories and their setup scripts. BB forwards its own GitHub login already, so leave this off.
+- **Secrets:** the environment's variables and secret files.
+- **boat credentials:** a boat API key in `~/.config/ascii/boat/config.json` that lets the VM snapshot, stop and resume itself. Anything running on the VM can use it, so leave it off.
+- **Agents credentials:** the agent logins you connected.
+
+A change reaches new VMs only. A VM keeps the environment version it started with until you run `boat env upgrade bb` or press **Upgrade** on boat.dev.
+
+**How the login reaches BB's agents.** boat hands the Claude login to the VM as `CLAUDE_CODE_OAUTH_TOKEN` in the environment of its own commands only: not in a file, and not to systemd services. BB's daemon is a systemd user service, so on every create and resume the plugin runs one boat command that copies the login variables, by name, into the VM's systemd user manager. The login stays in memory, is never written to disk or into boat's snapshots, and never passes through BB. If BB's daemon is already running without it, the plugin restarts the daemon, but only on a VM that has just booted, before BB can start a turn there. On a VM that was already running, the daemon keeps what it has until the next resume. Every agent process on the VM can read the login, as with any login an agent uses.
+
+**What BB checks.** On a running VM it looks at the VM itself, by name and never by value: Claude counts when BB's daemon has `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, or `~/.claude/.credentials.json` exists; Codex counts when `~/.codex/auth.json` exists. Before a VM exists there's nothing to look at, so it checks that the named environment exists and lets Agents credentials through. The Account Pooler still works for both agents. The Codex path follows boat's docs, which say a ChatGPT login arrives as `~/.codex/auth.json`; it hasn't been seen on a live VM yet.
+
 - **GitHub:** BB's forwarded `gh` login, unless the project sets its own `GH_TOKEN`. A fine-grained token scoped to the one repository is the safer choice for anything beyond a trial.
 
 Claude Code and Codex come with boat's image. For any other provider the plugin installs the CLI through BB when the first turn reaches the VM; the message waits as "Installing … on Boat Sandbox …" and sends itself when the install finishes.

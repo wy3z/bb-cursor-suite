@@ -52,6 +52,17 @@ export interface SavedSnapshot {
   error: string | null;
 }
 
+export interface BoatEnvironment {
+  name: string;
+  isDefault: boolean;
+  safeForThirdParties: boolean;
+  passGithub: boolean;
+  passSecrets: boolean;
+  passSandboxCredentials: boolean;
+  passAgentsCredentials: boolean;
+  proxyAiCredentials: boolean;
+}
+
 export type CommandFrame =
   | { type: "started" }
   | { type: "stdout" | "stderr"; data: string }
@@ -147,6 +158,20 @@ function toLimits(raw: Json): BoatLimits {
       .map((entry) => rec(entry))
       .filter((entry): entry is Json => entry !== null && typeof entry.type === "string")
       .map((entry) => ({ type: entry.type as string, available: entry.available === true, reason: str(entry.reason) })),
+  };
+}
+
+export function toEnvironment(raw: unknown): BoatEnvironment {
+  const value = rec(raw) ?? {};
+  return {
+    name: str(value.name) ?? "",
+    isDefault: value.isDefault === true,
+    safeForThirdParties: value.safeForThirdParties !== false,
+    passGithub: value.passGithub === true,
+    passSecrets: value.passSecrets === true,
+    passSandboxCredentials: value.passSandboxCredentials === true,
+    passAgentsCredentials: value.passAgentsCredentials === true,
+    proxyAiCredentials: value.proxyAiCredentials === true,
   };
 }
 
@@ -320,6 +345,10 @@ export function createBoatApi(options: BoatApiOptions) {
       return toLimits(await json("GET", "/limits", { signal }));
     },
     listSandboxes,
+    async environments(signal?: AbortSignal): Promise<BoatEnvironment[]> {
+      const body = await json("GET", "/environments", { signal });
+      return (Array.isArray(body.environments) ? body.environments : []).map(toEnvironment);
+    },
     async getSandbox(id: string, signal?: AbortSignal): Promise<BoatSandbox> {
       return toSandbox((await json("GET", `/sandboxes/${encodeURIComponent(id)}`, { signal })).sandbox);
     },
