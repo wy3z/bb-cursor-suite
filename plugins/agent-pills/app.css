@@ -1780,3 +1780,212 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] > * {
   display: none !important;
 }
+
+[data-bb-agent-pills-environment-replaced] {
+  display: none !important;
+}
+
+.bb-agent-pills-env__anchor {
+  display: contents;
+}
+
+.bb-agent-pills-env__slot {
+  display: inline-flex;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.bb-agent-pills-env__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bb-agent-pills-env__trigger:hover,
+.bb-agent-pills-env__trigger[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.bb-agent-pills-env__trigger:focus-visible {
+  outline: 2px solid var(--ring, currentColor);
+  outline-offset: 1px;
+}
+
+.bb-agent-pills-env__trigger-icon,
+.bb-agent-pills-env__chevron,
+.bb-agent-pills-env__icon,
+.bb-agent-pills-env__check {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.bb-agent-pills-env__trigger-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.bb-agent-pills-env__chevron {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
+.bb-agent-pills-env__trigger-icon > *,
+.bb-agent-pills-env__chevron > *,
+.bb-agent-pills-env__icon > *,
+.bb-agent-pills-env__check > * {
+  width: 100%;
+  height: 100%;
+}
+
+.bb-agent-pills-env__trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bb-agent-pills-env__layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.bb-agent-pills-env__popover {
+  position: fixed;
+  pointer-events: auto;
+}
+
+.bb-agent-pills-env__menu {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--bbs-tray-radius, 10px);
+  background: var(--popover, var(--surface-raised-solid, var(--background)));
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
+  font-size: var(--bbs-text-body, 13px);
+}
+
+.bb-agent-pills-env__submenu {
+  position: absolute;
+  left: calc(100% + 4px);
+}
+
+.bb-agent-pills-env__submenu[data-side="left"] {
+  right: calc(100% + 4px);
+  left: auto;
+}
+
+.bb-agent-pills-env__inline-list {
+  display: flex;
+  flex-direction: column;
+  padding-left: 12px;
+}
+
+.bb-agent-pills-env__section + .bb-agent-pills-env__section {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.bb-agent-pills-env__section-title {
+  padding: 4px 8px 2px;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: var(--bbs-text-meta, 12px);
+  font-weight: 500;
+}
+
+.bb-agent-pills-env__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bb-agent-pills-env__item:hover:not([data-disabled]),
+.bb-agent-pills-env__item:focus-visible {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  outline: none;
+}
+
+.bb-agent-pills-env__item[data-disabled] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.bb-agent-pills-env__icon {
+  width: 14px;
+  height: 14px;
+}
+
+.bb-agent-pills-env__check {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+}
+
+.bb-agent-pills-env__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bb-agent-pills-env__label,
+.bb-agent-pills-env__description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-agent-pills-env__description {
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: var(--bbs-text-meta, 12px);
+}
+
+.bb-agent-pills-env__note {
+  margin: 0;
+  padding: 0 8px 6px 30px;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: var(--bbs-text-meta, 12px);
+  line-height: 1.4;
+}
+
+.bb-agent-pills-env__link {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bb-agent-pills-env__link:focus-visible {
+  outline: 2px solid var(--ring, currentColor);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
