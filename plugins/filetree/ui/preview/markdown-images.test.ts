@@ -81,12 +81,12 @@ describe("markdown local image paths", () => {
     );
     const rewritten = rewriteMarkdownImageSrcs({
       content,
-      markdownPath: "README.md",
+      markdownPath: "plugins/filetree/README.md",
       rootPath: "/workspace",
     });
     expect(rewritten).toContain(
-      "](/workspace/docs/screenshots/files.png)",
+      "](/workspace/docs/media/filetree-tree.png)",
     );
-    expect(rewritten).not.toContain("](docs/screenshots/files.png)");
+    expect(rewritten).not.toContain("](../../docs/media/filetree-tree.png)");
   });
 });
