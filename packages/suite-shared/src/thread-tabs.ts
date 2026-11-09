@@ -26,7 +26,21 @@ function readStore(): TabStore {
   }
 }
 
-function createStore<T>(initial: T, persist?: (value: T) => void) {
+interface SharedStore<T> {
+  get(): T;
+  set(next: T): void;
+  subscribe(listener: () => void): () => void;
+}
+
+interface SharedTabs {
+  tabs: SharedStore<TabStore>;
+  views: SharedStore<Record<string, string>>;
+  hosts: SharedStore<number>;
+}
+
+const SHARED_KEY = Symbol.for("@wy3z/bb-suite/thread-tabs/v1");
+
+function createSharedStore<T>(initial: T, persist?: (value: T) => void): SharedStore<T> {
   const listeners = new Set<() => void>();
   let value = initial;
   return {
@@ -36,27 +50,57 @@ function createStore<T>(initial: T, persist?: (value: T) => void) {
       persist?.(next);
       for (const listener of listeners) listener();
     },
-    use(): T {
-      return useSyncExternalStore(
-        (listener) => {
-          listeners.add(listener);
-          return () => listeners.delete(listener);
-        },
-        () => value,
-      );
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
   };
 }
 
-export const tabStore = createStore<TabStore>(readStore(), (next) => {
+function persistTabs(next: TabStore) {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(next));
   } catch {
     void 0;
   }
-});
+}
 
-export const viewStore = createStore<Record<string, string>>({});
+export function sharedThreadTabs(): SharedTabs {
+  const host = globalThis as typeof globalThis & { [SHARED_KEY]?: Partial<SharedTabs> };
+  const shared = (host[SHARED_KEY] ??= {});
+  shared.tabs ??= createSharedStore(readStore(), persistTabs);
+  shared.views ??= createSharedStore({});
+  shared.hosts ??= createSharedStore(0);
+  return shared as SharedTabs;
+}
+
+function bindStore<T>(store: SharedStore<T>) {
+  return {
+    get: () => store.get(),
+    set: (next: T) => store.set(next),
+    use: (): T => useSyncExternalStore(store.subscribe, store.get),
+  };
+}
+
+export const tabStore = bindStore(sharedThreadTabs().tabs);
+
+export const viewStore = bindStore(sharedThreadTabs().views);
+
+export const hostStore = bindStore(sharedThreadTabs().hosts);
+
+export function registerTabHost(): () => void {
+  hostStore.set(hostStore.get() + 1);
+  let registered = true;
+  return () => {
+    if (!registered) return;
+    registered = false;
+    hostStore.set(Math.max(0, hostStore.get() - 1));
+  };
+}
+
+export function tabHostReady(): boolean {
+  return hostStore.get() > 0;
+}
 
 export function setView(leadId: string, id: string | null) {
   const next = { ...viewStore.get() };
@@ -107,6 +151,59 @@ export function applyOpenPlan(plan: OpenPlan, navigate: ThreadNavigate) {
   if (plan.view) addTab(plan.leadId, plan.view);
   setView(plan.leadId, plan.view);
   if (plan.navigate) navigate.toThread(plan.leadId);
+}
+
+export function shownThread(
+  current: string | null,
+  leadIds: ReadonlySet<string>,
+  tabs: Readonly<TabStore>,
+  views: Readonly<Record<string, string>>,
+  exists: (threadId: string) => boolean,
+): string | null {
+  if (current === null || !leadIds.has(current)) return current;
+  const view = views[current];
+  if (!view || view === current || !exists(view) || !(tabs[current] ?? []).includes(view)) return current;
+  return view;
+}
+
+export function currentShownThread(current: string | null, leadIds: ReadonlySet<string>, exists: (threadId: string) => boolean): string | null {
+  return tabHostReady() ? shownThread(current, leadIds, tabStore.get(), viewStore.get(), exists) : current;
+}
+
+export function useShownThread(current: string | null, leadIds: ReadonlySet<string>, exists: (threadId: string) => boolean): string | null {
+  tabStore.use();
+  viewStore.use();
+  hostStore.use();
+  return currentShownThread(current, leadIds, exists);
+}
+
+export function openThreadAsTab({
+  target,
+  current,
+  byId,
+  leadIds,
+  split,
+  navigate,
+  isConversationHidden = conversationHidden,
+}: {
+  target: string;
+  current: string | null;
+  byId: ReadonlyMap<string, ThreadNode>;
+  leadIds: ReadonlySet<string>;
+  split: boolean;
+  navigate: ThreadNavigate;
+  isConversationHidden?: () => boolean;
+}): OpenPlan {
+  const leadId = findLead(target, byId, leadIds);
+  const plan = planThreadOpen({
+    target,
+    current,
+    leadId,
+    split,
+    conversationHidden: !split && leadId !== null && current === leadId && isConversationHidden(),
+  });
+  applyOpenPlan(plan, navigate);
+  return plan;
 }
 
 export function findHeader(): HTMLElement | null {

@@ -12,6 +12,7 @@ Anyone who runs several agents at once and wants to see, at a glance, which ones
 - **Child chats** sit right under their parent. A parent with working children shows a small count where its age would be.
 - **A view menu** for ordering, how many chats each group previews, what each row shows, and filters by status, age, environment and pull request state.
 - **A project switcher** that narrows every grouping to one project and opens BB's New project dialog.
+- **Workers open as tabs of their lead.** With Projects installed, clicking a worker under a project lead opens it as a tab of the lead, so the lead's side panel stays. Ctrl or Cmd-click still opens a split.
 - **Project icons:** a glyph in one of ten colours, or an uploaded PNG. They also replace the folder in BB's composer.
 - **Touch gestures** on phones: swipe to pin or archive, hold to drag or open the menu.
 - **Two navigation layouts,** Compact and Cursor. BB switches to Compact after install unless you have picked a layout yourself.

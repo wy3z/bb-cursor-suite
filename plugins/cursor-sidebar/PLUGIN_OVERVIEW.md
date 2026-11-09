@@ -103,7 +103,7 @@ One fixed row sits above the list: the project switcher on the left and the view
 
 ### Rows
 
-A row can show its project icon, a status glyph and a metadata line. When a chat has working child chats, its age becomes a small accent pill with their count. Every row shares one left edge, with icons in one 14 px column. Child chats sit under their parent with no indent and a small corner arrow before the age; the pull request and provider marks sit there too.
+A row can show its project icon, a status glyph and a metadata line. When a chat has working child chats, its age becomes a small accent pill with their count. Every row shares one left edge, with icons in one 14 px column. Child chats sit under their parent with no indent and a small corner arrow before the age; the pull request and provider marks sit there too. The header, the thread list and the footer sit 4 px further in from the sidebar's left edge than BB's own (`--cs-left-extra` in `app.css`).
 
 ### The view menu
 
@@ -135,6 +135,10 @@ It reads **All projects**, one project's name, or **N projects**. Click it for e
 Open the picker from a project heading's right-click or Actions menu (**Set icon…**), the switcher, or a chat row's right-click menu (**Set project icon…**). It is a port of Cursor's picker, shared with Projects (`@wy3z/bb-suite/project-icon/picker`): search, Cursor's ten colours, Cursor's icon grid with **No icon** first, and an image button to upload or paste a PNG, shrunk to 64 px. Emoji and monogram icons saved by an earlier picker still show, but the picker no longer makes them. Board rows wear the board's own icon from Projects.
 
 The icons also replace BB's folder in the composer: the project label under the prompt box, the project button on the New thread screen and its picker. BB has no project icon field, so these are matched by project name.
+
+### Workers under a project lead
+
+Clicking a worker under a project lead opens it as a tab of the lead, the same way the Projects board does, so the lead's side panel stays. Ctrl or Cmd-click still opens a split. Clicking the lead's own row brings back the lead's tab, and while a worker tab shows, only the worker's row is highlighted (not the lead's or its board row). Without a Projects build that shows lead tabs, worker rows open on their own route. Other top-level chats, and children with no lead above them, open as usual. This uses `@wy3z/bb-suite/thread-tabs`, shared with Projects.
 
 ### Mobile
 

@@ -81,6 +81,8 @@ import {
 } from "./collapse";
 import { useThreadSections } from "./useThreadSections";
 import { useThreadMutations } from "./thread-actions";
+import { ThreadRoutingContext, type ThreadRouting } from "./lead-tabs";
+import { useShownThread } from "@wy3z/bb-suite/thread-tabs";
 import { useSidebarView } from "./useSidebarView";
 import type { cursorSidebarRpcContract } from "./server";
 import { GROUPING_HEADINGS, SidebarViewMenuRoot, SidebarViewMenuTrigger, SidebarViewSyncNotice } from "./SidebarViewMenu";
@@ -140,7 +142,7 @@ const COLLAPSED_ROW_EXIT_MS = 220;
  * native personal container is shown as Chats, and settled threads sit in one
  * collapsed section under the thread list rather than a shelf per project.
  */
-export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListProps) {
+export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: PluginThreadListProps) {
   const { status, threads: rawThreads, projects: nativeProjects } = useSidebarThreads();
   const nativeProjectSections = useMemo(
     () => nativeProjects.filter((project) => !project.isPersonal).map((project) => ({ id: nativeProjectSectionId(project.id), name: project.name, isPersonal: false })),
@@ -168,7 +170,13 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   const threadOrders = useThreadOrders();
   const threadOrdersRef = useRef(threadOrders);
   threadOrdersRef.current = threadOrders;
-  const actions = useThreadMutations();
+  const { boards: allProjectBoards, leadIds: projectLeadIds, reload: reloadProjectBoards } = useProjectBoards();
+  const threadRouting = useMemo<ThreadRouting>(
+    () => ({ current: routedThreadId, byId: rawById, leadIds: projectLeadIds }),
+    [routedThreadId, projectLeadIds, rawById],
+  );
+  const activeThreadId = useShownThread(routedThreadId, projectLeadIds, (id) => rawById.has(id));
+  const actions = useThreadMutations(threadRouting);
   const rpc = useRpc<typeof cursorSidebarRpcContract>();
   const projectIcons = useProjectIcons();
 
@@ -461,7 +469,6 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       familyRootId((id) => rawById.get(id)?.parentThreadId ?? null, threadId),
     [rawById],
   );
-  const { boards: allProjectBoards, leadIds: projectLeadIds, reload: reloadProjectBoards } = useProjectBoards();
   const boardIcons = useBoardIcons(allProjectBoards.length > 0);
   const projectBoards = useMemo(
     () => allProjectBoards.filter((board) => {
@@ -1452,6 +1459,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
   };
 
   return (
+    <ThreadRoutingContext.Provider value={threadRouting}>
     <SidebarViewMenuRoot
       open={viewMenuOpen}
       onOpenChange={setViewMenuOpen}
@@ -1728,6 +1736,7 @@ export function CursorSidebar({ activeThreadId, onNavigate }: PluginThreadListPr
       </div>
     </div>
     </SidebarViewMenuRoot>
+    </ThreadRoutingContext.Provider>
   );
 }
 

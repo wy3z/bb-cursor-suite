@@ -122,6 +122,18 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   code where nobody asked for it. Files, Pull Requests and Projects share it.
   See [Git safety](#git-safety). `@wy3z/bb-suite/testing/hostile-git` is the
   hostile repository the plugins' tests run against.
+- `@wy3z/bb-suite/thread-tabs`: opening a project lead's worker as a tab of
+  the lead, so the lead's side panel stays. `openThreadAsTab` finds the lead
+  above a thread, adds the tab, selects it, and routes to the lead only when
+  it isn't already showing or a maximized panel hides its conversation.
+  Ctrl or Cmd-click stays a real split, and threads with no lead navigate
+  plainly. `shownThread` and `useShownThread` name the thread actually on
+  screen (the overlaid worker when its lead is routed). Projects' tab strip
+  calls `registerTabHost` while it can show tabs, and `tabHostReady` tells
+  other plugins whether to route through it or navigate plainly; with no host
+  the shown thread is just the route. The tab, view and host stores live on
+  the page under one `Symbol.for` key, so Projects' tab strip and the Cursor
+  sidebar share them even though each plugin bundles its own copy.
 - `@wy3z/bb-suite/time`: `shortAge` ("now", "5m", "3d", "2w", "1mo"),
   `shortAgo` ("5m ago", "just now"), `longAge` ("5 minutes ago"),
   `duration` ("2h 5m") and `elapsed`.
