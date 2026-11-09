@@ -41,7 +41,7 @@ export const settingDescriptors = {
     type: "string",
     label: "boat environment",
     description:
-      "Leave empty so sandboxes get nothing from your boat account (no boat CLI key, GitHub app token, secrets or agent logins); BB supplies logins. Name an environment only if you want its repos, variables and logins in every sandbox.",
+      "The boat environment new sandboxes start in. Name one with only Agents credentials on (and Safe for third parties off) so VMs get the Claude and ChatGPT logins you connected on boat.dev. Every other switch left on in it also reaches every VM. Empty gives sandboxes nothing from your boat account.",
     default: "",
     experimental_schema: environmentSchema,
   },

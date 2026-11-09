@@ -120,7 +120,17 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   It also installs a `message.dispatch` hook for its own sandboxes only that
   rejects a launch when the thread's agent has no cloud login. The check
   reads machine env names, never values, plus Account Pooler routing
-  (`status.get`: `routing`, `accounts[].provider/enabled/status/error`). The
+  (`status.get`: `routing`, `accounts[].provider/enabled/status/error`), plus
+  logins the vendor's own machine supplies. A `machine-login` requirement
+  (`claude`, `codex`) is met by `launchCheck.machineLogins(context, signal)`,
+  which the vendor implements by checking the VM itself (or, before one
+  exists, its own account settings) and answers `{ logins, note }`; the
+  helper asks only when env and pool don't already satisfy the rule, gives it
+  20 s, and puts the note, or a redacted error, at the end of the reject
+  message. The default fix text sends users to the machine's own logins or
+  the Account Pooler rather than BB machine env, because machine env also
+  reaches the BB server's own computer, where a `claude setup-token` token
+  overrides the local login and hides its usage. The
   rules are data (`DEFAULT_CLOUD_LOGIN_RULES`, `evaluateCloudLogin`) in the
   frontend-safe module, so vendors share them. Pass `launchCheck: { rules }`
   to extend them, or `launchCheck: false` and compose

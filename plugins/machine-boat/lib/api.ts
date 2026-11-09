@@ -27,6 +27,8 @@ export interface BoatSandbox {
   desktopAvailable: boolean;
   stop: { id: string; status: string; error: string | null } | null;
   costUsd: number | null;
+  environment: string | null;
+  environmentVersion: number | null;
 }
 
 export interface BoatLimits {
@@ -50,6 +52,17 @@ export interface SavedSnapshot {
   sourceSandboxId: string | null;
   createdAt: string | null;
   error: string | null;
+}
+
+export interface BoatEnvironment {
+  name: string;
+  isDefault: boolean;
+  safeForThirdParties: boolean;
+  passGithub: boolean;
+  passSecrets: boolean;
+  passSandboxCredentials: boolean;
+  passAgentsCredentials: boolean;
+  latestVersionNumber: number | null;
 }
 
 export type CommandFrame =
@@ -125,6 +138,8 @@ export function toSandbox(raw: unknown): BoatSandbox {
     desktopAvailable: value.desktopAvailable === true,
     stop: stop && str(stop.id) ? { id: str(stop.id)!, status: str(stop.status) ?? "unknown", error: str(stop.error) } : null,
     costUsd: num(rec(value.cost)?.dollars),
+    environment: str(value.environment),
+    environmentVersion: num(value.environmentVersion),
   };
 }
 
@@ -147,6 +162,20 @@ function toLimits(raw: Json): BoatLimits {
       .map((entry) => rec(entry))
       .filter((entry): entry is Json => entry !== null && typeof entry.type === "string")
       .map((entry) => ({ type: entry.type as string, available: entry.available === true, reason: str(entry.reason) })),
+  };
+}
+
+export function toEnvironment(raw: unknown): BoatEnvironment {
+  const value = rec(raw) ?? {};
+  return {
+    name: str(value.name) ?? "",
+    isDefault: value.isDefault === true,
+    safeForThirdParties: value.safeForThirdParties !== false,
+    passGithub: value.passGithub === true,
+    passSecrets: value.passSecrets === true,
+    passSandboxCredentials: value.passSandboxCredentials === true,
+    passAgentsCredentials: value.passAgentsCredentials === true,
+    latestVersionNumber: num(value.latestVersionNumber),
   };
 }
 
@@ -320,6 +349,10 @@ export function createBoatApi(options: BoatApiOptions) {
       return toLimits(await json("GET", "/limits", { signal }));
     },
     listSandboxes,
+    async environments(signal?: AbortSignal): Promise<BoatEnvironment[]> {
+      const body = await json("GET", "/environments", { signal });
+      return (Array.isArray(body.environments) ? body.environments : []).map(toEnvironment);
+    },
     async getSandbox(id: string, signal?: AbortSignal): Promise<BoatSandbox> {
       return toSandbox((await json("GET", `/sandboxes/${encodeURIComponent(id)}`, { signal })).sandbox);
     },

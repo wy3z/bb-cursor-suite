@@ -29,7 +29,7 @@ export const CODEX_TIMEOUT_UNIT = "bb-codex-computer-timeout";
 const URL_MARGIN_MS = 30_000;
 const PROVISION_ATTEMPTS = 20;
 
-const SYSTEMCTL_ENV = 'export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"; export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"';
+export const SYSTEMCTL_ENV = 'export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"; export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"';
 
 export function pauseScript(leaseMs: number): string {
   const seconds = Math.max(30, Math.ceil(leaseMs / 1000) + 30);

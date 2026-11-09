@@ -5,7 +5,7 @@ import {
   cloudLoginRuleFor,
   evaluateCloudLogin,
   redactSecrets,
-  ruleNeedsPool,
+  ruleNeeds,
   type CloudLoginFacts,
   type CloudLoginRules,
 } from "./machine-backend";
@@ -20,9 +20,18 @@ export interface CloudLaunchApi {
   };
 }
 
+export interface MachineLoginReport {
+  logins: readonly string[];
+  note: string | null;
+}
+
+export type MachineLoginSource = (context: MessageDispatchHookContext, signal: AbortSignal) => Promise<MachineLoginReport>;
+
 export interface CloudLaunchCheckOptions {
   rules?: CloudLoginRules;
   poolTimeoutMs?: number;
+  machineLogins?: MachineLoginSource;
+  machineLoginTimeoutMs?: number;
 }
 
 const poolAccountSchema = z.looseObject({
@@ -60,6 +69,17 @@ export function createCloudLaunchCheck(
 ): (context: MessageDispatchHookContext) => Promise<MessageDispatchHookDecision> {
   const rules = options.rules ?? DEFAULT_CLOUD_LOGIN_RULES;
   const poolTimeoutMs = options.poolTimeoutMs ?? 3_000;
+  const machineLoginTimeoutMs = options.machineLoginTimeoutMs ?? 20_000;
+
+  async function readMachineLogins(context: MessageDispatchHookContext): Promise<MachineLoginReport> {
+    if (options.machineLogins === undefined) return { logins: [], note: null };
+    try {
+      return await options.machineLogins(context, AbortSignal.timeout(machineLoginTimeoutMs));
+    } catch (error) {
+      const text = redactSecrets(error instanceof Error ? error.message : String(error));
+      return { logins: [], note: `Couldn't check the cloud machine for agent logins (${text}).` };
+    }
+  }
 
   async function readPool(): Promise<CloudLoginFacts["pool"]> {
     try {
@@ -100,8 +120,16 @@ export function createCloudLaunchCheck(
         builtInGit: env.builtInGit.status === "logged in" || env.builtInGit.status === "overridden",
       };
       const rule = cloudLoginRuleFor(providerId, rules);
-      const pool = rule !== null && ruleNeedsPool(rule, base) ? await readPool() : null;
-      const verdict = evaluateCloudLogin(providerId, { ...base, pool }, rules);
+      const [pool, machine] = await Promise.all([
+        rule !== null && ruleNeeds(rule, "pool", base) ? readPool() : null,
+        rule !== null && ruleNeeds(rule, "machine-login", base) ? readMachineLogins(context) : null,
+      ]);
+      const verdict = evaluateCloudLogin(
+        providerId,
+        { ...base, pool, machineLogins: machine?.logins ?? [] },
+        rules,
+        machine?.note ?? null,
+      );
       return verdict.ok ? { action: "proceed" } : { action: "reject", message: verdict.message };
     } catch (error) {
       const text = redactSecrets(error instanceof Error ? error.message : String(error));

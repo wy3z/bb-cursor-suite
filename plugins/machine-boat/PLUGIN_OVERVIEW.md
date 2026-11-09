@@ -77,7 +77,7 @@ Machine status itself comes from BB: `sdk.hosts.list()` / `bb machine list --all
 |---|---|---|---|
 | `apiKey` | secret string | none | boat API key (`boat_…`). `boat api-key create bb --preset ci --ttl never`; rotate it with `boat api-key rotate <id>` rather than replacing it, because a `ci` key can only delete the sandboxes it created. Read without the rest of the settings, so a bad value elsewhere never blocks stop or delete |
 | `size` | select | `small` | `small` 2 vCPU/4 GB $0.018/h, `default` 4/8 $0.036/h, `large` 8/16 $0.072/h (paid plans), `xlarge` 16/32 $0.20/h ($100 plan). Resume moves a stopped VM to the current size |
-| `environment` | string | `""` | Empty creates VMs with `noEnv: true`. A name attaches that boat environment (its repos, variables, secret files, logins and the in-sandbox boat CLI key, per its own toggles). Validated in the settings form and again when a VM is created |
+| `environment` | string | `""` | Empty creates VMs with `noEnv: true`. A name attaches that boat environment (its repos, variables, secret files, agent logins and the in-sandbox boat CLI key, per its own switches). The recommended setup is a dedicated environment with only Agents credentials on; see Agent logins. Validated in the settings form and again when a VM is created |
 | `idleMinutes` | number | `15` | Suspend after this long without thread or terminal activity; `0` off |
 | `ttlHours` | number | `2` | boat's auto-stop, renewed while a thread is active; `0` off (the trial caps it at 2 hours, and the plugin falls back to that) |
 | `maxConcurrent` | number | `2` | Running VMs allowed; suspended ones don't count; `0` no limit |
@@ -117,7 +117,58 @@ boat's command API has no stdin, and keeps every command and its output for 90 d
 
 BB's installer puts the daemon under `~/.bb-machines/<server>` and runs it as a systemd user service (`linger` is on in boat's image), with `ExecStart` pinned to nvm's Node 24 in `/home/user/.nvm`. All of it is in the snapshot, so resume restarts it without reinstalling.
 
-boat preinstalls `claude`, `codex`, `pi` and `cursor-agent` in `/usr/local/bin` and updates them to their latest releases when it prepares a machine. BB reports them installed with `installSource: external`. If a CLI disappears while a thread's agent runtime is loaded, the install check reinstalls it (into `~/.local/bin`) but that runtime keeps the old path until `bb thread stop`; a new turn after that uses the new one. The shared `message.dispatch` hook runs two checks on turns for this provider: the login guard (`CLAUDE_CODE_OAUTH_TOKEN` or the Account Pooler for Claude, the Account Pooler for Codex, `OPENCODE_API_KEY` for OpenCode and Pi, plus a GitHub credential), then the CLI install check, which installs a missing CLI in the background while the turn waits.
+boat preinstalls `claude`, `codex`, `pi` and `cursor-agent` in `/usr/local/bin` and updates them to their latest releases when it prepares a machine. BB reports them installed with `installSource: external`. If a CLI disappears while a thread's agent runtime is loaded, the install check reinstalls it (into `~/.local/bin`) but that runtime keeps the old path until `bb thread stop`; a new turn after that uses the new one. The shared `message.dispatch` hook runs two checks on turns for this provider: the login guard (a login on the VM from boat, the Account Pooler, or a BB machine env `CLAUDE_CODE_OAUTH_TOKEN` for Claude; a login on the VM from boat or the Account Pooler for Codex; `OPENCODE_API_KEY` for OpenCode and Pi; plus a GitHub credential), then the CLI install check, which installs a missing CLI in the background while the turn waits.
+
+### Agent logins
+
+Logins come from a boat environment with Agents credentials on, not from BB machine env: BB's machine env also reaches the BB server's own computer, where a `claude setup-token` token overrides the local login and, lacking the profile scope, leaves BB's usage panel showing Claude Code as signed out.
+
+What boat delivers, measured on a `small` VM in an environment with only Agents credentials on (Claude subscription connected, ChatGPT not):
+
+| Where | Found |
+|---|---|
+| Environment of boat's exec commands (`bash -lc`) | `CLAUDE_CODE_OAUTH_TOKEN` |
+| systemd user manager environment | nothing |
+| `~/.claude/.credentials.json`, `~/.codex/auth.json`, `~/.config/gh/hosts.yml`, `~/.git-credentials` | absent |
+| `~/.bashrc`, `~/.profile`, `/etc/environment`, `/etc/profile.d`, `environment.d` | no agent variable named |
+| `claude -p` started as a systemd user service | `Not logged in` |
+
+So a systemd user service such as BB's daemon gets no login from boat on its own. The hand-off:
+
+- `shareLogins` runs once in `prepare`, before the desktop step, on create, restore and resume. Its script is fixed text over a fixed list, `LOGIN_VARIABLES` (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `CHATGPT_ACCOUNT_ID`). Names it finds in its own boat-supplied environment go to `systemctl --user import-environment`; the rest go to `unset-environment`. Values never appear in argv, on disk, in the output or in BB.
+- On a fresh boot it first waits for the systemd user manager (up to 20 s) and for `systemctl --user is-system-running --wait` (up to 15 s), so the daemon unit has started before the hand-off looks at it.
+- It then checks each active `bb-host-daemon-*.service` with `stale_for`: a unit missing an imported variable, holding a different value for one (compared on the VM, never printed), or still holding a dropped one, is restarted only during create, restore or a resume from stopped: BB waits for `resume` to finish before it sends a turn there. As a backstop against the script outliving a dropped client connection, a unit with an agent CLI (`claude`, `codex`, `pi`, `opencode`, `cursor-agent`) anywhere under its main process is never restarted; any child at all would be stricter, but a daemon may run helper processes while idle, and then it would never get the login. On the resume path that only extends a live VM's TTL, the script never restarts. A unit left alone is reported as keeping its old logins until it is suspended and resumed.
+- The progress line lists only known variable names and unit names matching `bb-host-daemon-*.service`; any other text from the VM is dropped. A failure is logged and never fails create or resume.
+
+Live proof on a second VM: a stand-in `bb-host-daemon-bcs104.service` started before the hand-off had no agent variable; after it the unit was restarted (new pid) with `CLAUDE_CODE_OAUTH_TOKEN`, the login probe went from nothing to `login:claude`, two more hand-offs (fresh-boot and live mode) left the pid unchanged, and `claude -p` run as a systemd user service answered. The token was in no file under `$HOME`, `/tmp` or `/etc` and not in the user journal. Codex through boat is unverified (confirm), because no ChatGPT login was connected; boat's docs say it arrives as `~/.codex/auth.json`.
+
+A third VM ran the plugin's own `create`, `stop`, `resume` and `remove` with the hand-off wired in: each prepare reported `CLAUDE_CODE_OAUTH_TOKEN`, the login check answered `claude` (with a note that Codex is missing), and `claude -p` as a user service answered. That resume came back on the same machine with memory intact (same daemon pid, user manager environment kept), as boat does within 10 minutes of a stop, so the hand-off found nothing stale and restarted nothing. Because such a resume keeps the daemon's old environment, the hand-off compares values, not just names: `stale_for` reads the daemon's `/proc/<pid>/environ` and compares each variable with its own boat-supplied value inside the VM shell, printing only `stale`. A rotated token therefore restarts the daemon on the next resume (BB suspends and waits for resume before any turn, so that is a safe point), and on a live VM's TTL-only resume the unit is reported as keeping its old logins.
+
+Where the token sits on disk, by a full scan (paths only; `/proc`, `/sys`, `/dev`, `/usr` and `/dev/shm` skipped) on a fourth VM:
+
+| When | Files holding the token |
+|---|---|
+| After create | `/run/ascii-secrets/env.sh` (600, boat's own) |
+| After a `claude -p` run | the same, nothing new |
+| After stop and a resume within 10 minutes (same machine) | `/run/ascii-secrets/env.sh`, plus `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json` (600), written by boat at the same moment it rewrote `env.sh` |
+| After stop and a resume 11 minutes later (new machine, fifth VM) | `/run/ascii-secrets/env.sh` only |
+
+`/run` is normally tmpfs and not in the disk snapshot (confirm). The two `auth.json` files are boat's credentials for its own pi and Prime Agent harnesses; they are on disk, so a VM that has had a same-machine resume carries the login in its snapshots until it is deleted. The plugin doesn't remove them: boat rewrites them when it resumes the VM and saves the disk every minute, so a cleanup would race boat's own sync and break boat's harnesses without keeping the token out of snapshots.
+
+A fifth VM checked what the guard and the hand-off rely on, through the plugin's own code:
+
+- `GET /sandboxes/{id}` has `environment` (string) and `environmentVersion` (number), and `GET /environments` has `latestVersionNumber` (number); `toSandbox` and `toEnvironment` read them correctly, and the VM's pinned version equalled the environment's latest.
+- A stand-in `bb-host-daemon-*` unit given an old token (fake value) was left alone by a live-mode hand-off (pid unchanged, value still old), restarted by a safe-point hand-off (new pid, value now matching boat's, compared on the VM), and left alone by a repeat.
+- After a stop and an 11-minute wait, `resume` came back on a new machine (new boot id). The enabled unit had autostarted without the login; the hand-off, which waits for the user manager first, restarted it 0.9 s later with the matching value. The user manager had finished starting 12 s into boot and reported `degraded` (boat's own units), which `is-system-running --wait` treats as settled.
+- The token was in argv 0 times and the user journal 0 times. The agent-CLI busy check wasn't exercised: the test harness wrote a broken unit file for it, so it is covered by unit tests only.
+
+The guard's machine source (`createBoatLoginCheck`, passed as `launchCheck.machineLogins`) answers by host:
+
+- **An active Boat Sandbox host:** one boat command (15 s) runs `LOGIN_PROBE`, which prints only `login:claude` and `login:codex`. Claude counts when `~/.claude/.credentials.json` is non-empty or the daemon's environment (`bb-host-daemon-*` main pids, plus any process with `.bb-machines/` in its command line) has `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`; Codex counts when `~/.codex/auth.json` is non-empty. Each login found is remembered for 5 minutes per VM, so a Claude-only user skips the probe on most messages; a missing login is never cached. The reject message names what's missing and the remedy: for a VM created without an environment, delete it; otherwise connect the agent, make sure the VM's environment passes Agents credentials (`boat env upgrade` if it changed), then suspend and resume the VM so the hand-off runs on a fresh boot. `boat env upgrade` alone changes boat's command environment, not the running daemon.
+- **A suspended (or suspending, resuming) Boat Sandbox host:** `GET /sandboxes/{id}` gives the environment the VM was created in and the version it's pinned to. No environment (`noEnv`, or deleted) blocks with "delete it". A pinned version other than the environment's latest blocks with `boat env upgrade <name>` or delete, because `GET /environments` only shows the latest version's switches. Otherwise the switches decide as below. If either read fails, the error propagates and the guard blocks with "Couldn't check the cloud machine for agent logins".
+- **No VM yet:** `GET /environments` (cached a minute) for the environment in the setting, keeping only the switches; `envContents` and secret files are dropped while parsing. Logins count as present when it exists, is not Safe for third parties, and has Agents credentials on. Safe for third parties with AI credentials proxying is refused like Agents credentials off: the proxy's placeholder keys and base URLs aren't handed to the daemon and that mode is untested. Without `account.admin` the plugin can't see which agents are connected, so the first turn on a new VM trusts the environment. It isn't silent: when the hand-off on that VM finds no login variable while the VM has an environment, `prepare` logs a warning to the thread's progress and `log.warn`, and later turns check the VM.
+
+On create, the plugin also reads the setting's environment and, unless it is Safe for third parties, sends a progress line and a `log.warn` for each of GitHub, Secrets and boat credentials that is on. An unreadable environment gets one warning and never fails the create.
 
 ### Finding the thread's own machine
 
@@ -172,6 +223,8 @@ boat keeps a stopped VM's disk for at least 14 days; after that an automated cle
 - `availability` reports setup required without a key, with a rejected or expired key (with the `--ttl never` and rotate advice), when the account has no plan, or when the chosen size isn't available on the plan.
 
 ### Secrets
+
+Agent logins from a boat environment live in boat's exec environment and `/run/ascii-secrets/env.sh`, in the VM's systemd user manager after the hand-off (memory only), and, after a resume onto the same machine, in boat's `~/.pi/agent/auth.json` and `~/.prime/agent/auth.json`. The plugin itself never writes them to a file; see Agent logins.
 
 With `noEnv`, boat still leaves its own `ASCII_TOKEN` (plus `ASCII_PORT`, `ASCII_API_URL` and `BOAT_ID`) in the VM's command environment; boat says it can only host ports of its own sandbox. `~/.config/ascii/boat/config.json` holds no key.
 
