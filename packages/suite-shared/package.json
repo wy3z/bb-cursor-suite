@@ -24,6 +24,7 @@
     "./git": "./src/git-binary.ts",
     "./git-safety": "./src/git-safety.ts",
     "./testing/hostile-git": "./test/hostile-git.ts",
+    "./testing/sandbox-fakes": "./test/sandbox-fakes.ts",
     "./menu-keyboard": "./src/menu-keyboard.ts",
     "./thread-tabs": "./src/thread-tabs.ts",
     "./tokens.css": "./tokens.css",

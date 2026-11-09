@@ -28,7 +28,7 @@ export const settingDescriptors = {
     type: "select",
     label: "Size",
     description: "Machine size for new sandboxes. Resume moves a stopped sandbox to the current size.",
-    options: [...SANDBOX_TYPES],
+    options: [...SANDBOX_TYPES] as string[],
     experimental_optionLabels: {
       small: "small: 2 vCPU, 4 GB, $0.018/h",
       default: "default: 4 vCPU, 8 GB, $0.036/h",

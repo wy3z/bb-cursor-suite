@@ -61,7 +61,7 @@ export async function execInSandbox(deps: ExecDeps, sandboxId: string, request: 
               started = true;
               ran = true;
               exitCode = frame.exitCode ?? (frame.timedOut ? 124 : 1);
-            } else failure = frame;
+            } else if (frame.type === "error") failure = frame;
           },
         });
       } catch (error) {

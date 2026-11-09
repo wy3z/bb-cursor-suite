@@ -103,6 +103,8 @@ export function createBoatService(deps: BoatRpcDeps) {
     if (settings.apiKey.trim() === "") return { ...base, message: `${DISPLAY_NAME}: no boat.dev API key is set.` };
     const availability = await deps.backend.availability!();
     let filled = base;
+    const me = await deps.backend.me(AbortSignal.timeout(15_000)).catch(() => null);
+    if (me !== null) filled = { ...filled, login: me.login };
     try {
       const limits = await deps.backend.limits(AbortSignal.timeout(15_000));
       filled = {
@@ -146,7 +148,7 @@ export function createBoatService(deps: BoatRpcDeps) {
     } else vendorError = "no boat.dev API key is set";
     return {
       providerId: PROVIDER_ID,
-      month: vendor?.month ?? estimate.month,
+      month: estimate.month,
       capUsd: settings.monthlyCapUsd === 0 ? null : settings.monthlyCapUsd,
       size: settings.size,
       hourlyRateUsd: HOURLY_RATE_USD[settings.size],
@@ -207,7 +209,8 @@ export function createBoatService(deps: BoatRpcDeps) {
 export type BoatService = ReturnType<typeof createBoatService>;
 
 function usd(value: number | null): string {
-  return value === null ? "n/a" : `$${value.toFixed(2)}`;
+  if (value === null) return "n/a";
+  return `$${value > 0 && value < 0.1 ? value.toFixed(4).replace(/0+$/, "") : value.toFixed(2)}`;
 }
 
 export function usageSummary(report: UsageReport): string {

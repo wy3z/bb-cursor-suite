@@ -51,7 +51,7 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   orphan handling), the machine resource schema, cap and concurrency refusal
   messages, `findSecretLike` and `redactSecrets`. Frontend-safe: zod only.
 - `@wy3z/bb-suite/machine-backend/server`: `registerSandboxBackend(bb, backend,
-  policy)` for vendor machine plugins. No plugin in this repository uses it. The vendor supplies `create`, `exec`,
+  policy)` for vendor machine plugins. Boat Sandbox (`plugins/machine-boat`) uses it. The vendor supplies `create`, `exec`,
   `snapshot`, `stop`, `resume`, `remove` and `listByName`, plus optional
   `findSnapshot` and `extendTtl`. `snapshot` must return only once the saved
   state is durable (`snapshotId: null` means the compute keeps its state
@@ -75,7 +75,7 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   | Vendor | Snapshot guarantee | Path |
   |---|---|---|
   | Modal (built-in plugin's SDK) | `snapshotFilesystem` takes no caller key and returns the image id only in its response | fallback, unverified records possible |
-  | boat.dev | expected to stop in place with its disk retained (`snapshot` returns `null`) (confirm); named snapshots exist, but whether they are created atomically under a caller name and can be listed by it is (confirm) | retained disk; keyed recovery only if (confirm) holds |
+  | boat.dev | every stop snapshots the disk and resume restores the newest snapshot, so `snapshot` returns `null` and `stop` returns the stopped sandbox's id. Saved (named) snapshots are templates for new sandboxes, not resume points | retained disk |
   | Vercel Sandbox | not yet checked (confirm) | fallback until checked |
   | Test fake | keyed and idempotent | keyed recovery |
 
@@ -116,7 +116,18 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   rules are data (`DEFAULT_CLOUD_LOGIN_RULES`, `evaluateCloudLogin`) in the
   frontend-safe module, so vendors share them. Pass `launchCheck: { rules }`
   to extend them, or `launchCheck: false` and compose
-  `createCloudLaunchCheck` into a plugin's own hook. Server-only.
+  `createCloudLaunchCheck` into a plugin's own hook. The same hook then runs
+  the provider CLI check (`createProviderCliCheck`): BB never installs agent
+  CLIs when a thread starts and machine `create` isn't told which provider a
+  thread needs, so on a turn to an active sandbox host it reads
+  `hosts.providerCliStatus` (4 s budget; unreadable status proceeds). A
+  missing CLI answers `wait`, installs through `hosts.installProviderCli` in
+  the background and calls `recheck`; a failed install, or a provider BB has
+  no installer for, rejects with the `bb machine provider-cli install`
+  command. Pass `providerCliCheck: false` to leave it out, or compose
+  `createProviderCliCheck` and `chainDispatchChecks` yourself; BB allows one
+  `message.dispatch` handler per plugin. `@wy3z/bb-suite/testing/sandbox-fakes`
+  exports the fake BB and backend the helper's own tests use. Server-only.
 - `@wy3z/bb-suite/git-safety`: every git call the suite makes inside a
   checkout goes through this module, so a repository's own config can't run
   code where nobody asked for it. Files, Pull Requests and Projects share it.

@@ -41,6 +41,7 @@ export interface KeepResult {
 }
 
 export interface BoatBackend extends SandboxBackend {
+  me(signal?: AbortSignal): Promise<{ login: string | null }>;
   limits(signal?: AbortSignal): Promise<BoatLimits>;
   spend(signal?: AbortSignal): Promise<VendorSpend>;
   spendRefusal(): Promise<string | null>;
@@ -255,6 +256,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     ephemeral: true,
     nameFor: boatSandboxName,
 
+    me: (signal) => api.me(signal),
     limits,
     spend,
     spendRefusal,
