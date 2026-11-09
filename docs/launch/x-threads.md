@@ -10,23 +10,23 @@ Media: `x-video-4-opus-in-cursor.mp4` (47 s, 1920x1200, captions burned in, no a
 
 The joke is the UI, not the model. Cursor itself offers Anthropic models, so never say or imply it can't run Opus. The honest hook is Claude Code itself, on your own Claude subscription, inside a Cursor-style UI.
 
-Burned-in captions, in order: "ok so this looks like cursor", "but it's claude code. picking opus 5.5", "on my own claude subscription", "same sidebar. same little pills", "opus did the thing", "diff's right there. commit from the pill", "one lead thread runs the whole board", "cloud agents get their own desktop", "and i can just grab the mouse", "open source. link below".
+Burned-in captions, in order, at the top of the frame: "Opus 5.5 in Cursor,", "on your Claude sub", "(ok, Claude Code in a Cursor-style UI)", "same sidebar. same little pills", "Opus did the thing", "diff's right there. commit from the pill", "one lead thread runs the whole board", "cloud agents get their own desktop", "and you can just grab the mouse", "open source. link below". The third one keeps the clip honest when it gets reposted without the post.
 
-Title options:
+Title options, built on James's line:
 
-- opus 5.5 in Cursor
-- opus 5.5 in Cursor (it's Claude Code)
-- it's basically Cursor. it's actually Claude Code
-- Claude Code in a Cursor costume
-- Cursor's UI, Claude Code's brain, my Claude sub
+- Opus 5.5 in Cursor, on your Claude sub
+- Opus 5.5 in Cursor, on your Claude sub (well, Claude Code)
+- Opus 5.5 in a Cursor-style UI, on your Claude sub
+- your Claude sub, Opus 5.5, a Cursor-style UI
+- Claude Code in a Cursor costume, on your Claude sub
 
-Read on its own, "opus 5.5 in Cursor" says this is Cursor. Keep it with the post's next line, which says what it really is.
+Read on its own, "Opus 5.5 in Cursor" says this is Cursor. Keep it with the post's next line, which says what it really is.
 
 **S1** (media: `x-video-4-opus-in-cursor.mp4`)
 
-> opus 5.5 in Cursor
+> Opus 5.5 in Cursor, on your Claude sub
 >
-> (well, a Cursor-style UI. Cursor runs Anthropic models too; this is Claude Code itself, on my own Claude sub. sidebar, pills, boards, cloud desktops. open source)
+> (well, a Cursor-style UI. Cursor runs Anthropic models too; this is Claude Code itself on your own subscription. sidebar, pills, boards, cloud desktops. open source)
 >
 > https://github.com/wy3z/bb-cursor-suite
 
