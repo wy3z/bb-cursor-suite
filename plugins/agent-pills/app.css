@@ -2014,3 +2014,239 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   outline-offset: 1px;
   border-radius: 2px;
 }
+
+.bb-desktop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  color: var(--bbs-text-primary);
+  font-size: var(--bbs-text-body);
+}
+
+.bb-desktop--empty {
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.bb-desktop__empty {
+  margin: 0;
+  max-width: 320px;
+  color: var(--bbs-text-secondary);
+  font-size: var(--bbs-text-row);
+  line-height: 1.45;
+}
+
+.bb-desktop__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.bb-desktop__holder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--bbs-text-secondary);
+  font-size: var(--bbs-text-body);
+  white-space: nowrap;
+}
+
+.bb-desktop__holder-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bb-desktop__holder-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bbs-grey);
+}
+
+.bb-desktop__holder[data-control="agent"] .bb-desktop__holder-dot {
+  background: var(--bbs-green);
+}
+
+.bb-desktop__holder[data-control="you"] {
+  color: var(--bbs-text-primary);
+}
+
+.bb-desktop__holder[data-control="you"] .bb-desktop__holder-dot,
+.bb-desktop__holder[data-control="elsewhere"] .bb-desktop__holder-dot {
+  background: var(--bbs-accent);
+}
+
+.bb-desktop__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.bb-desktop__actions .bb-agent-pills__action {
+  height: 26px;
+  padding: 0 10px;
+  font-size: var(--bbs-text-body);
+}
+
+.bb-desktop__actions .bb-agent-pills__action[data-primary] {
+  border-color: transparent;
+  background: var(--primary, var(--bbs-text-primary));
+  color: var(--primary-foreground, var(--background));
+}
+
+.bb-desktop__actions .bb-agent-pills__action[data-primary]:hover:not(:disabled) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--primary, var(--bbs-text-primary)) 88%, transparent);
+}
+
+.bb-desktop__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--bbs-radius-sm);
+  background: transparent;
+  color: var(--bbs-text-secondary);
+  cursor: pointer;
+}
+
+.bb-desktop__icon:hover:not(:disabled) {
+  background: var(--bb-agent-pills-surface-hover);
+  color: var(--bbs-text-primary);
+}
+
+.bb-desktop__icon:focus-visible {
+  outline: 1px solid var(--ring, var(--accent));
+  outline-offset: 1px;
+}
+
+.bb-desktop__icon [data-icon-root],
+.bb-desktop__icon svg {
+  width: var(--bbs-icon);
+  height: var(--bbs-icon);
+}
+
+.bb-desktop__hint,
+.bb-desktop__note {
+  margin: 0;
+  color: var(--bbs-text-tertiary);
+  font-size: var(--bbs-text-meta);
+  line-height: 1.4;
+}
+
+.bb-desktop__note {
+  color: var(--bbs-amber);
+}
+
+.bb-desktop__stage {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 0;
+}
+
+.bb-desktop__stage:fullscreen {
+  align-items: center;
+  background: #000;
+}
+
+.bb-desktop__screen {
+  position: relative;
+  width: 100%;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  background: #000;
+}
+
+.bb-desktop__stage:fullscreen .bb-desktop__screen {
+  width: min(100vw, calc(100vh * 16 / 9));
+  border: 0;
+  border-radius: 0;
+}
+
+.bb-desktop__screen[data-live] {
+  border-color: var(--bbs-accent);
+  box-shadow: 0 0 0 1px var(--bbs-accent);
+}
+
+.bb-desktop__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.bb-desktop__connecting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--bbs-text-body);
+  text-align: center;
+}
+
+.bb-desktop__take {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--bbs-pill-radius);
+  background: rgba(20, 20, 20, 0.72);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--bbs-text-body);
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.bb-desktop__take:hover:not(:disabled) {
+  background: rgba(20, 20, 20, 0.86);
+}
+
+.bb-desktop__take:focus-visible {
+  outline: 2px solid var(--bbs-accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 767px) {
+  .bb-desktop {
+    padding: 6px 8px 8px;
+  }
+
+  .bb-desktop__actions .bb-agent-pills__action,
+  .bb-desktop__icon {
+    height: 32px;
+  }
+
+  .bb-desktop__icon {
+    width: 32px;
+  }
+}

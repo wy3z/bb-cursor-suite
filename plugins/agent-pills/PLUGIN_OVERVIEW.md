@@ -59,6 +59,8 @@ await sdk.plugins.callRpc({
 
 - Pull Requests (`pull-requests`): `gitCommit`, `gitPush`, `gitCreatePullRequest` and `gitApplyLocally`, the git actions behind the Changes tray and Apply locally. The contract is `gitActionsContract` in `@wy3z/bb-suite/contracts`. Without Pull Requests installed and enabled, those buttons are disabled and say "Needs Pull Requests".
 - BB's git plugin (`bb--git`): `status`, for the Changes pill, and its Diff tab.
+- A desktop vendor, for the Desktop tab: the plugin `DESKTOP_PROVIDERS` in `@wy3z/bb-suite/desktop` names for the thread's machine provider (today `machine-boat` for `boat-sandbox`). It calls `desktop.status`, `desktop.view` and `desktop.control` from `desktopRpcContract`. When that plugin isn't installed and enabled, or answers with an error, the tab stays hidden and nothing is reported.
+- BB's SDK, for the Desktop tab: `environments.get` and `hosts.get`, to find the thread's machine provider.
 - BB's SDK, for the environment picker:
   - `environments.listProviders({ projectId })`
   - `environments.list({ projectId, environmentProviderId: "git-worktree", hostId, status: "ready" })`
@@ -67,7 +69,7 @@ await sdk.plugins.callRpc({
 
 ### Browser storage
 
-The composer restyle and the pills setting live in this browser only. Keys: `bb-plugin-agent-pills.pills.v1` (pills on or off) and `bb-plugin-agent-pills.fallback-dismissed.v1` (model fallback dismissals per thread).
+The composer restyle and the pills setting live in this browser only. Keys: `bb-plugin-agent-pills.pills.v1` (pills on or off) and `bb-plugin-agent-pills.fallback-dismissed.v1` (model fallback dismissals per thread). The Desktop tab stores nothing: the view URL and this window's control id live in memory only.
 
 ## Reference
 
@@ -112,6 +114,17 @@ It restyles BB's composer rather than replacing it, so it is not listed under **
 - **Parent thread.** "Parent Plan the launch" (or "Forked from …") on a child or forked thread; click it to open the parent. BB draws its own segment as an icon-only toggle over a "This thread is a child of" box whenever another segment shares the row, so the plugin draws this pill instead and hides BB's toggle and box.
 
 While the pills are on, BB's own cards are hidden with CSS on their `aria-label`s: Child threads, Background agents/commands/activity, Workflow(s), To-do list, Model fallback, Machine status, Prompt mode, Goal and Queued messages. If a BB update renames them, the old cards come back beside the pills. While an approval or question is pending, BB shows its short composer stack and the pill row is absent.
+
+### Desktop
+
+The thread's computer, the way Cursor shows a cloud agent's desktop.
+
+- **Desktop tab.** A fixed tab in the thread's right-hand panel, named Desktop with a cloud computer icon, shown only for threads on a machine with a desktop provider. It shows the live stream in a 16:9 frame. A paused machine, a starting desktop or a machine without one shows a plain message with Check again.
+- **View-only by default.** The stream is `inert` until you take control, so clicks and keys can't reach it by accident. The bar says who has control: "Agent has control", "You have control", or "You have control in another window".
+- **Take Control / Release control.** Take Control (in the bar or over the stream) asks the vendor to pause the agent's computer tools, then focuses the stream so your mouse and keyboard go to the VM. The agent's computer calls wait until you release; the tab says so. The window renews control every 30 seconds; closing the tab releases it, and if the window disappears, control goes back to the agent within about 2 minutes. Taking control in a second window moves it there; the first window sees "You have control in another window" and can take it back.
+- **The URL.** A fresh view URL is fetched each time the tab opens and with Reconnect. A URL that was never opened in time is replaced, and so is one that expired while the page was hidden for 30 seconds or more. Nothing is persisted.
+- **Full screen.** The full-screen button shows the stream and its controls full screen where the browser allows it.
+- **Phone width.** The bar wraps and the buttons grow to 32 px.
 
 ### Requirements
 

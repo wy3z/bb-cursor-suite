@@ -25,6 +25,8 @@ import {
 import { COMPOSER_ATTRIBUTE } from "./src/channels";
 import { startComposerLayout } from "./src/composer-layout";
 import { EnvironmentPickerAction } from "./src/environment-picker/EnvironmentPicker";
+import { DesktopTab, useDesktopTabVisible } from "./src/desktop/DesktopTab";
+import { DESKTOP_TAB } from "./src/desktop/model";
 
 /** The segment exists only while it has at least one pill to draw. */
 function usePillsVisible({
@@ -74,6 +76,16 @@ export default definePluginApp((app) => {
     order: 11,
     summary: ParentPill,
     useVisible: useParentPillVisible,
+  });
+
+  app.slots.experimental_tab({
+    ...DESKTOP_TAB,
+    title: "Desktop",
+    icon: "ComputerCloud",
+    tooltip: "The desktop of this thread's machine",
+    layout: "flush",
+    useVisible: useDesktopTabVisible,
+    component: DesktopTab,
   });
 
   app.slots.experimental_threadContextSegment({
