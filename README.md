@@ -8,8 +8,6 @@ Not affiliated with Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
 
 ## What you get
 
-Each plugin installs and works on its own.
-
 ### [Cursor Sidebar](plugins/cursor-sidebar)
 
 - Child chats nest under the chat that started them, and pinned chats sit in one block.
