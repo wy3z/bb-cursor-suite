@@ -9,6 +9,16 @@ describe("leadInstructions", () => {
     expect(text).toContain("`bb thread tell` only queues behind it");
   });
 
+  it("asks for proof on the task and queued files instead of a steering tell", () => {
+    const text = leadInstructions("BCS");
+    expect(text).toContain("bb tasks attachment add <task> --file <path>");
+    expect(text).toContain("Send back a visual change reported without proof");
+    expect(text).toContain("bb thread tell <lead> --mode queue --image/--file");
+    expect(text).toContain("never a plain tell");
+    expect(text).toContain("bb tasks attachment get");
+    expect(text).toContain("show them inline in your reply, never just a link or path");
+  });
+
   it("wraps the rules in the project's tag", () => {
     const text = leadInstructions("BCS");
     expect(text.startsWith('<project_lead_instructions project="BCS">')).toBe(true);
