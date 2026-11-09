@@ -132,7 +132,7 @@ Focus, the lead and loop settings in the plugin's key-value store (`meta:<projec
 
 ### Board
 
-Statuses follow Cursor's order: For Review, In Progress, Queued, Done, Canceled (hidden until the filter menu shows it). Tasks' Backlog and Todo both show as Queued, and dropping a card on Queued writes `todo`. Sub-tasks appear as their own cards with a parent marker, and nest under their parent in List view.
+Statuses follow Cursor's order: For Review, In Progress, Queued, Done, Canceled (hidden until the filter menu shows it). Tasks' Backlog and Todo both show as Queued, and dropping a card on Queued writes `todo`. Sub-tasks appear as their own cards with a parent marker, and nest under their parent in List view. Done and Canceled start collapsed in List view; clicking a group header toggles it.
 
 Cards show the key, labels, priority, title (inline `code` rendered), a chip for every attached agent with its live or idle time, the agent worktree's changes (+A -D; click to open the agent in a split), PR chips with review and CI state (Ready, Waiting for Reviewers, CI Failing, Conflicts, Draft, Merged, Closed; several collapse into a stack), a sub-task progress pill, an attachments chip with an image viewer, and the commit that landed the work when it went straight to main. Those commits are read with `git log` behind the suite's read-only git protection, so the checkout's own config can't run code.
 

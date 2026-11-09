@@ -545,7 +545,7 @@ function List({
   activeThreads: ReturnType<typeof useProjectData>["activeThreads"];
   ctx: CardContext;
 }) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<Column>>(() => new Set<Column>(["canceled"]));
+  const [collapsed, setCollapsed] = useState<ReadonlySet<Column>>(() => new Set<Column>(["done", "canceled"]));
   return (
     <div className="bbp-list">
       {order.map((status) => {
