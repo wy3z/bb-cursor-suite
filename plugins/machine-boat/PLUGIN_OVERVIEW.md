@@ -133,6 +133,8 @@ Every boat VM runs a desktop, even with `noEnv`: Xorg on `:0` (1920x1080, lightd
 
 **The view.** The `/desktop/view` route calls `POST /sandboxes/{id}/desktop` (Moonlight over WebRTC, 1920x1080 at 60 fps; not `?vnc=1`, which stays a fallback). boat's stream page sends no `X-Frame-Options` or CSP, so the suite frames it, sandboxed to `allow-scripts allow-same-origin allow-pointer-lock` with no clipboard permission; input, video and Take Control were checked live in that sandbox. The token travels in the URL fragment, which the viewer removes at once; a stream already open keeps playing past the 10 minutes, and a reload or reconnect needs a new URL. `desktop_not_ready`, `sandbox_starting` and `provisioning: true` are retried every 2 seconds for up to 40 seconds.
 
+**boat's viewer overlay is off.** The view adds `overlay=0` to the stream URL's query, before the `#` fragment, so boat's side panel (its arrow tab, reconnect and on-screen keyboard buttons) and stats text never show; the Desktop tab's bar is the only control. Reconnect is in that bar. The keyboard reaches the VM because the tab focuses the frame when you take control and a click on the stream focuses it again. boat's on-screen keyboard button goes with the overlay, so a phone has no way to raise its soft keyboard inside the stream (not checked live).
+
 **Control.** The stream takes mouse and keyboard input. While a user holds control, the agent's computer tools are paused so they never fight them:
 
 - **Take control** runs `systemctl --user freeze cua-driver.service` on the VM: a cgroup freeze, or `SIGSTOP` if freezing isn't available.

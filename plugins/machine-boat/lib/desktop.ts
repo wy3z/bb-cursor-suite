@@ -12,6 +12,16 @@ export function isBoatStreamUrl(value: string): boolean {
   return host.endsWith(STREAM_HOST_SUFFIX) && host.length > STREAM_HOST_SUFFIX.length;
 }
 
+export function withoutViewerOverlay(url: string): string {
+  const hashAt = url.indexOf("#");
+  const base = hashAt === -1 ? url : url.slice(0, hashAt);
+  const fragment = hashAt === -1 ? "" : url.slice(hashAt);
+  const queryAt = base.indexOf("?");
+  const path = queryAt === -1 ? base : base.slice(0, queryAt);
+  const params = queryAt === -1 ? [] : base.slice(queryAt + 1).split("&").filter((pair) => pair !== "" && pair.split("=")[0] !== "overlay");
+  return `${path}?${[...params, "overlay=0"].join("&")}${fragment}`;
+}
+
 export const COMPUTER_UNIT = "cua-driver.service";
 export const RELEASE_UNIT = "bb-desktop-release";
 export const CODEX_TOOL_TIMEOUT_SECONDS = 3600;
@@ -199,7 +209,7 @@ export function createBoatDesktop(deps: BoatDesktopDeps): DesktopVendor {
         }
         if (answer !== null && answer.url !== null && !answer.provisioning) {
           if (!isBoatStreamUrl(answer.url)) throw new Error(`boat.dev answered with a desktop address that isn't an https address on ${STREAM_HOST_SUFFIX.slice(1)}`);
-          return { url: answer.url, expiresAt: now() + DESKTOP_URL_MS - URL_MARGIN_MS };
+          return { url: withoutViewerOverlay(answer.url), expiresAt: now() + DESKTOP_URL_MS - URL_MARGIN_MS };
         }
         if (attempt >= PROVISION_ATTEMPTS) throw new Error("boat.dev is still preparing the desktop; try again in a minute");
         await sleep(2_000);

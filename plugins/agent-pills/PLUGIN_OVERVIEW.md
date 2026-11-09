@@ -94,6 +94,12 @@ The composer restyle and the pills setting live in this browser only. Keys: `bb-
   - The selected host is BB's primary host (`system.config().primaryHostId`), or the selection names no host.
 
   Otherwise nothing is hidden: the picker moves into the box's action row and both pickers show. A remote host is labelled with its machine name rather than "This Computer". Projectless threads keep BB's picker. While the provider list loads, BB's button is hidden and the slot stays empty, so it doesn't flicker. If loading fails or takes longer than five seconds, BB's button comes back.
+- **Open in editor on cloud threads.** On a thread whose machine has a machine provider (`machineProviderId` set), BB's "Open workspace in <editor>" button in the thread header is hidden, because the workspace isn't on this computer. Local threads keep it. It is hidden only when all of these hold, and reappears the moment one stops holding:
+  - A hidden anchor in the thread's own primary composer sits in a `[data-split-pane-id]` pane with exactly one primary composer and exactly one `[data-thread-header-workflow-actions]` header.
+  - That pane has exactly one button labelled "Open workspace in <name>" and one labelled "Choose another app to open workspace", inside a single `[data-thread-header-responsive-action]` that is a direct child of the header and holds just those two buttons.
+  - The thread, environment and host lookups all succeed. A failed lookup leaves the button alone and retries every 5 seconds.
+
+  BB re-renders the header often, so a mutation observer on the pane re-checks whenever the header or a composer changes. The same "Open workspace in" entries in the thread's "..." menu on narrow screens are left alone. The anchor is a thread-scope composer action; BB shows at most three plugins' composer actions inline, and today only this plugin adds any.
 - **Keyboard.** Arrow Down or Up on the trigger opens the menu. Tab closes the menu and its submenu together. The **Worktree...** row names its submenu with `aria-controls`.
 - **Surface.** Opaque, like Cursor's: the theme's foreground at 6% over its background, a 1 px outline at 8% (12% with focus), no blur. The transcript fades out just above the box.
 - **Touch screens.** Controls keep a 28 px line. The unfocused phone box drops the paperclip's gap and truncates long model names.
@@ -123,7 +129,7 @@ While the pills are on, BB's own cards are hidden with CSS on their `aria-label`
 The thread's computer, the way Cursor shows a cloud agent's desktop.
 
 - **Desktop pill.** In the pill row above the composer, for a thread whose machine has a desktop provider and whose desktop is running or starting. It opens the Desktop tab. While you hold control it reads "Desktop, you have control" and shows a dot. It doesn't depend on the Agent pills setting, because it replaces none of BB's cards.
-- **Desktop tab.** A fixed tab in the thread's right-hand panel, named Desktop with a cloud computer icon, shown only for threads on a machine with a desktop provider. It shows the live stream in a 16:9 frame. A paused machine, a starting desktop or a machine without one shows a plain message with Check again.
+- **Desktop tab.** A fixed tab in the thread's right-hand panel, named Desktop with a cloud computer icon, shown only for threads on a machine with a desktop provider. It shows the live stream in a 16:9 frame, as large as fits the panel's width and height and centred on black bars, so it is never stretched or cropped. The frame is sized to exactly 16:9, so the stream page never letterboxes inside it and a click lands on the VM pixel under the pointer. A paused machine, a starting desktop or a machine without one shows a plain message with Check again.
 - **View-only by default.**
   - The stream is `inert` until you take control, so clicks and keys can't reach it by accident.
   - The bar says who has control: "Agent has control", "You have control", or "You have control in another window".
@@ -144,7 +150,7 @@ The thread's computer, the way Cursor shows a cloud agent's desktop.
   - The frame has no `src`: it's navigated with `location.replace`, so the token-bearing URL never sits in BB's DOM or in React state.
   - A fresh URL is fetched each time the tab opens and with Reconnect. A URL that was never opened in time is replaced, and so is one that expired while the page was hidden for 30 seconds or more.
   - Nothing is persisted.
-- **Full screen.** The full-screen button shows the stream and its controls full screen where the browser allows it.
+- **The bar is the only control.** Status, Take Control or Release control, and Reconnect. There is no full-screen button: BB's panel expands instead. The vendor's own viewer overlay is turned off where it can be (boat: `overlay=0`).
 - **Phone width.** The bar wraps and the buttons grow to 32 px.
 
 ### Requirements
