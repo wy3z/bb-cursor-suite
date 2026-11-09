@@ -23,6 +23,7 @@ import {
 } from "./src/preferences";
 import { COMPOSER_ATTRIBUTE } from "./src/channels";
 import { startComposerLayout } from "./src/composer-layout";
+import { EnvironmentPickerAction } from "./src/environment-picker/EnvironmentPicker";
 
 /** The segment exists only while it has at least one pill to draw. */
 function usePillsVisible({
@@ -98,6 +99,12 @@ export default definePluginApp((app) => {
       const enabled = usePillsEnabled();
       return useChanges(input) !== null && enabled;
     },
+  });
+
+  app.composer.customize({
+    id: "environment-picker",
+    scopes: ["new-thread"],
+    actions: [{ id: "environment", component: EnvironmentPickerAction }],
   });
 
   app.slots.settingsSection({
