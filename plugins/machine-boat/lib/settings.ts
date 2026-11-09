@@ -21,7 +21,7 @@ export const settingDescriptors = {
     type: "string",
     label: "boat.dev API key",
     description:
-      "A boat API key (starts with boat_). A scoped key is safest: boat api-key create bb --preset ci, plus account.read so the plugin can read limits and spend.",
+      "A boat API key (starts with boat_). Create it with boat api-key create bb --preset ci --ttl never, and change it later with boat api-key rotate so it keeps the right to delete the VMs it created.",
     secret: true,
   },
   size: {
@@ -99,7 +99,7 @@ export interface BoatSettings {
 const settingsSchema = z.object({
   apiKey: z.string().catch(""),
   size: z.enum(SANDBOX_TYPES).catch("small"),
-  environment: environmentSchema.default(""),
+  environment: z.string().trim().catch(""),
   idleMinutes: z.number().int().min(0).catch(15),
   ttlHours: z.number().min(0).max(720).catch(2),
   maxConcurrent: z.number().int().min(0).catch(2),
@@ -108,11 +108,7 @@ const settingsSchema = z.object({
 });
 
 export function readBoatSettings(values: Partial<Record<keyof BoatSettings, unknown>>): BoatSettings {
-  const parsed = settingsSchema.safeParse(values);
-  if (parsed.success) return parsed.data;
-  throw new Error(
-    `Boat Sandbox: the boat environment setting isn't a valid name (${parsed.error.issues[0]?.message ?? "invalid"}). Fix it under Settings → Plugins → Boat Sandbox.`,
-  );
+  return settingsSchema.parse(values);
 }
 
 export function policyFrom(settings: BoatSettings): SandboxPolicyInput {

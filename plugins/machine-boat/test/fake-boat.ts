@@ -58,6 +58,8 @@ export class FakeBoat {
   deletedCostUsd = 0;
   trialTtlCap: number | null = 7200;
   nowIso = "2026-11-09T12:00:00.000Z";
+  idempotency = new Map<string, FakeSandbox>();
+  deleted = new Map<string, FakeSandbox>();
   private next = 0;
 
   fail(route: string, fault: Fault) {
@@ -136,7 +138,8 @@ export class FakeBoat {
     const body = typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null;
     this.requests.push({ method, path, search: url.searchParams, headers, body });
     if (headers.get("authorization") !== `Bearer ${TEST_KEY}`) return this.error(401, "unauthorized");
-    const routeKey = `${method} ${path.replace(/bx_[a-z0-9]+/, ":id")}`;
+    const exactKey = `${method} ${path}`;
+    const routeKey = this.faults.has(exactKey) ? exactKey : `${method} ${path.replace(/bx_[a-z0-9]+/, ":id")}`;
     const fault = this.faults.get(routeKey);
     if (fault) {
       if (fault.times !== undefined) {
@@ -175,6 +178,9 @@ export class FakeBoat {
         ...(include.includes("deletedCost") ? { deletedCost: { since: "2026-11-01T00:00:00Z", seconds: 0, dollars: this.deletedCostUsd } } : {}),
       });
     }
+    if (method === "POST" && path === "/sandboxes" && headers.get("idempotency-key") && this.idempotency.has(headers.get("idempotency-key")!)) {
+      return this.ok({ type: "sandbox.created", sandbox: this.view(this.idempotency.get(headers.get("idempotency-key")!)!) }, 202);
+    }
     if (method === "POST" && path === "/sandboxes") {
       const ttl = body !== null && "ttlSeconds" in body ? body.ttlSeconds : 3600;
       const refused = this.ttlCheck(ttl);
@@ -189,6 +195,8 @@ export class FakeBoat {
         body: body ?? {},
         pollsUntilReady: 1,
       });
+      const key = headers.get("idempotency-key");
+      if (key) this.idempotency.set(key, created);
       return this.ok({ type: "sandbox.created", sandbox: this.view(created) }, 202);
     }
     if (match && !sandbox) return this.error(404, "not_found");
@@ -215,6 +223,7 @@ export class FakeBoat {
     if (sandbox && method === "DELETE" && rest === "") {
       if (headers.get("x-ascii-confirm-delete") !== sandbox.id) return this.error(400, "confirm_required");
       this.sandboxes.delete(sandbox.id);
+      this.deleted.set(sandbox.id, sandbox);
       return this.ok({ type: "sandbox.deleting", operation: { id: "bdop_1", status: "pending" } }, 202);
     }
     if (sandbox && method === "POST" && rest === "/stop") {

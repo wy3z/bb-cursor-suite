@@ -143,6 +143,29 @@ describe("Boat Sandbox through the shared helper", () => {
     expect(await none.service.inspectAccount()).toMatchObject({ available: false, message: expect.stringContaining("no boat.dev API key") });
   });
 
+  test("boat's meter over the cap refuses create before boat is called, stops renewals and suspends running VMs", async () => {
+    const w = world({ maxConcurrent: 2 });
+    const first = await w.create("thr_meter");
+    expect(first.result.status).toBe("created");
+    w.boat.deletedCostUsd = 40;
+    w.clock.advance(2);
+    const second = await w.create("thr_meter2");
+    expect(second.result).toMatchObject({ status: "failed", message: expect.stringContaining("($40.00 of boat.dev machine time") });
+    expect(w.boat.calls("POST", "/sandboxes")).toHaveLength(1);
+    await w.registration.bumpIdle(first.hostId!);
+    await w.registration.sweep();
+    expect(w.sdk.state.suspends).toEqual([first.hostId!]);
+    expect(w.boat.requests.filter((request) => request.method === "PATCH")).toHaveLength(0);
+    expect((await w.service.usage()).refusal).toContain("$40.00");
+  });
+
+  test("usage.get's refusal is what create would answer, including the concurrency limit", async () => {
+    const w = world();
+    expect((await w.service.usage()).refusal).toBeNull();
+    await w.create("thr_slot");
+    expect((await w.service.usage()).refusal).toContain("max concurrent 1");
+  });
+
   test("machine inspect refuses hosts from other providers", async () => {
     const w = world();
     w.sdk.hosts.push({ id: "host_local", machineProviderId: null, lifecycle: { phase: "active" } });

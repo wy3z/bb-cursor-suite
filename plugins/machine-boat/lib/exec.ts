@@ -77,7 +77,7 @@ export async function execInSandbox(deps: ExecDeps, sandboxId: string, request: 
         return { exitCode };
       }
       const failed = failure as { error: string; message: string; retryable: boolean } | null;
-      if (failed !== null && failed.retryable && !ran && attempt < RETRIES) {
+      if (failed !== null && failed.retryable && /restoring/i.test(`${failed.error} ${failed.message}`) && !ran && attempt < RETRIES) {
         started = false;
         await sleep(2_000 * attempt);
         continue;

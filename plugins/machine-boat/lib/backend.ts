@@ -1,9 +1,15 @@
-import { createHash } from "node:crypto";
-import type { SandboxAvailability, SandboxBackend, SandboxHandle, SandboxProgress } from "@wy3z/bb-suite/machine-backend/server";
+import { createHash, randomUUID } from "node:crypto";
+import type {
+  SandboxAvailability,
+  SandboxBackend,
+  SandboxHandle,
+  SandboxProgress,
+  VendorSpendRefusal,
+} from "@wy3z/bb-suite/machine-backend/server";
 import { formatUsd, sandboxNameForKey, usageMonth } from "@wy3z/bb-suite/machine-backend/server";
 import { BoatApiError, LIVE_STATES, MAX_TTL_SECONDS, READY_STATES, isNotFound, type BoatApi, type BoatLimits, type BoatSandbox } from "./api.ts";
 import { execInSandbox } from "./exec.ts";
-import type { BoatSettings } from "./settings.ts";
+import { ENVIRONMENT_NAME, type BoatSettings } from "./settings.ts";
 
 export const PROVIDER_ID = "boat-sandbox";
 export const DISPLAY_NAME = "Boat Sandbox";
@@ -13,6 +19,9 @@ export const TRIAL_TTL_SECONDS = 7_200;
 export const LISTED_STATES = "init,provisioning,provisioned,cloning,ready,idle,running,archiving,archived,error";
 const DAY_MS = 86_400_000;
 const CACHE_MS = 60_000;
+const SPEND_GRACE_MS = 10 * 60_000;
+export const KEY_ADVICE =
+  "Create keys with boat api-key create bb --preset ci --ttl never (keys without --ttl expire after 90 days), and change a key with boat api-key rotate <key id>, which keeps its id. A new key can't delete VMs an older key created.";
 
 export interface BoatBackendOptions {
   api: BoatApi;
@@ -44,7 +53,7 @@ export interface BoatBackend extends SandboxBackend {
   me(signal?: AbortSignal): Promise<{ login: string | null }>;
   limits(signal?: AbortSignal): Promise<BoatLimits>;
   spend(signal?: AbortSignal): Promise<VendorSpend>;
-  spendRefusal(): Promise<string | null>;
+  vendorSpendRefusal(): Promise<VendorSpendRefusal | null>;
   sandbox(id: string, signal?: AbortSignal): Promise<BoatSandbox | null>;
   keepStopped(): Promise<KeepResult[]>;
 }
@@ -72,8 +81,17 @@ function handleOf(sandbox: BoatSandbox): SandboxHandle {
   };
 }
 
-function idempotencyKey(name: string, body: unknown): string {
-  return `${name}-${createHash("sha256").update(JSON.stringify(body)).digest("hex").slice(0, 16)}`;
+function idempotencyKey(name: string, body: unknown, fresh: boolean): string {
+  const digest = createHash("sha256").update(JSON.stringify(body)).digest("hex").slice(0, 16);
+  return fresh ? `${name}-${digest}-${randomUUID().slice(0, 8)}` : `${name}-${digest}`;
+}
+
+export function ownershipMessage(id: string): string {
+  return `${DISPLAY_NAME}: boat.dev refused to delete sandbox ${id} (403). A ci-preset key can only delete sandboxes it created, so this happens after the API key was replaced by a new one. Delete ${id} on boat.dev (dashboard, or boat delete ${id}), then remove the machine again. ${KEY_ADVICE}`;
+}
+
+function isForbidden(error: unknown): boolean {
+  return error instanceof BoatApiError && error.status === 403;
 }
 
 function message(error: unknown): string {
@@ -89,6 +107,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
   const stopTimeoutMs = options.stopTimeoutMs ?? 10 * 60_000;
   let limitsCache: { at: number; value: BoatLimits } | null = null;
   let spendCache: { at: number; value: VendorSpend } | null = null;
+  let lastGoodSpend: { at: number; value: VendorSpend } | null = null;
 
   async function withTtlCap<T>(ttlSeconds: number | null, run: (ttl: number | null) => Promise<T>): Promise<T> {
     try {
@@ -102,6 +121,11 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
   }
 
   function createBody(settings: BoatSettings, name: string, ttlSeconds: number | null, from?: string): Record<string, unknown> {
+    if (!ENVIRONMENT_NAME.test(settings.environment)) {
+      throw new Error(
+        `${DISPLAY_NAME}: the boat environment setting "${settings.environment.slice(0, 64)}" isn't a valid name. Fix it under Settings → Plugins → ${DISPLAY_NAME}.`,
+      );
+    }
     return {
       name,
       type: settings.size,
@@ -142,6 +166,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
         report.log(`boat.dev is retrying the stop of ${id}: ${sandbox.stop.error ?? "unknown error"}`);
       }
       if (done(sandbox)) return sandbox;
+      if (sandbox.state === "cancelled" && what === "ready") return null;
       if (sandbox.state === "cancelled" || (sandbox.state === "error" && what === "ready")) {
         throw new Error(`${DISPLAY_NAME}: boat sandbox ${id} is ${sandbox.state}${sandbox.error ? ` (${sandbox.error})` : ""}.`);
       }
@@ -174,6 +199,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     const { sandboxes, deletedCostUsd } = await api.listSandboxes(
       [
         ["label", `${LABEL_MANAGED}=1`],
+        ["state", LISTED_STATES],
         ["include", "cost,deletedCost"],
       ],
       signal,
@@ -191,18 +217,28 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     return value;
   }
 
-  async function spendRefusal(): Promise<string | null> {
+  async function vendorSpendRefusal(): Promise<VendorSpendRefusal | null> {
     const current = await settings();
     if (current.monthlyCapUsd === 0 || current.apiKey.trim() === "") return null;
     let reading: VendorSpend;
     try {
       reading = await spend(AbortSignal.timeout(15_000));
+      lastGoodSpend = { at: now(), value: reading };
     } catch (error) {
-      options.log?.warn(`${DISPLAY_NAME}: couldn't read this month's spend from boat.dev: ${message(error)}`);
-      return null;
+      const recent = lastGoodSpend !== null && now() - lastGoodSpend.at <= SPEND_GRACE_MS && lastGoodSpend.value.month === usageMonth(now());
+      if (!recent) {
+        return {
+          reason: "unreadable",
+          message: `${DISPLAY_NAME}: couldn't read this month's spend from boat.dev (${message(error)}) and has no reading from the last ${SPEND_GRACE_MS / 60_000} minutes, so new and resumed VMs are refused until boat.dev answers.`,
+        };
+      }
+      reading = lastGoodSpend!.value;
     }
     if (reading.usd < current.monthlyCapUsd) return null;
-    return `${DISPLAY_NAME}: the monthly cap of ${formatUsd(current.monthlyCapUsd)} is reached (${formatUsd(reading.usd)} of boat.dev machine time in ${reading.month} at list price). Raise the cap in the plugin settings or wait for next month.`;
+    return {
+      reason: "cap",
+      message: `${DISPLAY_NAME}: the monthly cap of ${formatUsd(current.monthlyCapUsd)} is reached (${formatUsd(reading.usd)} of boat.dev machine time in ${reading.month} at list price). Raise the cap in the plugin settings or wait for next month.`,
+    };
   }
 
   async function listByName(name: string, signal: AbortSignal): Promise<SandboxHandle[]> {
@@ -217,33 +253,70 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
   }
 
   async function createFrom(settings_: BoatSettings, name: string, ttlMs: number, signal: AbortSignal, report: SandboxProgress, from?: string) {
-    const created = await withTtlCap(ttlSecondsFor(ttlMs), (ttl) => {
-      const body = createBody(settings_, name, ttl, from);
-      return api.createSandbox(body, idempotencyKey(name, body), signal);
-    });
-    report.log(`boat sandbox ${created.id} (${settings_.size}${from === undefined ? "" : `, from saved snapshot ${from}`})`);
-    return waitReady(created.id, signal, report);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const created = await withTtlCap(ttlSecondsFor(ttlMs), (ttl) => {
+        const body = createBody(settings_, name, ttl, from);
+        return api.createSandbox(body, idempotencyKey(name, body, attempt > 0), signal);
+      });
+      report.log(`boat sandbox ${created.id} (${settings_.size}${from === undefined ? "" : `, from saved snapshot ${from}`})`);
+      const ready = await waitFor(created.id, signal, report, (sandbox) => READY_STATES.has(sandbox.state), readyTimeoutMs, "ready");
+      if (ready !== null) return ready;
+      report.log(`boat.dev answered with sandbox ${created.id}, which no longer exists; creating a fresh one`);
+    }
+    throw new Error(`${DISPLAY_NAME}: boat.dev keeps answering with sandboxes for ${name} that no longer exist. Try again in a few minutes.`);
   }
 
-  async function restoreFromKeep(name: string, staleId: string | null, why: string, ttlMs: number, signal: AbortSignal, report: SandboxProgress) {
+  async function restoreFromKeep(
+    name: string,
+    expected: { id: string; stoppedAt: string | null } | null,
+    why: string,
+    ttlMs: number,
+    signal: AbortSignal,
+    report: SandboxProgress,
+  ) {
     const saved = await api.savedSnapshot(name, signal);
     if (saved === null || saved.status !== "ready") {
+      throw new Error(`${DISPLAY_NAME}: ${why}, and there is no saved snapshot named ${name} to restore from. Remove the machine to clean up.`);
+    }
+    if (expected === null || saved.sourceSandboxId !== expected.id) {
       throw new Error(
-        `${DISPLAY_NAME}: ${why}, and there is no saved snapshot named ${name} to restore from. Remove the machine to clean up.`,
+        `${DISPLAY_NAME}: ${why}. The saved snapshot ${name} came from ${saved.sourceSandboxId ?? "an unknown sandbox"}${expected === null ? "" : `, not ${expected.id}`}, so restoring it could bring back older work; refusing. Remove the machine, or restore it by hand with boat new --from ${name}.`,
+      );
+    }
+    const savedAt = saved.createdAt === null ? Number.NaN : Date.parse(saved.createdAt);
+    if (expected.stoppedAt !== null && !(savedAt >= Date.parse(expected.stoppedAt))) {
+      throw new Error(
+        `${DISPLAY_NAME}: ${why}. The saved snapshot ${name} predates ${expected.id}'s last stop (${expected.stoppedAt}), so restoring it would lose the work since then; refusing. Remove the machine, or restore it by hand with boat new --from ${name}.`,
       );
     }
     report.step(`Restoring the ${DISPLAY_NAME} from its saved snapshot…`);
     const ready = await createFrom(await settings(), name, ttlMs, signal, report, name);
-    if (staleId !== null) await api.deleteSandbox(staleId, signal).catch((error: unknown) => report.log(`Couldn't delete the expired sandbox ${staleId}: ${message(error)}`));
+    await api.deleteSandbox(expected.id, signal).catch((error: unknown) => {
+      if (!isNotFound(error)) report.log(`Couldn't delete the expired sandbox ${expected.id}: ${message(error)}`);
+    });
+    await dropSaved(name, signal, report);
     return handleOf(ready);
   }
 
-  async function dropKeep(name: string, signal: AbortSignal, report: SandboxProgress) {
+  async function dropSaved(name: string, signal: AbortSignal, report: SandboxProgress, strict = false): Promise<void> {
+    let saved;
+    try {
+      saved = await api.savedSnapshot(name, signal);
+    } catch (error) {
+      if (!isForbidden(error) && strict) throw error;
+      report.log(`Couldn't check for a saved snapshot named ${name}: ${message(error)}`);
+      return;
+    }
+    if (saved === null) return;
     try {
       await api.deleteSavedSnapshot(name, signal);
-      report.log(`Removed the saved snapshot ${name}; the sandbox is running again`);
+      report.log(`Deleted the saved snapshot ${name}`);
     } catch (error) {
-      if (!isNotFound(error)) report.log(`Couldn't remove the saved snapshot ${name}: ${message(error)}`);
+      if (isNotFound(error)) return;
+      if (strict && !isForbidden(error)) throw error;
+      const note = `${DISPLAY_NAME}: couldn't delete the saved snapshot ${name} (${message(error)}); delete it on boat.dev so it stops counting against your allowance.`;
+      report.log(note);
+      options.log?.warn(note);
     }
   }
 
@@ -259,7 +332,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     me: (signal) => api.me(signal),
     limits,
     spend,
-    spendRefusal,
+    vendorSpendRefusal,
 
     async sandbox(id, signal) {
       try {
@@ -279,8 +352,11 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
       try {
         reading = await limits(AbortSignal.timeout(10_000));
       } catch (error) {
-        if (error instanceof BoatApiError && error.status === 401) {
-          return { status: "setup-required", message: `${DISPLAY_NAME}: boat.dev rejected the API key. Create a new one and save it in the plugin settings.` };
+        if (error instanceof BoatApiError && (error.status === 401 || error.code === "api_key_expired")) {
+          return {
+            status: "setup-required",
+            message: `${DISPLAY_NAME}: boat.dev rejected the API key (${error.code}). ${KEY_ADVICE} Save the new secret in the plugin settings.`,
+          };
         }
         if (!(error instanceof BoatApiError && error.status === 403)) {
           return { status: "setup-required", message: `${DISPLAY_NAME}: couldn't reach boat.dev (${message(error)}).` };
@@ -301,18 +377,10 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
           };
         }
       }
-      const refusal = await spendRefusal();
-      return refusal === null ? { status: "available" } : { status: "unavailable", message: refusal };
-    },
-
-    async validate() {
-      const refusal = await spendRefusal();
-      return refusal === null ? { action: "accept" } : { action: "refuse", message: refusal };
+      return { status: "available" };
     },
 
     async create({ name, ttlMs, signal, report }) {
-      const refusal = await spendRefusal();
-      if (refusal !== null) throw new Error(refusal);
       const ready = await createFrom(await settings(), name, ttlMs, signal, report);
       return handleOf(ready);
     },
@@ -337,8 +405,6 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
     },
 
     async resume({ name, sandboxId, ttlMs, signal, report }) {
-      const refusal = await spendRefusal();
-      if (refusal !== null) throw new Error(refusal);
       const current = await settings();
       let id = sandboxId;
       if (id === null) id = (await listByName(name, signal))[0]?.id ?? null;
@@ -347,14 +413,14 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
       try {
         sandbox = await api.getSandbox(id, signal);
       } catch (error) {
-        if (isNotFound(error)) return restoreFromKeep(name, null, `boat sandbox ${id} is gone`, ttlMs, signal, report);
+        if (isNotFound(error)) return restoreFromKeep(name, { id, stoppedAt: null }, `boat sandbox ${id} is gone`, ttlMs, signal, report);
         throw error;
       }
       if (!ownedBy(sandbox, name)) {
         throw new Error(`${DISPLAY_NAME}: boat sandbox ${id} isn't labelled as ${name}; refusing to resume a sandbox this plugin didn't create.`);
       }
       if (sandbox.dataExpiredAt !== null) {
-        return restoreFromKeep(name, id, `boat.dev cleaned up the disk of ${id}`, ttlMs, signal, report);
+        return restoreFromKeep(name, { id, stoppedAt: sandbox.stoppedAt }, `boat.dev cleaned up the disk of ${id}`, ttlMs, signal, report);
       }
       if (!LIVE_STATES.has(sandbox.state) || sandbox.state === "archiving") {
         for (let attempt = 1; ; attempt += 1) {
@@ -365,7 +431,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
             break;
           } catch (error) {
             if (error instanceof BoatApiError && error.code === "snapshot_data_expired") {
-              return restoreFromKeep(name, id, `boat.dev cleaned up the disk of ${id}`, ttlMs, signal, report);
+              return restoreFromKeep(name, { id, stoppedAt: sandbox.stoppedAt }, `boat.dev cleaned up the disk of ${id}`, ttlMs, signal, report);
             }
             if (error instanceof BoatApiError && error.code === "sandbox_stopping" && attempt < 6) {
               await sleep(error.retryAfterMs ?? 5_000);
@@ -378,7 +444,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
         await withTtlCap(ttlSecondsFor(ttlMs), (ttl) => api.updateSandbox(id, { ttlSeconds: ttl }, signal));
       }
       const ready = await waitReady(id, signal, report);
-      if (current.keepStoppedDays > 0) await dropKeep(name, signal, report);
+      if (current.keepStoppedDays > 0) await dropSaved(name, signal, report);
       return handleOf(ready);
     },
 
@@ -390,7 +456,9 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
           await api.deleteSandbox(id, signal);
           report.log(`Deleted boat sandbox ${id} and its snapshots`);
         } catch (error) {
-          if (!isNotFound(error)) throw error;
+          if (isNotFound(error)) continue;
+          if (isForbidden(error)) throw new Error(ownershipMessage(id));
+          throw error;
         }
       }
       for (const snapshotId of snapshotIds) {
@@ -400,12 +468,7 @@ export function createBoatBackend(options: BoatBackendOptions): BoatBackend {
           if (!isNotFound(error)) throw error;
         }
       }
-      try {
-        await api.deleteSavedSnapshot(name, signal);
-        report.log(`Deleted the saved snapshot ${name}`);
-      } catch (error) {
-        if (!isNotFound(error)) throw error;
-      }
+      await dropSaved(name, signal, report, true);
     },
 
     listByName,

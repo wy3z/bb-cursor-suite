@@ -51,10 +51,16 @@ describe("settings", () => {
     expect(off.ttlMinutes).toBeGreaterThan(30 * 24 * 60);
   });
 
-  test("refuse an environment name that could be read as a flag or path", () => {
-    expect(() => readBoatSettings({ environment: "--all" })).toThrow(/valid name/);
-    expect(() => readBoatSettings({ environment: "../x" })).toThrow(/valid name/);
+  test("a bad environment name never breaks reading settings, and create refuses it before calling boat", async () => {
+    expect(readBoatSettings({ environment: "--all" }).environment).toBe("--all");
     expect(readBoatSettings({ environment: "customer-demos", size: "nope" as never }).size).toBe("small");
+    const { backend, boat, report } = setup({ environment: "../x" });
+    await expect(backend.create({ key: "k", name: NAME, inputs: undefined as never, ttlMs: 7_200_000, signal: signal(), report })).rejects.toThrow(
+      /isn't a valid name/,
+    );
+    expect(boat.calls("POST", "/sandboxes")).toHaveLength(0);
+    const sandbox = boat.add({ name: NAME, labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME } });
+    expect(await backend.stop({ sandboxId: sandbox.id, name: NAME, signal: signal(), report })).toEqual({ sandboxId: sandbox.id });
   });
 
   test("a TTL past boat's 30-day maximum becomes no auto-stop", () => {
@@ -108,6 +114,18 @@ describe("create", () => {
     expect(boat.sandboxes.get(handle.id)!.state).toBe("ready");
   });
 
+  test("a replayed create that answers with a deleted sandbox retries once with a fresh idempotency key", async () => {
+    const { backend, boat, report } = setup();
+    const first = await backend.create({ key: "k", name: NAME, inputs: undefined as never, ttlMs: 7_200_000, signal: signal(), report });
+    await backend.remove({ name: NAME, sandboxIds: [first.id], snapshotIds: [], signal: signal(), report });
+    const second = await backend.create({ key: "k", name: NAME, inputs: undefined as never, ttlMs: 7_200_000, signal: signal(), report });
+    expect(second.id).not.toBe(first.id);
+    const keys = boat.calls("POST", "/sandboxes").map((call) => call.headers.get("idempotency-key"));
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[0]);
+    expect(keys[2]).toStartWith(`${keys[0]}-`);
+  });
+
   test("a named boat environment replaces noEnv", async () => {
     const { backend, boat, report } = setup({ environment: "base" });
     await backend.create({ key: "k", name: NAME, inputs: undefined as never, ttlMs: 7_200_000, signal: signal(), report });
@@ -123,15 +141,29 @@ describe("create", () => {
     expect(boat.sandboxes.get(handle.id)!.ttlSeconds).toBe(7200);
   });
 
-  test("refuses before calling boat when this month's spend reached the cap", async () => {
-    const { backend, boat, report } = setup({ monthlyCapUsd: 1 });
+  test("reports the cap from boat's meter, counting stopped and deleted sandboxes", async () => {
+    const { backend, boat } = setup({ monthlyCapUsd: 1 });
     boat.add({ name: "old", state: "archived", labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: "old" }, costUsd: 0.6 });
     boat.deletedCostUsd = 0.5;
-    await expect(backend.create({ key: "k", name: NAME, inputs: undefined as never, ttlMs: 7_200_000, signal: signal(), report })).rejects.toThrow(
-      /monthly cap of \$1\.00 is reached \(\$1\.10/,
-    );
-    expect(boat.calls("POST", "/sandboxes")).toHaveLength(0);
-    expect(await backend.validate!(undefined as never)).toMatchObject({ action: "refuse" });
+    expect(await backend.vendorSpendRefusal()).toEqual({
+      reason: "cap",
+      message: expect.stringMatching(/monthly cap of \$1\.00 is reached \(\$1\.10/),
+    });
+    expect(boat.calls("GET", "/sandboxes")[0]!.search.get("state")).toContain("archived");
+    expect(await setup({ monthlyCapUsd: 0 }).backend.vendorSpendRefusal()).toBeNull();
+  });
+
+  test("fails closed when boat's meter can't be read and no recent reading exists", async () => {
+    const { backend, boat, clock } = setup({ monthlyCapUsd: 30 });
+    boat.fail("GET /sandboxes", { status: 503, code: "out_of_capacity" });
+    expect(await backend.vendorSpendRefusal()).toMatchObject({ reason: "unreadable", message: expect.stringContaining("refused until boat.dev answers") });
+    boat.faults.clear();
+    expect(await backend.vendorSpendRefusal()).toBeNull();
+    clock.t += 5 * 60_000;
+    boat.fail("GET /sandboxes", { status: 503, code: "out_of_capacity" });
+    expect(await backend.vendorSpendRefusal()).toBeNull();
+    clock.t += 6 * 60_000;
+    expect(await backend.vendorSpendRefusal()).toMatchObject({ reason: "unreadable" });
   });
 
   test("ignores sandboxes without the plugin's label when adding up spend", async () => {
@@ -211,6 +243,20 @@ describe("exec", () => {
     expect([...boat.files.keys()]).toHaveLength(0);
   });
 
+  test("only boat's restoring error is retried; other retryable errors fail without running twice", async () => {
+    const { backend, boat } = setup();
+    const sandbox = boat.add({ name: NAME });
+    let calls = 0;
+    boat.commandScript = () => {
+      calls += 1;
+      return [{ type: "started" }, { type: "error", error: "sandbox_direct_failed", message: "agent restarted", retryable: true }];
+    };
+    await expect(
+      backend.exec(sandbox.id, { command: ["true"], stdin: "x", timeoutMs: 10_000, signal: signal(), onOutput: () => undefined }),
+    ).rejects.toThrow(/agent restarted/);
+    expect(calls).toBe(1);
+  });
+
   test("a timed-out command reports 124", async () => {
     const { backend, boat } = setup();
     const sandbox = boat.add({ name: NAME });
@@ -249,14 +295,43 @@ describe("suspend and resume", () => {
     expect(boat.calls("POST", `/sandboxes/${sandbox.id}/resume`)).toHaveLength(2);
   });
 
-  test("resume restores from the keep snapshot once boat has cleaned up the disk", async () => {
+  test("resume restores from the keep snapshot once boat has cleaned up the disk, then deletes the snapshot", async () => {
     const { backend, boat, report } = setup();
-    const old = boat.add({ name: NAME, state: "archived", labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME }, dataExpiredAt: "2026-11-08T00:00:00Z" });
+    const old = boat.add({
+      name: NAME,
+      state: "archived",
+      labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME },
+      stoppedAt: "2026-10-20T00:00:00Z",
+      dataExpiredAt: "2026-11-08T00:00:00Z",
+    });
     boat.saved.set(NAME, { name: NAME, status: "ready", sourceSandboxId: old.id, createdAt: "2026-11-01T00:00:00Z" });
     const handle = await backend.resume({ name: NAME, sandboxId: old.id, snapshotId: null, meta: {}, ttlMs: 7_200_000, signal: signal(), report });
     expect(handle.id).not.toBe(old.id);
     expect(boat.calls("POST", "/sandboxes")[0]!.body).toMatchObject({ from: NAME, labels: { [LABEL_NAME]: NAME } });
     expect(boat.sandboxes.has(old.id)).toBe(false);
+    expect(boat.saved.has(NAME)).toBe(false);
+  });
+
+  test("resume refuses a keep snapshot taken from another VM or before the last stop", async () => {
+    const run = async (saved: { sourceSandboxId: (id: string) => string; createdAt: string }) => {
+      const { backend, boat, report } = setup();
+      const vm = boat.add({
+        name: NAME,
+        state: "archived",
+        labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME },
+        stoppedAt: "2026-10-20T00:00:00Z",
+        dataExpiredAt: "2026-11-08T00:00:00Z",
+      });
+      boat.saved.set(NAME, { name: NAME, status: "ready", sourceSandboxId: saved.sourceSandboxId(vm.id), createdAt: saved.createdAt });
+      const outcome = await backend
+        .resume({ name: NAME, sandboxId: vm.id, snapshotId: null, meta: {}, ttlMs: 7_200_000, signal: signal(), report })
+        .catch((error: Error) => error);
+      expect(boat.calls("POST", "/sandboxes")).toHaveLength(0);
+      expect(boat.saved.has(NAME)).toBe(true);
+      return String(outcome);
+    };
+    expect(await run({ sourceSandboxId: () => "bx_older001", createdAt: "2026-11-01T00:00:00Z" })).toMatch(/came from bx_older001, not bx_/);
+    expect(await run({ sourceSandboxId: (id) => id, createdAt: "2026-10-01T00:00:00Z" })).toMatch(/predates .* last stop/);
   });
 
   test("resume fails clearly when the disk is gone and nothing was kept", async () => {
@@ -301,6 +376,37 @@ describe("remove", () => {
     expect(boat.calls("DELETE", "/snapshots/snap_1")).toHaveLength(1);
     expect(await backend.listByName(NAME, signal())).toEqual([]);
   });
+
+  test("explains key ownership when boat refuses to delete a VM another key created", async () => {
+    const { backend, boat, report } = setup();
+    const vm = boat.add({ name: NAME, labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME } });
+    boat.fail("DELETE /sandboxes/:id", { status: 403, code: "forbidden", message: "key may only delete its own sandboxes" });
+    const failure = String(await backend.remove({ name: NAME, sandboxIds: [vm.id], snapshotIds: [], signal: signal(), report }).catch((error: Error) => error));
+    expect(failure).toContain(`refused to delete sandbox ${vm.id} (403)`);
+    expect(failure).toContain("boat api-key rotate");
+  });
+
+  test("a saved snapshot the key can't see or delete doesn't block removal, and nothing saved means no delete call", async () => {
+    const { backend, boat, report, logs } = setup();
+    const vm = boat.add({ name: NAME, labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME } });
+    await backend.remove({ name: NAME, sandboxIds: [vm.id], snapshotIds: [], signal: signal(), report });
+    expect(boat.requests.filter((request) => request.method === "DELETE" && request.path.startsWith("/saved-snapshots/"))).toHaveLength(0);
+
+    const forbiddenRead = setup();
+    const vm2 = forbiddenRead.boat.add({ name: NAME, labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME } });
+    forbiddenRead.boat.fail(`GET /saved-snapshots/${NAME}`, { status: 403, code: "forbidden" });
+    await forbiddenRead.backend.remove({ name: NAME, sandboxIds: [vm2.id], snapshotIds: [], signal: signal(), report: forbiddenRead.report });
+    expect(forbiddenRead.boat.sandboxes.size).toBe(0);
+
+    const forbiddenDelete = setup();
+    const vm3 = forbiddenDelete.boat.add({ name: NAME, labels: { [LABEL_MANAGED]: "1", [LABEL_NAME]: NAME } });
+    forbiddenDelete.boat.saved.set(NAME, { name: NAME, status: "ready", sourceSandboxId: vm3.id, createdAt: "x" });
+    forbiddenDelete.boat.fail(`DELETE /saved-snapshots/${NAME}`, { status: 403, code: "forbidden" });
+    await forbiddenDelete.backend.remove({ name: NAME, sandboxIds: [vm3.id], snapshotIds: [], signal: signal(), report: forbiddenDelete.report });
+    expect(forbiddenDelete.boat.sandboxes.size).toBe(0);
+    expect(forbiddenDelete.logs.join("\n")).toContain(`couldn't delete the saved snapshot ${NAME}`);
+    expect(logs).toEqual([]);
+  });
 });
 
 describe("availability", () => {
@@ -314,10 +420,16 @@ describe("availability", () => {
     const plan = setup();
     plan.boat.limits.checkoutRequired = true;
     expect(await plan.backend.availability!()).toMatchObject({ status: "setup-required", message: expect.stringContaining("no plan") });
-    const capped = setup({ monthlyCapUsd: 0.5 });
-    capped.boat.deletedCostUsd = 0.5;
-    expect(await capped.backend.availability!()).toMatchObject({ status: "unavailable", message: expect.stringContaining("monthly cap") });
     expect(await setup().backend.availability!()).toEqual({ status: "available" });
+  });
+
+  test("an expired or rejected key points at --ttl never and rotate", async () => {
+    const expired = setup();
+    expired.boat.fail("GET /limits", { status: 403, code: "api_key_expired", message: "The TTL elapsed" });
+    const result = await expired.backend.availability!();
+    expect(result).toMatchObject({ status: "setup-required" });
+    expect((result as { message: string }).message).toContain("--ttl never");
+    expect((result as { message: string }).message).toContain("boat api-key rotate");
   });
 
   test("a key without account.read still works", async () => {

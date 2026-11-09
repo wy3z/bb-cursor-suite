@@ -8,7 +8,7 @@
     {
       "id": "cursor-sidebar",
       "displayName": "Cursor Sidebar",
-      "description": "A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. Also switches the sidebar navigation to its Compact layout; change it under Settings \u2192 Appearance \u2192 Navigation.",
+      "description": "A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. Also switches the sidebar navigation to its Compact layout; change it under Settings → Appearance → Navigation.",
       "icon": {
         "url": "./icons/cursor-sidebar.svg"
       },

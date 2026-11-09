@@ -42,7 +42,7 @@ Call with `sdk.plugins.callRpc({ pluginId: "machine-boat", method, input, output
 | Method | Input | Output |
 |---|---|---|
 | `account.inspect` | `{}` | `{ available, message, providerId, login, plan, billingStatus, canStart, activeSandboxes, maxActiveSandboxes, includedHoursRemaining, includedPeriodEnd, walletUsd, sizes: [{ type, available, reason }] }`. Same `available`/`message` pair as Modal's `account.inspect`. |
-| `usage.get` | `{}` | `{ providerId, month, capUsd, size, hourlyRateUsd, vendor: { usd, deletedUsd, sandboxes, running } \| null, vendorError, estimate: { runningMs, usd }, refusal }`. `vendor` is boat's own meter for sandboxes this plugin labelled, at list price; `estimate` is the shared helper's ledger. `refusal` is the message create and resume would give right now, or `null`. |
+| `usage.get` | `{}` | `{ providerId, month, capUsd, size, hourlyRateUsd, vendor: { usd, deletedUsd, sandboxes, running } \| null, vendorError, estimate: { runningMs, usd }, refusal }`. `vendor` is boat's own meter for sandboxes this plugin labelled, at list price; `estimate` is the shared helper's ledger, priced at each VM's own rate. `refusal` is the message create and resume would give right now (spend from either meter, an unreadable boat meter, or the concurrency limit), or `null`. |
 | `machine.inspect` | `{ hostId }` | `{ providerId, hostId, name, sandboxId, state, running, size, vcpu, memoryGB, expiresAt, stoppedAt, snapshotCompletedAt, hydrated, health, desktopAvailable, monthUsd, keepSnapshot: { status, createdAt } \| null }`. `state` is boat's (`ready`, `idle`, `running`, `archiving`, `archived`, `error`) or `gone`. Refuses hosts of other providers. |
 
 Machine status itself comes from BB: `sdk.hosts.list()` / `bb machine list --all` give `machineProviderId`, `status` and `lifecycle.phase` (`active`, `suspending`, `suspended`, `resuming`, `removing`). The CLI commands print the same objects with `--json`; `bb boat account inspect` exits 1 when the account isn't usable.
@@ -51,9 +51,9 @@ Machine status itself comes from BB: `sdk.hosts.list()` / `bb machine list --all
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `apiKey` | secret string | none | boat API key (`boat_…`). A `ci`-preset key plus `account.read` is enough |
+| `apiKey` | secret string | none | boat API key (`boat_…`). `boat api-key create bb --preset ci --ttl never`; rotate it with `boat api-key rotate <id>` rather than replacing it, because a `ci` key can only delete the sandboxes it created. Read without the rest of the settings, so a bad value elsewhere never blocks stop or delete |
 | `size` | select | `small` | `small` 2 vCPU/4 GB $0.018/h, `default` 4/8 $0.036/h, `large` 8/16 $0.072/h (paid plans), `xlarge` 16/32 $0.20/h ($100 plan). Resume moves a stopped VM to the current size |
-| `environment` | string | `""` | Empty creates VMs with `noEnv: true`. A name attaches that boat environment (its repos, variables, secret files, logins and the in-sandbox boat CLI key, per its own toggles) |
+| `environment` | string | `""` | Empty creates VMs with `noEnv: true`. A name attaches that boat environment (its repos, variables, secret files, logins and the in-sandbox boat CLI key, per its own toggles). Validated in the settings form and again when a VM is created |
 | `idleMinutes` | number | `15` | Suspend after this long without thread or terminal activity; `0` off |
 | `ttlHours` | number | `2` | boat's auto-stop, renewed while a thread is active; `0` off (the trial caps it at 2 hours, and the plugin falls back to that) |
 | `maxConcurrent` | number | `2` | Running VMs allowed; suspended ones don't count; `0` no limit |
@@ -69,7 +69,7 @@ Region: boat has no region choice. Every VM runs in Germany, Finland or France; 
 | Sandbox | `bb-boat-<key slug>` (also its boat display name) | `app.getbb.boat-sandbox=1`, `app.getbb.boat-sandbox.name=<name>` |
 | Saved snapshot (only from the keep job) | same as the sandbox name | none; found by name |
 
-Created with `monitoring: false` (boat keeps no command history or output), `noEnv: true` unless an environment is set, the configured `type` and `ttlSeconds`, and an `Idempotency-Key` of the name plus a hash of the body, so a create retried after a lost response returns the same VM. Lookups use both labels and refuse a sandbox without them; resume refuses a sandbox whose labels don't match. Deletes go by sandbox id with boat's `X-Ascii-Confirm-Delete` header.
+Created with `monitoring: false` (boat keeps no command history or output), `noEnv: true` unless an environment is set, the configured `type` and `ttlSeconds`, and an `Idempotency-Key` of the name plus a hash of the body, so a create retried after a lost response returns the same VM. boat keeps those keys for 24 hours; if a replay answers with a sandbox that no longer exists, the create retries once with a fresh key. Lookups use both labels and refuse a sandbox without them; resume refuses a sandbox whose labels don't match. Deletes go by sandbox id with boat's `X-Ascii-Confirm-Delete` header.
 
 ### Lifecycle
 
@@ -79,7 +79,7 @@ Created with `monitoring: false` (boat keeps no command history or output), `noE
 | exec | `POST /sandboxes/{id}/commands` with `stream: true`, the argv quoted into `bash -lc` so nvm's Node is on `PATH`, timeout capped at boat's 600 s |
 | suspend | `snapshot` returns `null`; `stop` is `POST /stop` and polls until `archived`. boat's stop snapshots the disk first, so the VM keeps its id and disk and costs nothing |
 | resume | `POST /resume` with the TTL (and `type` if the size setting changed), poll until `ready`, then BB's `--start` of the installed daemon. A resume within 10 minutes of the stop reuses the same machine; later ones restore onto a new machine and IP |
-| remove | delete every labelled sandbox with the name, any listed snapshot ids, and the keep snapshot |
+| remove | delete every labelled sandbox with the name and any listed snapshot ids, then the keep snapshot if one exists. A 403 on a sandbox explains key ownership (a `ci` key can only delete what it created). A keep snapshot the key can't read or delete is logged with its name and doesn't block removal |
 | reconcileCleanup | the same lookup by name label |
 | TTL renewal | `PATCH /sandboxes/{id}` with `ttlSeconds` (deadline becomes now plus the TTL) |
 
@@ -87,7 +87,7 @@ Measured on the trial (`small`): create to connected daemon 11 s; composed threa
 
 ### How the enrolment secret travels
 
-boat's command API has no stdin, and keeps every command and its output for 90 days unless monitoring is off. The executor therefore writes stdin to `/tmp/.bb-boat-stdin-<uuid>` through the files API, and the command is `exec <file && rm -f file && exec <argv>`, so the file is gone before the real command starts. If the command never runs, the plugin deletes the file. `/tmp` is not in boat snapshots. Monitoring is off for every VM as well.
+boat's command API has no stdin, and keeps every command and its output for 90 days unless monitoring is off. A command is retried only on boat's "restoring" error, which means it never ran; any other failure is reported as is. The executor therefore writes stdin to `/tmp/.bb-boat-stdin-<uuid>` through the files API, and the command is `exec <file && rm -f file && exec <argv>`, so the file is gone before the real command starts. If the command never runs, the plugin deletes the file. `/tmp` is not in boat snapshots. Monitoring is off for every VM as well.
 
 ### Daemon and agent CLIs
 
@@ -114,14 +114,19 @@ Every boat VM already runs a desktop, even with `noEnv`: Xorg on `:0` (1920x1080
 
 ### The 14-day keep
 
-boat keeps a stopped VM's disk for at least 14 days; after that an automated cleanup may delete it (boat says the job only reports candidates today), and resume would fail with `409 snapshot_data_expired`. The daily `boat-sandbox-keep` job saves a saved snapshot, named like the sandbox, for every labelled VM stopped longer than `keepStoppedDays` that doesn't already have one from its latest stop. Resume falls back to creating a new VM from that snapshot when the disk is gone, then deletes the old VM. A normal resume deletes the keep snapshot, and remove always does. Saved snapshots don't work on the free trial, and extras beyond the plan's allowance (10 per $20) cost $0.056 a day; failures are logged and the job moves on.
+boat keeps a stopped VM's disk for at least 14 days; after that an automated cleanup may delete it (boat says the job only reports candidates today), and resume would fail with `409 snapshot_data_expired`. The daily `boat-sandbox-keep` job saves a saved snapshot, named like the sandbox, for every labelled VM stopped longer than `keepStoppedDays` that doesn't already have one from its latest stop. When the disk is gone, resume creates a new VM from that snapshot only if it was taken from the expired VM itself (`sourceSandboxId`) on or after that VM's last stop; otherwise it refuses rather than roll back to older work. After a restore it deletes the expired VM and the snapshot. A normal resume deletes the keep snapshot, and remove does when one exists. Saved snapshots don't work on the free trial, and extras beyond the plan's allowance (10 per $20) cost $0.056 a day; failures are logged and the job moves on.
 
 ### Cost guards
 
-- `maxConcurrent`, `monthlyCapUsd` and the hourly rate of `size` feed the shared policy, which refuses create and resume when a slot or the budget is gone, and suspends everything once the cap is reached.
-- The plugin also reads boat's own meter (`GET /sandboxes?label=app.getbb.boat-sandbox=1&include=cost,deletedCost`, cached for a minute) and refuses create and resume, in `validate` and `availability` too, when this month's list-price spend for its own VMs reaches the cap. That figure counts VMs created by any BB server using the same boat account.
-- `availability` reports setup required without a key, with a rejected key, when the account has no plan, or when the chosen size isn't available on the plan, and unavailable when boat won't start sandboxes or the cap is reached.
+- `maxConcurrent`, `monthlyCapUsd` and the hourly rate of `size` feed the shared policy. The helper records spend in USD at the rate each VM started or resumed at, so changing the size later never reprices past time.
+- The plugin also implements the helper's `vendorSpendRefusal` hook from boat's own meter (`GET /sandboxes?label=app.getbb.boat-sandbox=1&state=<every state but cancelled>&include=cost,deletedCost`, cached for a minute). That figure counts this month's list-price time of every VM it labelled, stopped and deleted ones included, from any BB server using the same boat account.
+- The helper consults both on create, resume, `validate`, `availability`, every auto-stop extension and every minute's sweep. At the cap it refuses create and resume, never extends an auto-stop, and asks core to suspend every running VM.
+- If boat's meter can't be read and there is no reading from the last 10 minutes, create and resume are refused and no auto-stop is extended, but nothing is suspended; boat's own auto-stop then ends the VMs.
+- `usage.get`'s `refusal` is the helper's full answer (both meters and the concurrency limit), so it matches what create would say.
+- `availability` reports setup required without a key, with a rejected or expired key (with the `--ttl never` and rotate advice), when the account has no plan, or when the chosen size isn't available on the plan.
 
 ### Secrets
+
+With `noEnv`, boat still leaves its own `ASCII_TOKEN` (plus `ASCII_PORT`, `ASCII_API_URL` and `BOAT_ID`) in the VM's command environment; boat says it can only host ports of its own sandbox. `~/.config/ascii/boat/config.json` holds no key.
 
 The API key is a `secret: true` setting. It is sent only in the `Authorization` header and is redacted from every error, progress line and log, together with any `boat_…` key and `?token=` value. Machine inputs and the machine resource are checked for credential-like values by the shared helper. The desktop URL boat returns on sandbox reads is never copied anywhere.

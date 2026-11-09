@@ -67,7 +67,7 @@ export const boatRpcContract = defineRpcContract({
 
 export interface BoatRpcDeps {
   backend: BoatBackend;
-  registration: Pick<SandboxBackendRegistration, "usage">;
+  registration: Pick<SandboxBackendRegistration, "usage" | "refusal">;
   settings: () => Promise<BoatSettings>;
   api: { savedSnapshot(name: string, signal?: AbortSignal): Promise<{ status: string; createdAt: string | null } | null>; listSandboxes: BoatBackendList };
   machines: {
@@ -155,7 +155,7 @@ export function createBoatService(deps: BoatRpcDeps) {
       vendor,
       vendorError,
       estimate: { runningMs: estimate.runningMs, usd: estimate.estimatedUsd },
-      refusal: await deps.backend.spendRefusal(),
+      refusal: await deps.registration.refusal(),
     };
   }
 

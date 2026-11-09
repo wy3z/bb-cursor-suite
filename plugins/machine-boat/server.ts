@@ -8,7 +8,12 @@ import { policyFrom, readBoatSettings, settingDescriptors } from "./lib/settings
 export default function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define(settingDescriptors);
   const current = async () => readBoatSettings(await settings.get());
-  const api = createBoatApi({ apiKey: async () => (await current()).apiKey });
+  const api = createBoatApi({
+    apiKey: async () => {
+      const value = (await settings.get()).apiKey;
+      return typeof value === "string" ? value : "";
+    },
+  });
   const backend = createBoatBackend({ api, settings: current, log: bb.log });
   const registration = registerSandboxBackend(bb, backend, async () => policyFrom(await current()), {
     scheduleName: "boat-sandbox-sweep",

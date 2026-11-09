@@ -12,8 +12,8 @@ Anyone who wants agents off their own machine: long or parallel work, untrusted 
 - A real Ubuntu 24.04 VM per thread: root through passwordless `sudo`, systemd, Docker with Compose, `/dev/kvm`, Node 24, git, `gh`, Google Chrome, and Claude Code and Codex preinstalled by boat at their latest releases.
 - Headless browser checks on the VM: `bb browser-automation open --backend local --headless --machine <vm>` starts Chrome there, so an agent can test a dev server running beside it, take screenshots, show them inline and attach them to tasks.
 - Suspend and resume. Suspend is boat's stop, which snapshots the disk and stops billing; resume brings the same VM back from that snapshot and restarts the daemon without reinstalling anything.
-- Cost guards, all in the plugin settings and checked before every create and resume: idle suspend after 15 minutes, a 2-hour auto-stop that boat enforces even if BB is down (renewed while a thread is active), 2 VMs at once, and a $30 monthly cap read from boat's own meter.
-- Nothing from your boat account reaches the VM by default: no boat CLI key, no boat GitHub app token, no boat secrets or agent logins. BB supplies the logins it needs.
+- Cost guards, all in the plugin settings: idle suspend after 15 minutes, a 2-hour auto-stop that boat enforces even if BB is down (renewed while a thread is active, never past the cap), 2 VMs at once, and a $30 monthly cap checked against boat's own meter before every create and resume and on every minute's sweep. If boat's meter can't be read for 10 minutes, new and resumed VMs are refused and no auto-stop is extended until it can.
+- Nothing from your boat account reaches the VM by default: no boat CLI key, no boat GitHub app token, no boat secrets or agent logins. BB supplies the logins it needs. boat always leaves its own `ASCII_TOKEN` on the VM; it can only publish the VM's own ports on public URLs, so anything running on the VM can expose itself.
 
 Configure it under **Settings → Plugins → Boat Sandbox**: API key, size, boat environment, idle minutes, TTL hours, max concurrent, monthly cap and the 14-day keep.
 
@@ -29,7 +29,13 @@ Claude Code and Codex come with boat's image. For any other provider the plugin 
 
 ### The API key
 
-Create a key with `boat api-key create bb --preset ci` (or in the boat.dev dashboard). The `ci` preset can create sandboxes and delete only the ones it created; add `account.read` so the plugin can read your plan, limits and spend. The key is a secret setting: it lives in a 0600 file in BB's data folder, never in the database, the browser, machine records or logs.
+Create the key from a signed-in boat CLI with `boat api-key create bb --preset ci --ttl never`, or in the boat.dev dashboard. Without `--ttl` a key expires after 90 days, and an expired key can't be rotated.
+
+- A `ci` key can create sandboxes but delete only the ones it created itself. If you ever replace the key with a new one, the new key gets 403 when BB removes VMs the old key made, and you delete those on boat.dev instead.
+- To change the secret (for example after a leak), use `boat api-key rotate <key id>`, which keeps the key's id, scope and ownership. Rotation needs a browser sign-in on the boat CLI or the dashboard.
+- The plugin reads your plan and limits when the key allows it; without that it still works and skips those checks.
+
+The key is a secret setting: it lives in a 0600 file in BB's data folder, never in the database, the browser, machine records or logs.
 
 ### Costs
 
