@@ -79,7 +79,7 @@ export function isNotFound(error: unknown): boolean {
 
 const BOAT_REDACTIONS: Array<[RegExp, string]> = [
   [/\b(?:boat|box)_[A-Za-z0-9_-]{20,}/g, "[redacted]"],
-  [/([?&](?:_token|token|access_token)=)[^&\s"']+/gi, "$1[redacted]"],
+  [/([?&#](?:_token|token|access_token)=)[^&\s"']+/gi, "$1[redacted]"],
 ];
 
 export function redactBoat(text: string, key?: string | null): string {
@@ -355,6 +355,15 @@ export function createBoatApi(options: BoatApiOptions) {
     },
     async deleteSavedSnapshot(name: string, signal?: AbortSignal): Promise<void> {
       await json("DELETE", `/saved-snapshots/${encodeURIComponent(name)}`, { signal });
+    },
+    async desktop(sandboxId: string, theme: "light" | "dark" | null, signal?: AbortSignal): Promise<{ url: string | null; provisioning: boolean }> {
+      const body = await json("POST", `/sandboxes/${encodeURIComponent(sandboxId)}/desktop`, {
+        query: theme === null ? [] : [["theme", theme]],
+        body: {},
+        signal,
+        timeoutMs: 45_000,
+      });
+      return { url: str(body.desktopUrl), provisioning: body.provisioning === true };
     },
     async writeFile(sandboxId: string, path: string, content: string, signal?: AbortSignal): Promise<void> {
       await json("PUT", `/sandboxes/${encodeURIComponent(sandboxId)}/files`, {

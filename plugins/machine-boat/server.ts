@@ -1,7 +1,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { registerDesktopProvider } from "@wy3z/bb-suite/desktop/server";
 import { registerSandboxBackend } from "@wy3z/bb-suite/machine-backend/server";
-import { createBoatApi } from "./lib/api.ts";
+import { createBoatApi, redactBoat } from "./lib/api.ts";
 import { DISPLAY_NAME, createBoatBackend } from "./lib/backend.ts";
+import { codexTimeoutScript, createBoatDesktop, runScript } from "./lib/desktop.ts";
 import { createBoatService, registerBoatRpcAndCli } from "./lib/rpc.ts";
 import { policyFrom, readBoatSettings, settingDescriptors } from "./lib/settings.ts";
 
@@ -14,7 +16,14 @@ export default function plugin(bb: BbPluginApi) {
       return typeof value === "string" ? value : "";
     },
   });
-  const backend = createBoatBackend({ api, settings: current, log: bb.log });
+  const backend = createBoatBackend({
+    api,
+    settings: current,
+    log: bb.log,
+    afterReady: async (sandboxId, signal) => {
+      await runScript({ api }, sandboxId, codexTimeoutScript(), AbortSignal.any([signal, AbortSignal.timeout(60_000)]));
+    },
+  });
   const registration = registerSandboxBackend(bb, backend, async () => policyFrom(await current()), {
     scheduleName: "boat-sandbox-sweep",
   });
@@ -38,4 +47,8 @@ export default function plugin(bb: BbPluginApi) {
       },
     }),
   );
+  registerDesktopProvider(bb, createBoatDesktop({ api, resource: (hostId) => bb.experimental_machines.getResource(hostId) }), {
+    redact: (text) => redactBoat(text),
+    onActivity: (hostId) => registration.bumpIdle(hostId),
+  });
 }
