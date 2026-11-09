@@ -4,7 +4,21 @@ Drafts for James to post. Every tweet is under 280 characters as X counts them (
 
 Never call it "open source Cursor". The line is "Cursor's agent UI for Claude Code and Codex, open source".
 
-## Scrappy post (James posts it himself)
+## The post (James records and posts it himself)
+
+Media: James's own screen recording of the demo in the BB desktop app (default light theme, borderless window): the Acme Web board in List view with a lead and workers running, PR chips, and a cloud worker on a boat VM with its Desktop tab live. Trimmed only. No music, no captions.
+
+**P1** (media: James's recording)
+
+> opus 5.5 is so good... it made BB into Cursor.
+
+**P2** (no media, reply)
+
+> well, a Cursor-style UI for Claude Code and Codex. seven plugins for BB, open source. not affiliated with anysphere
+>
+> https://github.com/wy3z/bb-cursor-suite
+
+## Scrappy post (earlier cut, not the main post)
 
 Media: `x-video-4-opus-in-cursor.mp4` (47 s, 1920x1200, captions burned in, no audio). A rough screen recording of the demo: picking Opus 5.5 in the composer, the sidebar and pills, Opus doing a real task, the board, a cloud agent on its own desktop, and Take Control.
 
