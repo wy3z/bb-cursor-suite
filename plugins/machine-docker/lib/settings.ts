@@ -3,6 +3,13 @@ import { z } from "zod";
 
 const MINUTES_PER_YEAR = 525_600;
 
+export const IMAGE_REFERENCE = /^(?:[a-z0-9][A-Za-z0-9._/:@-]*)?$/;
+const imageSchema = z
+  .string()
+  .trim()
+  .max(256)
+  .regex(IMAGE_REFERENCE, "Use an image reference such as debian:bookworm or ghcr.io/org/image@sha256:…, starting with a lowercase letter or digit");
+
 export const settingDescriptors = {
   image: {
     type: "string",
@@ -10,7 +17,7 @@ export const settingDescriptors = {
     description:
       "Leave empty for the built-in Debian image (Node 22, git, gh, Chromium, fonts, Claude Code and Codex). A custom image needs sh, Node.js 22.19 or newer, curl, git and ps, and should run as a non-root user.",
     default: "",
-    experimental_schema: z.string().trim().max(256).regex(/^[^\s]*$/, "No spaces in an image reference"),
+    experimental_schema: imageSchema,
   },
   cpus: {
     type: "number",
@@ -68,7 +75,7 @@ export interface DockerSettings {
 }
 
 const settingsSchema = z.object({
-  image: z.string().trim().catch(""),
+  image: imageSchema.default(""),
   cpus: z.number().min(0.25).max(64).catch(2),
   memoryGb: z.number().min(0.5).max(256).catch(4),
   shmMb: z.number().int().min(64).max(16384).catch(1024),
@@ -78,7 +85,9 @@ const settingsSchema = z.object({
 });
 
 export function readDockerSettings(values: Partial<Record<keyof DockerSettings, unknown>>): DockerSettings {
-  return settingsSchema.parse(values);
+  const parsed = settingsSchema.safeParse(values);
+  if (parsed.success) return parsed.data;
+  throw new Error(`Docker Sandbox: the Image setting isn't a valid image reference (${parsed.error.issues[0]?.message ?? "invalid"}). Fix it under Settings → Plugins → Docker Sandbox.`);
 }
 
 export function policyFrom(settings: DockerSettings): SandboxPolicyInput {

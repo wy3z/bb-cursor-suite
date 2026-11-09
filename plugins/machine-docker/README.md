@@ -13,13 +13,19 @@ Anyone who wants agents in throwaway machines before paying for cloud ones, or w
 - Headless browser checks inside the container: `bb browser-automation open --backend local --headless --machine <sandbox>` starts Chromium there, so the agent can test a dev server running in the same container and take screenshots.
 - Limits on every container: CPUs, memory with swap off, shared memory, process count, all Linux capabilities dropped, `no-new-privileges`, and no host mounts, Docker socket or published ports.
 - Idle stop, a TTL backstop the container enforces itself, and a cap on running sandboxes. Suspend stops the container in place; resume starts it and reconnects the daemon without reinstalling.
-- Every container, network and image the plugin makes carries an `app.getbb.docker-sandbox` label, so cleanup finds exactly what it created.
+- Every container and network the plugin makes carries an `app.getbb.docker-sandbox` label, and built images carry `app.getbb.docker-sandbox-image`, so cleanup finds exactly what it created. Older built images are pruned after each rebuild.
 
 Configure it under **Settings → Plugins → Docker Sandbox**: image, CPU limit, memory limit, shared memory, idle minutes, TTL hours and max concurrent.
 
 ### How the container reaches BB
 
-The daemon dials out to BB's machine address. The BB server listens on loopback, so containers reach it through bb Connect, the same way a cloud machine does. Nothing uses host networking, and nothing listens inside the container. Without Connect, set **Settings → Machines → Server URL reachable by machines** to an address containers can reach and your firewall allows.
+The daemon dials out to BB's machine address. The BB server listens on loopback, so containers reach it through bb Connect, the same way a cloud machine does. Nothing uses host networking, and nothing listens inside the container.
+
+### Host and LAN access
+
+Sandboxes run on their own bridge network, `bb-docker-sandbox` (`10.213.89.0/24`, traffic between sandboxes off). A bridge network still routes to your host and your LAN: a sandbox can reach ports other containers publish on the host (a local database, for example) and devices on your network. Docker sends published-port traffic around the host firewall's input rules, so a default-drop firewall such as ufw does not stop it.
+
+Before it offers sandboxes, the plugin starts a throwaway container on that network and tries the network's gateway, the host's addresses, every published host port and your LAN router. If any of them answers, Docker Sandbox reports **setup required**, names what answered, and creates nothing. The check repeats every ten minutes. It only lifts once that traffic is blocked on the host, which needs root and a decision about how; the plugin never changes your firewall.
 
 ### Agent logins and CLIs
 

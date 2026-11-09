@@ -48,10 +48,11 @@ There is no spend cap: local containers cost nothing.
 | Resource | Name | Labels |
 |---|---|---|
 | Container | `bb-docker-<key slug>` | `app.getbb.docker-sandbox=1`, `app.getbb.docker-sandbox.name=<name>`, `app.getbb.docker-sandbox.key=<key>` |
-| Network | `bb-docker-sandbox`, bridge, inter-container traffic off | `app.getbb.docker-sandbox=1` |
+| Network | `bb-docker-sandbox`, bridge, subnet `10.213.89.0/24`, inter-container traffic off. Adopted only if it has this label, `enable_icc=false` and that subnet; removed by ID | `app.getbb.docker-sandbox=1` |
+| Probe container | throwaway `--rm` container on the network, from the pinned Node base image | `app.getbb.docker-sandbox-probe=1` |
 | Built-in image | `bb-docker-sandbox:<dockerfile hash>` (agents layer) and `bb-docker-sandbox:base` (no agent CLIs) | `app.getbb.docker-sandbox-image=1` |
 
-Containers run as the image user (`node` in the built-in image) with `--init`, `--cap-drop ALL`, `--security-opt no-new-privileges`, `--pids-limit 4096`, no bind mounts, no volumes, no published ports and no environment variables beyond the image's. Secrets reach the container only through BB: the enrolment bundle on `docker exec` stdin and Machine environment values delivered to the daemon at run time.
+Containers run as the image user (`node` in the built-in image) with `--init`, `--cap-drop ALL`, `--security-opt no-new-privileges`, `--pids-limit 4096`, no bind mounts, no named volumes (anonymous ones from an image's `VOLUME` go with `--volumes`), no published ports and no environment variables beyond the image's. Secrets reach the container only through BB: the enrolment bundle on `docker exec` stdin and Machine environment values delivered to the daemon at run time.
 
 PID 1 is a small shell loop that exits at the deadline in `/tmp/.bb-sandbox-expires-at`, written at start and on every TTL renewal. When it exits the container stops, which BB sees as compute gone; `bb machine suspend` then records it as suspended and `resume` starts it again.
 
@@ -64,12 +65,24 @@ The built-in Dockerfile has two stages. `base` is Debian, Node, git, gh, Chromiu
 | create | build or pull the image, `docker run`, then BB's bootstrap through `docker exec -i` |
 | suspend | `docker stop`; no snapshot, the stopped container keeps its filesystem |
 | resume | `docker start`, rewrite the TTL deadline, then `--start` the installed daemon (no reinstall) |
-| remove | `docker rm --force --volumes` every container with the name label, remove labelled volumes, and the network once no labelled container is left |
+| remove | `docker rm --force --volumes` every container with the name label, then the network by ID once no labelled container is left. Network create and remove are serialised so a remove can't delete the network between another create's check and its `docker run` |
 | reconcileCleanup | the same lookup by name label |
 
 ### Reaching BB
 
-The daemon dials out to BB's machine address, usually bb Connect. Docker's bridge network cannot reach a server bound to loopback, and a host firewall with a default-drop input policy blocks container-to-host traffic as well, so a direct URL only works if the firewall allows it.
+The daemon dials out to BB's machine address, usually bb Connect, over the bridge network's normal outbound route. A server bound to loopback is not reachable from a container.
+
+### Host and LAN access (fails closed)
+
+A bridge network routes to the host and the LAN. Published host ports are reachable from a sandbox even with ufw's default-drop input policy, because Docker handles that traffic before the input rules. `availability()` therefore runs a probe container on `bb-docker-sandbox` (cap-drop ALL, `no-new-privileges`, user `node`, 128 MB, 64 pids). It tries TCP to: the network gateway on a closed port; each private host address; every non-loopback published TCP port at the gateway and those addresses; and the LAN default gateway on 53, 80 and 443. A connect or a refusal counts as reachable; only a timeout or unreachable counts as blocked. Any reachable target, or a probe that can't run, returns `setup-required` with the targets that answered. The result is cached for ten minutes. Blocking that traffic is a host change (root) the plugin never makes.
+
+### Keepalive and TTL
+
+PID 1 keeps the deadline in a shell variable set from the TTL at start. `/tmp/.bb-sandbox-expires-at` can only push it later, so deleting or corrupting the file never disables the TTL. TTL `0` sets an explicit `none` sentinel and the file is ignored. Resume and the sweep's renewals write a later deadline into the file.
+
+### Custom images
+
+**Image** must match `^[a-z0-9][A-Za-z0-9._/:@-]*$` (max 256 characters) in both the settings page and the runtime check, so it can never be read as a `docker` flag. At create the plugin reads the image's `Config.User` and refuses root, `0` or no `USER`.
 
 ### Agent CLIs and logins
 
