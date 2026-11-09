@@ -9,7 +9,7 @@ Anyone who wants agents in throwaway machines before paying for cloud ones, or w
 ## What you get
 
 - **Docker Sandbox** in the environment picker and in `bb thread spawn --environment-provider docker-sandbox`. BB creates the container, installs its daemon, clones the project, checks out a new branch and starts the thread.
-- A built-in Debian image with Node 22, git, gh, ripgrep, Chromium and fonts. Agent CLIs install into the container user's `~/.local` the first time BB needs them. Point **Image** at your own image if you prefer.
+- A built-in Debian image with Node 22, git, gh, ripgrep, Chromium and fonts. Agent CLIs aren't baked in; `bb machine provider-cli install <machine> claude-code` puts one in the container user's `~/.local` in about 20 seconds, and it survives suspend and resume. Point **Image** at your own image if you prefer.
 - Headless browser checks inside the container: `bb browser-automation open --backend local --headless --machine <sandbox>` starts Chromium there, so the agent can test a dev server running in the same container and take screenshots.
 - Limits on every container: CPUs, memory with swap off, shared memory, process count, all Linux capabilities dropped, `no-new-privileges`, and no host mounts, Docker socket or published ports.
 - Idle stop, a TTL backstop the container enforces itself, and a cap on running sandboxes. Suspend stops the container in place; resume starts it and reconnects the daemon without reinstalling.
@@ -21,9 +21,11 @@ Configure it under **Settings → Plugins → Docker Sandbox**: image, CPU limit
 
 The daemon dials out to BB's machine address. The BB server listens on loopback, so containers reach it through bb Connect, the same way a cloud machine does. Nothing uses host networking, and nothing listens inside the container. Without Connect, set **Settings → Machines → Server URL reachable by machines** to an address containers can reach and your firewall allows.
 
-### Agent logins
+### Agent logins and CLIs
 
 A sandbox has no logins of its own. Before a thread starts in one, BB checks that the provider can sign in there: set `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) with `bb machine env set --project <id>`, value on stdin, or route the provider through the Account Pooler. GitHub uses BB's forwarded `gh` login unless the project sets its own `GH_TOKEN`.
+
+BB doesn't install agent CLIs when a thread starts. A thread on a brand-new sandbox fails its first turn with "could not find the Claude Code CLI"; run `bb machine provider-cli install <machine> <provider>` and then `bb thread retry <thread>`. Sandboxes are ephemeral, so `bb machine list` only shows them with `--all`.
 
 ## Installation
 
