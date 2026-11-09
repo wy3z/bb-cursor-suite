@@ -9,6 +9,7 @@ import {
   BUSY_AWK,
   LOGIN_PROBE,
   LOGIN_VARIABLES,
+  STALE_FN,
   createBoatLoginCheck,
   environmentNote,
   parseLogins,
@@ -283,9 +284,37 @@ describe("handing boat's logins to BB's daemon", () => {
     expect(fresh).toContain("systemctl --user is-system-running --wait");
     expect(fresh).toContain('systemctl --user restart "$u"');
     expect(fresh.indexOf("awk -v root")).toBeLessThan(fresh.indexOf('systemctl --user restart "$u"'));
+    for (const script of [fresh, live]) {
+      expect(script).toContain(STALE_FN);
+      expect(script).toContain('[ -n "$(stale_for "$p")" ] || continue');
+      expect(script).not.toMatch(/echo[^\n]*\$\{!n|printf[^\n]*\$dv/);
+    }
     expect(live).not.toContain("systemctl --user restart");
     expect(live).not.toContain("is-system-running");
     expect(spawnSync("sh", ["-n"], { input: LOGIN_PROBE }).status).toBe(0);
+  });
+
+  test("the stale check compares values on the VM and prints only a verdict", async () => {
+    const other = "sk-ant-oat01-rotatedtokenthatdiffersfromtheold000000000";
+    const daemon = spawn("sleep", ["30"], { env: { PATH: process.env.PATH ?? "/usr/bin:/bin", CLAUDE_CODE_OAUTH_TOKEN: SECRET, CHATGPT_ACCOUNT_ID: "acct" }, stdio: "ignore" });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const check = (have: string, gone: string, value: string | null) => {
+        const result = spawnSync("bash", ["-c", `set -u\nhave="${have}"\ngone="${gone}"\n${STALE_FN}\nstale_for ${daemon.pid}`], {
+          env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...(value === null ? {} : { CLAUDE_CODE_OAUTH_TOKEN: value }), CHATGPT_ACCOUNT_ID: "acct" },
+          encoding: "utf8",
+        });
+        expect(result.stdout + result.stderr).not.toContain(SECRET);
+        expect(result.stdout + result.stderr).not.toContain(other);
+        return result.stdout.trim();
+      };
+      expect(check(" CLAUDE_CODE_OAUTH_TOKEN CHATGPT_ACCOUNT_ID", " OPENAI_API_KEY", SECRET)).toBe("");
+      expect(check(" CLAUDE_CODE_OAUTH_TOKEN", " OPENAI_API_KEY", other)).toBe("stale");
+      expect(check(" CLAUDE_CODE_OAUTH_TOKEN", " CHATGPT_ACCOUNT_ID", SECRET)).toBe("stale");
+      expect(check(" ANTHROPIC_API_KEY", "", null)).toBe("stale");
+    } finally {
+      daemon.kill();
+    }
   });
 
   test("the busy check sees an agent CLI anywhere under the daemon, and nothing else", () => {

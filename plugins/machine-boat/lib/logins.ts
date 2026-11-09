@@ -25,6 +25,19 @@ const DAEMON_PIDS = [
   "}",
 ];
 
+export const STALE_FN = [
+  "stale_for() {",
+  '  local env="/proc/$1/environ" n dv',
+  "  for n in $have; do",
+  `    dv="$(tr '\\0' '\\n' < "$env" 2>/dev/null | grep -m1 "^$n=" | cut -d= -f2-)"`,
+  '    if [ -z "$dv" ] || [ "$dv" != "${!n}" ]; then echo stale; return; fi',
+  "  done",
+  "  for n in $gone; do",
+  `    if tr '\\0' '\\n' < "$env" 2>/dev/null | grep -q "^$n="; then echo stale; return; fi`,
+  "  done",
+  "}",
+].join("\n");
+
 export function shareLoginsScript(restart: boolean): string {
   return [
     "set -u",
@@ -43,16 +56,13 @@ export function shareLoginsScript(restart: boolean): string {
     "done",
     '[ -n "$have" ] && systemctl --user import-environment $have',
     '[ -n "$gone" ] && systemctl --user unset-environment $gone',
+    STALE_FN,
     'restarted=""',
     'kept=""',
     `for u in $(systemctl --user list-units --plain --no-legend --state=active '${DAEMON_UNITS}' 2>/dev/null | awk '{print $1}'); do`,
     '  p="$(systemctl --user show -p MainPID --value "$u" 2>/dev/null)"',
     '  [ -n "$p" ] && [ "$p" != 0 ] && [ -r "/proc/$p/environ" ] || continue',
-    `  names="$(tr '\\0' '\\n' < "/proc/$p/environ" | cut -d= -f1)"`,
-    '  stale=""',
-    '  for n in $have; do printf "%s\\n" "$names" | grep -qx "$n" || stale=1; done',
-    '  for n in $gone; do printf "%s\\n" "$names" | grep -qx "$n" && stale=1; done',
-    '  [ -n "$stale" ] || continue',
+    '  [ -n "$(stale_for "$p")" ] || continue',
     ...(restart
       ? [
           `  if [ -n "$(ps -eo pid=,ppid=,comm= | awk -v root="$p" '${BUSY_AWK}')" ]; then kept="$kept $u"; continue; fi`,
