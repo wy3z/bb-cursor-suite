@@ -24,7 +24,8 @@
     "icon.svg",
     "dist",
     "lib",
-    "server.ts"
+    "server.ts",
+    "vendor"
   ],
   "scripts": {
     "build": "bb plugin build",
@@ -45,7 +46,7 @@
   },
   "dependencies": {
     "@get-bb/plugin-sdk": "0.6.132",
-    "@wy3z/bb-suite": "file:../../packages/suite-shared",
+    "@wy3z/bb-suite": "file:./vendor/bb-suite",
     "zod": "^4.3.6"
   },
   "devDependencies": {

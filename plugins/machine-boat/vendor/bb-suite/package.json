@@ -1,0 +1,36 @@
+{
+  "name": "@wy3z/bb-suite",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Shared contracts, project icons and picker, time formatting, settings rows, design tokens, a git lookup for non-FHS hosts, git invocations that keep repository config from running code, keyboard handling for menus and the sandbox machine-backend helper for the wy3z BB plugin suite.",
+  "exports": {
+    "./time": "./src/time.ts",
+    "./settings": "./src/settings.tsx",
+    "./contracts": "./src/contracts.ts",
+    "./change-requests": "./src/change-requests.ts",
+    "./plugin-availability": "./src/plugin-availability.ts",
+    "./plugin-status": "./src/plugin-status.ts",
+    "./project-icon": "./src/project-icon.ts",
+    "./project-icon/picker": "./src/project-icon-picker.tsx",
+    "./project-icon/server": "./src/project-icon-glyph-server.ts",
+    "./machine-backend": "./src/machine-backend.ts",
+    "./machine-backend/server": "./src/machine-backend-server.ts",
+    "./git": "./src/git-binary.ts",
+    "./git-safety": "./src/git-safety.ts",
+    "./testing/hostile-git": "./test/hostile-git.ts",
+    "./testing/sandbox-fakes": "./test/sandbox-fakes.ts",
+    "./menu-keyboard": "./src/menu-keyboard.ts",
+    "./thread-tabs": "./src/thread-tabs.ts",
+    "./tokens.css": "./tokens.css",
+    "./project-icon.css": "./project-icon.css",
+    "./settings.css": "./src/settings.css"
+  },
+  "peerDependencies": {
+    "zod": "^4.3.6",
+    "@hugeicons/core-free-icons": "^4.1.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+export const PROJECT_ICON_IMAGE_EDGE = 64;
+export const PROJECT_ICON_PNG_MAX_BYTES = 48 * 1024;
+export const PROJECT_ICON_PNG_MAX_EDGE = 256;
+export const PROJECT_ICON_IMAGE_PREFIX = "data:image/png;base64,";
+export const PROJECT_ICON_MAX_LENGTH = PROJECT_ICON_IMAGE_PREFIX.length + Math.ceil(PROJECT_ICON_PNG_MAX_BYTES / 3) * 4;
+export const PROJECT_ICON_READ_MAX_LENGTH = 256 * 1024;
