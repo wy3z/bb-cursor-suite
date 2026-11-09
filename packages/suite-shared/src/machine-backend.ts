@@ -80,12 +80,17 @@ export function concurrencyRefusal(displayName: string, running: number, maxConc
   return `${displayName}: ${running} of ${maxConcurrent} ${noun} already running (max concurrent ${maxConcurrent}). Suspend or remove one, or raise the limit in the plugin settings.`;
 }
 
+export interface VendorSpendRefusal {
+  reason: "cap" | "unreadable";
+  message: string;
+}
+
 export function missingRateMessage(displayName: string, capUsd: number): string {
   return `${displayName}: set an hourly rate so the ${formatUsd(capUsd)} monthly cap can be enforced.`;
 }
 
 const SECRET_KEY = /(token|secret|password|passwd|api[-_]?key|authorization|cookie|credential|private[-_]?key)/i;
-const SECRET_VALUE = /(sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/=-]{12,})/;
+const SECRET_VALUE = /(sk-ant-[A-Za-z0-9_-]{8,}|\b(?:boat|box)_[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/=-]{12,})/;
 
 export function findSecretLike(value: unknown, path = "$"): string | null {
   if (typeof value === "string") return SECRET_VALUE.test(value) ? path : null;
@@ -109,6 +114,7 @@ export function findSecretLike(value: unknown, path = "$"): string | null {
 const REDACTIONS: Array<[RegExp, string]> = [
   [/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]"],
   [/sk-ant-[A-Za-z0-9_-]+/g, "[redacted]"],
+  [/\b(?:boat|box)_[A-Za-z0-9_-]{20,}/g, "[redacted]"],
   [/sk-[A-Za-z0-9_-]{16,}/g, "[redacted]"],
   [/gh[pousr]_[A-Za-z0-9]{20,}/g, "[redacted]"],
   [/github_pat_[A-Za-z0-9_]{20,}/g, "[redacted]"],

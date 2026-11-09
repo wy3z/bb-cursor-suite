@@ -65,7 +65,7 @@ describe("round 2 blocker 2: snapshot ledger survives sweeps and lost responses"
     await expect(t.suspend(hostId!)).rejects.toThrow("timeout waiting for snapshot response");
     expect(t.fake.snapshots.size).toBe(1);
     await t.registration.sweep();
-    registerSandboxBackend(t.sdk.bb, t.fake.backend, { hourlyRateUsd: 0.5 }, { now: t.clock.now, launchCheck: false });
+    registerSandboxBackend(t.sdk.bb, t.fake.backend, { hourlyRateUsd: 0.5 }, { now: t.clock.now, launchCheck: false, providerCliCheck: false });
     expect(await t.remove(hostId!)).toEqual({ status: "removed" });
     expect(t.fake.snapshots.size).toBe(0);
   });

@@ -159,6 +159,31 @@
           "tagPrefix": "ui-tweaks/"
         }
       }
+    },
+    {
+      "id": "machine-boat",
+      "displayName": "Boat Sandbox",
+      "description": "Run BB threads in boat.dev cloud VMs: a real Ubuntu machine with root, Docker, systemd and Chrome per thread, with idle suspend, a TTL backstop, a concurrency limit and a monthly spend cap.",
+      "icon": {
+        "url": "./icons/machine-boat.svg"
+      },
+      "tags": [
+        "machines",
+        "sandbox",
+        "cloud"
+      ],
+      "author": {
+        "name": "wy3z",
+        "github": "wy3z"
+      },
+      "source": {
+        "git": {
+          "url": "https://github.com/wy3z/bb-cursor-suite.git",
+          "subdir": "plugins/machine-boat",
+          "range": "^0.1.0",
+          "tagPrefix": "machine-boat/"
+        }
+      }
     }
   ]
 }

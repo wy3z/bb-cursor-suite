@@ -1,0 +1,55 @@
+{
+  "name": "bb-plugin-machine-boat",
+  "version": "0.1.0",
+  "description": "Run BB threads in boat.dev cloud VMs, with idle suspend, a TTL backstop, a concurrency limit and a monthly spend cap.",
+  "author": {
+    "name": "WYEZ",
+    "url": "https://github.com/wy3z"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wy3z/bb-cursor-suite.git",
+    "directory": "plugins/machine-boat"
+  },
+  "homepage": "https://github.com/wy3z/bb-cursor-suite/tree/main/plugins/machine-boat#readme",
+  "bugs": {
+    "url": "https://github.com/wy3z/bb-cursor-suite/issues"
+  },
+  "type": "module",
+  "files": [
+    "README.md",
+    "PLUGIN_OVERVIEW.md",
+    "LICENSE",
+    "icon.svg",
+    "dist",
+    "lib",
+    "server.ts"
+  ],
+  "scripts": {
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
+  },
+  "engines": {
+    "bb": ">=0.49",
+    "bbPluginSdk": ">=0.6.132"
+  },
+  "bb": {
+    "name": "Boat Sandbox",
+    "description": "Run BB threads in boat.dev cloud VMs, with idle suspend, a TTL backstop, a concurrency limit and a monthly spend cap.",
+    "branding": {
+      "icon": "./icon.svg"
+    },
+    "server": "./server.ts"
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.6.132",
+    "@wy3z/bb-suite": "file:../../packages/suite-shared",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

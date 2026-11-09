@@ -6,6 +6,7 @@ export const suiteUrl = "https://github.com/wy3z/bb-cursor-suite.git";
 export const sharedDir = "packages/suite-shared";
 export const sharedName = "@wy3z/bb-suite";
 export const sharedSpec = `file:../../${sharedDir}`;
+export const previewPlugins = new Set(["machine-boat"]);
 export const legacyStreams = {
   "cursor-sidebar": "^0.3.2",
   "ui-tweaks": "^0.30.0",
@@ -171,7 +172,7 @@ export function checkVersions(root, overrides = {}) {
     if (stream && !satisfiesCaret(version, stream)) {
       errors.push(`${id}: ${version} leaves the legacy ${stream} stream, so existing installs would never see it. End the stream on purpose by removing ${id} from legacyStreams in scripts/versions.mjs.`);
     }
-    if (!stream && parsed.major < 1) errors.push(`${id}: ${version} is below 1.0.0; 0.x caret ranges lock users to one minor`);
+    if (!stream && !previewPlugins.has(id) && parsed.major < 1) errors.push(`${id}: ${version} is below 1.0.0; 0.x caret ranges lock users to one minor`);
 
     const listing = marketplace.find((item) => item.id === id);
     const git = listing?.source?.git;

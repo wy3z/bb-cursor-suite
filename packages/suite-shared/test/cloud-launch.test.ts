@@ -55,9 +55,11 @@ async function decide(sdk: ReturnType<typeof setup>, ctx: never) {
 }
 
 describe("cloud launch check", () => {
-  it("installs exactly one message.dispatch hook, or none when disabled", () => {
+  it("installs exactly one message.dispatch hook, or none when both checks are disabled", () => {
     expect(setup().state.dispatch).not.toBeNull();
-    expect(setup({ launchCheck: false }).state.dispatch).toBeNull();
+    expect(setup({ launchCheck: false }).state.dispatch).not.toBeNull();
+    expect(setup({ providerCliCheck: false }).state.dispatch).not.toBeNull();
+    expect(setup({ launchCheck: false, providerCliCheck: false }).state.dispatch).toBeNull();
   });
 
   it("passes local threads and other machine providers through without reading anything", async () => {
