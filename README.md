@@ -4,23 +4,66 @@ Run Claude Code, Codex and the other agents BB supports behind a Cursor-style in
 
 ![BB with the whole suite on: the Cursor-style sidebar, a lead thread with its pill row, and the Files tab](docs/media/suite-hero.png)
 
-Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
+Not affiliated with Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
 
-## Who it's for
+## What you get
 
-People who like how Cursor lays out agent work and want that layout in BB, with whichever agent they already use. Take the whole suite, or pick the one or two pieces you miss.
+### [Cursor Sidebar](plugins/cursor-sidebar)
 
-## What it looks like
+- Child chats nest under the chat that started them, and pinned chats sit in one block.
+- Group by project, last update, status, environment or not at all.
+- A spinner means an agent is working, an orange dot means it needs you, and a green dot means it finished and you haven't read it.
+- Filters by status, age, environment and pull request state.
+- Project icons in ten colours, or your own PNG.
+- Workers open as tabs of their lead.
 
-| Plugin | Folder | What it does |
-|---|---|---|
-| [Cursor Sidebar](plugins/cursor-sidebar) | `plugins/cursor-sidebar` | A Cursor-style sidebar: project trees, standalone chats, pins, folders and aggregate activity. |
-| [Cursor Composer](plugins/agent-pills) | `plugins/agent-pills` | A Cursor-style composer for BB, with optional pills for child threads and background tasks above it. |
-| [Files](plugins/filetree) | `plugins/filetree` | Browse thread workspaces and project sources with search and Git status. |
-| [Projects](plugins/projects) | `plugins/projects` | Board and list views over BB Tasks, with live agents, pull requests and changes on every card. |
-| [Pull Requests](plugins/pull-requests) | `plugins/pull-requests` | GitHub pull requests and GitLab merge requests in BB, grouped by what each one needs. |
-| [UI Tweaks](plugins/ui-tweaks) | `plugins/ui-tweaks` | Small, configurable improvements to BB's interface. |
-| [Boat Sandbox](plugins/machine-boat) | `plugins/machine-boat` | Run threads in boat.dev cloud VMs as BB machines, with idle suspend and a monthly spend cap. |
+![The sidebar grouped by project, with a lead and its workers nested under it](docs/media/cursor-sidebar-projects.png)
+
+### [Cursor Composer](plugins/agent-pills)
+
+- A Cursor-style prompt box with one row of pills above it: agents, changes, to-dos, the queue and the goal.
+- Commit, push or open a pull request from the Changes tray.
+- Cursor's environment picker: Cloud, This Computer and your worktrees.
+- A Desktop pill on cloud threads. Watch the agent's VM, and press Take Control to drive it yourself.
+
+![The Changes tray above the composer, with Commit, Commit & Push and Create PR](docs/media/agent-pills-changes-tray.png)
+
+### [Projects](plugins/projects)
+
+- Board and List views over BB Tasks, in Cursor's columns: For Review, In Progress, Queued, Done and Canceled.
+- Live cards show their agents, changes, and pull requests with review and CI state.
+- Cards flag when they're behind their evidence. The board never marks anything Done by itself.
+- A lead thread plans the work, starts workers, answers their questions and brings you the rest.
+- Visible work needs a screenshot before it reaches Done.
+- `bb projects` gives agents 16 commands to run the board.
+
+![The project board with agent, change and pull request chips on every card](docs/media/projects-board.png)
+
+### [Pull Requests](plugins/pull-requests)
+
+- Your GitHub pull requests, grouped by what each one needs from you.
+- A full pull request page beside the thread: diffs, checks, reviews and merge.
+- One-click hand-offs start an agent to review, fix CI, address feedback or resolve conflicts.
+- Threads can follow pull requests and get one message when they change.
+- GitLab merge requests for a thread's branch, read-only.
+
+![A pull request open beside the thread that wrote it](docs/media/pull-requests-detail.png)
+
+### [Files](plugins/filetree)
+
+- A read-only file tree in the right panel, with search and Git status.
+- Files open in the other pane when the panel is split, so the tree stays in view.
+
+### [Boat Sandbox](plugins/machine-boat) (experimental)
+
+- Each cloud agent gets its own [boat.dev](https://boat.dev) VM: Ubuntu, Docker, Chrome, and Claude Code and Codex preinstalled.
+- A real desktop the agent can use with computer-use tools, and that you can take over.
+- Agent logins come from your boat account, not BB.
+- Idle suspend, an auto-stop that runs even if BB is down, a VM limit and a monthly cap. A small VM is $0.018 an hour.
+
+### [UI Tweaks](plugins/ui-tweaks)
+
+- Icon packs, a clearer type hierarchy, prompt placement, Open With filtering and Alt+1 to Alt+9 for right panel tabs.
 
 `packages/suite-shared` holds the contracts, time formatting, settings kit, git safety and design tokens the plugins share. Release tags carry a vendored copy, so a plugin installed from Git never needs the rest of the repository.
 
@@ -111,3 +154,7 @@ It also refuses a downgrade, and any version at or below one already tagged on o
 ## Licence
 
 MIT, see [LICENSE](LICENSE). Marketplace icons come from [Lucide](https://lucide.dev) (ISC).
+
+---
+
+Not affiliated with, endorsed by or sponsored by Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
