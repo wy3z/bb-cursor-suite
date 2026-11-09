@@ -3,15 +3,19 @@ import { createHostileRepo, plainGitRunsCode, type HostileRepo, type HostileRepo
 import { commitsMentioning } from "./landings";
 
 const repos: HostileRepo[] = [];
+const originalEnv = { ...process.env };
 const since = new Date(Date.now() - 86_400_000).toISOString();
 
 afterAll(async () => {
+  process.env = originalEnv;
   await Promise.all(repos.splice(0).map((repo) => repo.cleanup()));
 });
 
 async function hostile(options: HostileRepoOptions = {}): Promise<HostileRepo> {
   const repo = await createHostileRepo(options);
   repos.push(repo);
+  process.env.HOME = repo.home;
+  process.env.XDG_CONFIG_HOME = repo.home;
   return repo;
 }
 

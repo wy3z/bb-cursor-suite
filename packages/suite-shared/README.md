@@ -151,24 +151,34 @@ modes.
 - `GIT_ALLOW_PROTOCOL=none` and `GIT_NO_LAZY_FETCH=1`, so a partial clone
   can't fetch through a transport the repository chose.
 - Inherited `GIT_*` variables dropped and `PATH` pinned to trusted folders.
-- Scope `isolated` also skips global and system config by pointing `HOME`,
-  `XDG_CONFIG_HOME` and `GIT_CONFIG_*` nowhere. Scope `user` keeps them, for
-  reads that decide what a user action will do (otherwise a globally ignored
-  file would look like an uncommitted change). That config is the user's own,
-  and the overrides above still beat it.
+- Scope `user` (Pull Requests and Projects) keeps the user's global and system
+  config, including `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and
+  `GIT_CONFIG_NOSYSTEM`, so `safe.directory`, `insteadOf` and ignore rules
+  apply as in a terminal. That config is the user's own, and the overrides
+  above still beat it. Scope `isolated` (Files) also skips it by pointing
+  `HOME`, `XDG_CONFIG_HOME` and `GIT_CONFIG_*` nowhere.
 
 **User action** (`GitSession.action`). Runs git the way the user's terminal
 would: their environment, `PATH` (minus relative entries), global and system
 config, credentials, remotes and identity. Inherited repository-location and
 config-injection variables (`GIT_DIR`, `GIT_INDEX_FILE`,
 `GIT_CONFIG_PARAMETERS` and the like) are dropped; `GIT_AUTHOR_*`,
-`GIT_COMMITTER_*`, `GIT_SSH*`, `GIT_ASKPASS`, `GIT_SSL_*`, `GIT_HTTP_*` and
-`GIT_PROXY_*` are kept. Switched off because no action needs them: the pager,
+`GIT_COMMITTER_*`, `GIT_SSH*`, `GIT_ASKPASS`, `GIT_SSL_*`, `GIT_HTTP_*`,
+`GIT_PROXY_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and
+`GIT_CONFIG_NOSYSTEM` are kept. Switched off because no action needs them: the pager,
 fsmonitor, `diff.external`, every diff driver's `textconv` and `command`, every
 merge driver, `log.showSignature`, and the `ext::` transport. Hooks stay on or
-go off per action (`{ hooks }`). Filters always stay on, because they change
-the bytes: without them Git LFS files would be committed whole and git-crypt
-files committed in plain text.
+go off per action (`hooks`), and an action can also refuse lazy fetches
+(`lazyFetch: false` sets `GIT_NO_LAZY_FETCH=1`) and index writes
+(`optionalLocks: false`). Filters always stay on, because they change the
+bytes: without them Git LFS files would be committed whole and git-crypt files
+committed in plain text.
+
+The "anything to commit?" check before Commit and Create PR is a `git status`
+with that action policy: filters on, hooks off, no lazy fetch, no index write.
+With filters off, a Git LFS or git-crypt file whose timestamps changed (after a
+`touch`, an editor save or a copy of the checkout) would look modified, and
+Create PR would refuse a tree with nothing to commit.
 
 **CLIs** (`cliGitEnv`). `gh` and `glab` run git themselves, so the same
 overrides travel in `GIT_CONFIG_PARAMETERS`. With `repository: false`,
@@ -181,10 +191,11 @@ credentials, and every hook and driver is off.
 
 | Action | Still runs | Why |
 |---|---|---|
-| Commit (`git add`, `git commit`) | The repository's hooks (`pre-commit`, `prepare-commit-msg`, `commit-msg`, `post-commit`, `post-index-change`, `reference-transaction`, config-defined hooks), clean filters on staged files, the signing program when signing is on, and the transport of a partial clone's lazy fetch | Hooks on an explicit commit are git's contract (husky, pre-commit, Git LFS). Filters decide what gets committed. Signing and fetching follow the user's config, which can be per repository. |
+| "Anything to commit?" check before Commit and Create PR (`git status`) | Clean and process filters on files whose timestamps changed | Without them a filtered file looks modified. Both actions run the same filters and hooks moments later. |
+| Commit (`git add`, `git commit`) | The repository's hooks (`pre-commit`, `prepare-commit-msg`, `commit-msg`, `post-commit`, `post-index-change`, `reference-transaction`, config-defined hooks), clean filters on staged files, the signing program when signing is on, and a partial clone's lazy-fetch transport (the repository's `uploadpack`, `core.sshCommand`, URL helpers) | Hooks on an explicit commit are git's contract (husky, pre-commit, Git LFS). Filters decide what gets committed. Signing and fetching follow the user's config, which can be per repository. |
 | Push | `pre-push` and `reference-transaction` hooks, `core.sshCommand`, credential helpers, `core.askPass`, `remote.<name>.receivepack` on a local remote, and remote helpers named by the URL | Git LFS uploads from `pre-push`. A per-repository SSH key or credential helper is common and is the user's push credential. |
-| Apply locally (`git apply` in the target, the patch build in the source) | Clean and smudge filters on the files the patch touches | Without them an LFS or git-crypt file can't match its preimage or is written in the wrong form. Hooks are off: neither step is a commit. |
-| `gh pr create --fill --head` | Nothing from the repository; its git may fetch missing objects with the user's credentials | `--head` means gh doesn't push or run `git status` (gh source, `pkg/cmd/pr/create`). |
+| Apply locally (`git apply` in the target, the patch build in the source) | Clean and smudge filters on the files the patch touches. On Git older than 2.45, a partial clone's lazy-fetch transport (the repository's `uploadpack`, `core.sshCommand`, URL helpers) | Without the filters an LFS or git-crypt file can't match its preimage or is written in the wrong form. Hooks are off: neither step is a commit. Apply sets `GIT_NO_LAZY_FETCH=1`, so a missing base object makes it fail instead of fetching, but Git only honours that variable from 2.45. |
+| `gh pr create --fill --head` | A partial clone's lazy-fetch transport (the repository's `uploadpack`, `core.sshCommand`, URL helpers) when gh's `git log --cherry` needs a missing object | `--head` means gh doesn't push or run `git status` (gh source, `pkg/cmd/pr/create`). Hooks and drivers are off. Create PR has already pushed with hooks on by then. |
 
 The hostile repository in `test/hostile-git.ts` sets every one of these knobs.
 Each plugin's tests show that plain git runs its code, that every read-only

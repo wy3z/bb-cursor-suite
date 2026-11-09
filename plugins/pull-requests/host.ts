@@ -102,7 +102,7 @@ export async function inspectCheckout(
       maxBytes: 256 * 1024,
       signal,
     });
-  const options = { git: gitPath, scope: "isolated" as const, source };
+  const options = { git: gitPath, scope: "user" as const, source };
   const listing = await exec(gitDriverListing(options));
   if (listing.error === "missing") return { ok: false, path, error: "gitMissing" };
   if (listing.error !== null) return { ok: false, path, error: "failed" };

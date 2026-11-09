@@ -304,6 +304,8 @@ describe("user action arguments", () => {
         GIT_AUTHOR_NAME: "U",
         GIT_COMMITTER_EMAIL: "u@example.com",
         GIT_SSL_CAINFO: "/etc/ca.pem",
+        GIT_CONFIG_GLOBAL: "/home/u/.config/git/work",
+        GIT_CONFIG_NOSYSTEM: "1",
       },
       "linux",
     );
@@ -316,6 +318,8 @@ describe("user action arguments", () => {
       GIT_AUTHOR_NAME: "U",
       GIT_COMMITTER_EMAIL: "u@example.com",
       GIT_SSL_CAINFO: "/etc/ca.pem",
+      GIT_CONFIG_GLOBAL: "/home/u/.config/git/work",
+      GIT_CONFIG_NOSYSTEM: "1",
     });
     expect(gitActionEnv({ Path: "C:\\Git\\cmd;.\\bin;D:\\tools", Git_Dir: "D:\\x" }, "win32")).toEqual({
       Path: "C:\\Git\\cmd;D:\\tools",
@@ -339,6 +343,16 @@ describe("read-only environment with the user's config", () => {
     expect(env.GIT_NO_LAZY_FETCH).toBe("1");
     expect(env.GIT_OPTIONAL_LOCKS).toBe("0");
     expect(env.PATH).toBe(`${TRUSTED_GIT_PATH}:/opt/git/bin`);
+    const custom = scrubbedGitEnv(
+      { GIT_CONFIG_GLOBAL: "/home/u/work.gitconfig", GIT_CONFIG_SYSTEM: "/etc/alt", GIT_CONFIG_PARAMETERS: "'x=y'" },
+      "linux",
+      "/usr/bin/git",
+      "user",
+    );
+    expect(custom.GIT_CONFIG_GLOBAL).toBe("/home/u/work.gitconfig");
+    expect(custom.GIT_CONFIG_SYSTEM).toBe("/etc/alt");
+    expect(custom.GIT_CONFIG_PARAMETERS).toBeUndefined();
+    expect(scrubbedGitEnv({ GIT_CONFIG_GLOBAL: "/home/u/work.gitconfig" }, "linux", "/usr/bin/git").GIT_CONFIG_GLOBAL).toBe("/dev/null");
   });
 });
 describe("git config through the environment", () => {
@@ -375,6 +389,20 @@ describe("git config through the environment", () => {
     expect(env.GIT_CONFIG_PARAMETERS).toContain("'protocol.ext.allow=never'");
     expect(env.GIT_CONFIG_PARAMETERS).toContain("'filter.lfs.clean='");
     expect(env.GIT_CONFIG_PARAMETERS).toContain("'core.hooksPath=/dev/null'");
+  });
+  it("turns off lazy fetches and optional locks when an action asks", () => {
+    const options = { git: "/usr/bin/git", scope: "user" as const, source: { PATH: "/usr/bin", GIT_NO_LAZY_FETCH: "0" }, platform: "linux" as const };
+    const opened = GitSession.from({ code: 0, stdout: listing(["filter.lfs.clean"]) }, options);
+    const check = opened!.action(["status"], { hooks: false, lazyFetch: false, optionalLocks: false });
+    expect(check.args[0]).toBe("--no-optional-locks");
+    expect(check.args).toContain("core.hooksPath=/dev/null");
+    expect(check.args.some((arg) => arg.startsWith("filter."))).toBe(false);
+    expect(check.env.GIT_NO_LAZY_FETCH).toBe("1");
+    expect(check.env.GIT_OPTIONAL_LOCKS).toBe("0");
+    const commit = opened!.action(["commit"], { hooks: true });
+    expect(commit.args[0]).toBe("--no-pager");
+    expect(commit.env.GIT_NO_LAZY_FETCH).toBeUndefined();
+    expect(commit.env.GIT_OPTIONAL_LOCKS).toBeUndefined();
   });
   it("refuses a session whose config can't be neutralised", () => {
     const options = { git: "/usr/bin/git", scope: "isolated" as const };

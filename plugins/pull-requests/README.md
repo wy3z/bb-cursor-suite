@@ -116,27 +116,28 @@ way your terminal would, minus what they don't need.
 
 | Where | Calls | Kind |
 |---|---|---|
-| `host.ts` inspect (branch, upstream, remotes for GitLab MRs) | `rev-parse --is-inside-work-tree`, `symbolic-ref -q --short HEAD`, `rev-parse -q --verify HEAD`, `remote`, `config --get` (branch remote, merge, pushRemote, `remote.pushDefault`), `remote get-url` | Read-only, without global config |
+| `host.ts` inspect (branch, upstream, remotes for GitLab MRs) | `rev-parse --is-inside-work-tree`, `symbolic-ref -q --short HEAD`, `rev-parse -q --verify HEAD`, `remote`, `config --get` (branch remote, merge, pushRemote, `remote.pushDefault`), `remote get-url` | Read-only, with your global config |
 | `host.ts` GitLab | `glab api --hostname … --include` | CLI with no repository |
 | `server.ts` (board, detail, diff, comments, title, ready, merge, close) | `gh api graphql`, `gh pr view/diff/edit/ready/merge/close/reopen <url>`, `gh api POST …/comments` | CLI with no repository, run from the temp folder |
-| Commit, Push, Create PR and Apply checks | `rev-parse --show-toplevel`, `rev-parse --abbrev-ref HEAD`, `status --porcelain --ignore-submodules=dirty`, `ls-files --others --exclude-standard`, `diff --cached --quiet`, `log -1`, `rev-parse --git-common-dir`, `rev-parse HEAD`, `merge-base`, `apply --numstat` | Read-only, with your global config |
+| Commit, Push, Create PR and Apply checks | `rev-parse --show-toplevel`, `rev-parse --abbrev-ref HEAD`, `ls-files --others --exclude-standard`, `diff --cached --quiet`, `log -1`, `rev-parse --git-common-dir`, `rev-parse HEAD`, `merge-base`, `apply --numstat` | Read-only, with your global config |
+| Commit and Create PR "anything to commit?" check | `status --porcelain --ignore-submodules=dirty` | Action policy: filters on, hooks off, no lazy fetch, no index write |
 | Create PR lookup | `gh pr view <branch>` | CLI, read-only git |
 | Commit | `add -u` or `add -A`, `commit -F -` | User action, hooks on |
 | Push (also after Commit and Create PR) | `push -u origin HEAD:refs/heads/<branch>` | User action, hooks on |
-| Create PR | `gh pr create --fill --head <branch>` | CLI action: hooks and drivers off |
-| Apply locally | `read-tree`, `add -A` and `diff --binary --no-ext-diff --no-textconv` into a temporary index in the source; `apply --check`, `apply --binary` in the target | User action, hooks off |
+| Create PR | `gh pr create --fill --head <branch>` | CLI action: hooks and drivers off, lazy fetch allowed |
+| Apply locally | `read-tree`, `add -A` and `diff --binary --no-ext-diff --no-textconv` into a temporary index in the source; `apply --check`, `apply --binary` in the target | User action, hooks off, no lazy fetch |
 
-What can still run, and why, is in the suite-shared table: your repository's
-hooks and clean filters on Commit, push hooks and the remote's own SSH command
-or credential helper on Push, and clean and smudge filters on Apply. A commit
+What can still run, and why, is in the suite-shared table: clean filters in
+the "anything to commit?" check, your repository's hooks and clean filters on
+Commit, push hooks and the remote's own SSH command or credential helper on
+Push, clean and smudge filters on Apply, and a partial clone's lazy-fetch
+transport on Commit, Create PR and (on Git older than 2.45) Apply. A commit
 with an empty message goes through BB's own commit
 (`bb.sdk.environments.commit`), which this plugin doesn't run itself.
 
-Two behaviours changed. The "anything to commit?" check ignores changes inside
-a submodule's own worktree, since Commit can't stage those anyway; a submodule
-that moved to another commit still counts. And inspect no longer reads global
-config, so a global `url.<base>.insteadOf` shorthand or `remote.pushDefault` is
-not applied when matching a GitLab remote.
+The "anything to commit?" check ignores changes inside a submodule's own
+worktree, since Commit can't stage those anyway; a submodule that moved to
+another commit still counts.
 
 ## GitHub ownership and the old subscriptions
 

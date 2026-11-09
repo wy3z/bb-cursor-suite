@@ -210,6 +210,7 @@ export function gitDriverOverrides(output: Uint8Array): string[] | null {
 export type GitConfigScope = "isolated" | "user";
 
 const PINNED_ENV_NAMES = new Set(["HOME", "XDG_CONFIG_HOME"]);
+const USER_CONFIG_VARIABLE = /^GIT_CONFIG_(GLOBAL|SYSTEM|NOSYSTEM)$/u;
 
 export function scrubbedGitEnv(
   source: NodeJS.ProcessEnv = process.env,
@@ -222,7 +223,8 @@ export function scrubbedGitEnv(
   for (const [key, value] of Object.entries(source)) {
     if (value === undefined) continue;
     const name = windows ? key.toUpperCase() : key;
-    if (name.startsWith("GIT_") || name === "PATH") continue;
+    if (name === "PATH") continue;
+    if (name.startsWith("GIT_") && (scope === "isolated" || !USER_CONFIG_VARIABLE.test(name))) continue;
     if (scope === "isolated" && PINNED_ENV_NAMES.has(name)) continue;
     env[key] = value;
   }
@@ -245,7 +247,7 @@ export function scrubbedGitEnvPairs(source: NodeJS.ProcessEnv = process.env, git
   );
 }
 
-const USER_GIT_VARIABLE = /^GIT_(AUTHOR_|COMMITTER_|SSH($|_)|ASKPASS$|SSL_|HTTP_|PROXY_)/u;
+const USER_GIT_VARIABLE = /^GIT_(AUTHOR_|COMMITTER_|SSH($|_)|ASKPASS$|SSL_|HTTP_|PROXY_|CONFIG_(GLOBAL|SYSTEM|NOSYSTEM)$)/u;
 
 function absolutePathEntries(value: string, platform: NodeJS.Platform): string {
   if (platform === "win32")
@@ -276,6 +278,15 @@ export function gitActionEnv(
 
 export interface GitActionPolicy {
   hooks: boolean;
+  lazyFetch?: boolean;
+  optionalLocks?: boolean;
+}
+
+function gitActionPolicyEnv(policy: GitActionPolicy): Record<string, string> {
+  return {
+    ...(policy.lazyFetch === false ? { GIT_NO_LAZY_FETCH: "1" } : {}),
+    ...(policy.optionalLocks === false ? { GIT_OPTIONAL_LOCKS: "0" } : {}),
+  };
 }
 
 export function gitActionArgs(
@@ -285,6 +296,7 @@ export function gitActionArgs(
   platform: NodeJS.Platform = process.platform,
 ): string[] {
   return [
+    ...(policy.optionalLocks === false ? ["--no-optional-locks"] : []),
     "--no-pager",
     ...configArgs([
       "core.fsmonitor=",
@@ -396,7 +408,7 @@ export class GitSession {
   action(args: readonly string[], policy: GitActionPolicy): GitInvocation {
     return {
       args: [...gitActionArgs(this.drivers, policy, this.git, this.platform), ...args],
-      env: gitActionEnv(this.source, this.platform),
+      env: { ...gitActionEnv(this.source, this.platform), ...gitActionPolicyEnv(policy) },
     };
   }
 

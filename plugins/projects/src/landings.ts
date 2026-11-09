@@ -28,7 +28,7 @@ function exec(git: string, cwd: string, invocation: GitInvocation): Promise<Buff
 export async function openReader(cwd: string, source: NodeJS.ProcessEnv = process.env): Promise<Read> {
   const git = gitBinary();
   if (git === null) throw new Error(missingToolMessage("git"));
-  const options = { git, scope: "isolated" as const, source };
+  const options = { git, scope: "user" as const, source };
   const session = GitSession.from({ code: 0, stdout: await exec(git, cwd, gitDriverListing(options)) }, options);
   if (session === null) throw new Error(UNSAFE_CONFIG);
   return async (args) => (await exec(git, cwd, session.read(args))).toString("utf8");

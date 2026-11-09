@@ -29,7 +29,8 @@ const UNSAFE_CONFIG =
 
 export const COMMIT_POLICY: GitActionPolicy = { hooks: true };
 export const PUSH_POLICY: GitActionPolicy = { hooks: true };
-export const APPLY_POLICY: GitActionPolicy = { hooks: false };
+export const APPLY_POLICY: GitActionPolicy = { hooks: false, lazyFetch: false };
+export const CHANGES_POLICY: GitActionPolicy = { hooks: false, lazyFetch: false, optionalLocks: false };
 
 function exec(file: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv, options: ExecOptions = {}): Promise<Run> {
   return new Promise((done) => {
@@ -104,7 +105,7 @@ export async function currentBranch(repo: Repo): Promise<string | null> {
 }
 
 export async function hasChanges(repo: Repo): Promise<boolean> {
-  const status = await readGit(repo, ["status", "--porcelain", "--ignore-submodules=dirty"]);
+  const status = await actGit(repo, ["status", "--porcelain", "--ignore-submodules=dirty"], CHANGES_POLICY);
   return check(status, "Couldn't read git status").stdout.trim().length > 0;
 }
 

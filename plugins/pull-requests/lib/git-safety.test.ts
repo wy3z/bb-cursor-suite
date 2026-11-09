@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -134,7 +134,6 @@ describe("read-only git in a hostile checkout", () => {
     const opened = await openRepo(repo.root);
     expect(await topLevel(opened)).toBe(repo.root);
     expect(await currentBranch(opened)).toBe("main");
-    expect(await hasChanges(opened)).toBe(false);
     expect(await untrackedCount(opened)).toBe(0);
     expect(await hasStaged(opened)).toBe(false);
     expect((await head(opened)).subject).toBe("BCS-2 signed");
@@ -144,6 +143,36 @@ describe("read-only git in a hostile checkout", () => {
     const patch = "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-alpha\n+omega\n";
     expect((await readGit(opened, ["apply", "--numstat", "-"], { input: patch })).stdout).toBe("1\t1\ta.txt\n");
     expect(await repo.markers()).toEqual([]);
+  });
+
+  it("checks for uncommitted changes with the filters on and nothing else", async () => {
+    const repo = await hostile();
+    const index = join(repo.root, ".git", "index");
+    const before = await readFile(index);
+    expect(await hasChanges(await openRepo(repo.root))).toBe(false);
+    expect(await repo.markers()).toEqual(["clean"]);
+    expect(await readFile(index)).toEqual(before);
+  });
+
+  it("sees no changes in a stat-dirty file whose filter changes its bytes", async () => {
+    const repo = await hostile();
+    await repo.git(["config", "--unset", "core.hooksPath"]);
+    await repo.git(["config", "--unset", "core.fsmonitor"]);
+    await writeFile(join(repo.home, ".gitconfig"), "[filter \"pointer\"]\n\tclean = sed s/^/pointer:/\n\tsmudge = sed s/^pointer://\n\trequired = true\n", { flag: "a" });
+    await repo.git(["config", "filter.crypt.clean", "tr a-z n-za-m"]);
+    await repo.git(["config", "filter.crypt.smudge", "tr a-z n-za-m"]);
+    await repo.git(["config", "filter.crypt.required", "true"]);
+    await writeFile(join(repo.root, ".gitattributes"), "secret.txt filter=crypt\nlarge.bin filter=pointer\n");
+    await writeFile(join(repo.root, "secret.txt"), "hidden\n");
+    await writeFile(join(repo.root, "large.bin"), "payload\n");
+    await repo.git(["add", ".gitattributes", "secret.txt", "large.bin"]);
+    await repo.git(["commit", "-qm", "BCS-6 filtered"]);
+    expect(await repo.git(["cat-file", "-p", "HEAD:secret.txt"])).toBe("uvqqra\n");
+    expect(await repo.git(["cat-file", "-p", "HEAD:large.bin"])).toBe("pointer:payload\n");
+    await repo.stale("secret.txt", "large.bin");
+    expect(await repo.git(["--no-optional-locks", "status", "--porcelain"])).toBe("");
+    await repo.stale("secret.txt", "large.bin");
+    expect(await hasChanges(await openRepo(repo.root))).toBe(false);
   });
 
   it("gives gh's own git calls no way to run repository code when it looks up a pull request", async () => {
@@ -250,7 +279,7 @@ describe("git actions the user asks for", () => {
     expect(readFileSync(ghLog, "utf8")).toContain("pr create --fill --head feature --base main");
     const seen = await repo.markers();
     expect(seen).toContain("hook-pre-push");
-    expect(without(seen, ["hook-pre-push", "hook-reference-transaction"])).toEqual([]);
+    expect(without(seen, ["clean", "hook-pre-push", "hook-reference-transaction"])).toEqual([]);
   });
 
   it("applies another checkout's changes with filters but no hooks, drivers or fsmonitor", async () => {
@@ -266,5 +295,30 @@ describe("git actions the user asks for", () => {
     expect(seen).toEqual(expect.arrayContaining(["clean", "smudge"]));
     expect(without(seen, ["clean", "smudge"])).toEqual([]);
     expect(READ_MARKERS.filter((name) => seen.includes(name))).toEqual(["clean", "smudge"]);
+  });
+
+  it("won't lazily fetch a missing base object while building the patch to apply", async () => {
+    const repo = await hostile({ remote: true, worktree: true });
+    const blob = (await repo.git(["rev-parse", "HEAD:a.txt"])).trim();
+    const object = join(repo.root, ".git", "objects", blob.slice(0, 2), blob.slice(2));
+    chmodSync(object, 0o644);
+    rmSync(object);
+    for (const [key, value] of [
+      ["core.repositoryformatversion", "1"],
+      ["extensions.partialClone", "origin"],
+      ["remote.origin.promisor", "true"],
+      ["remote.origin.uploadpack", `${repo.writes("uploadpack")}; git-upload-pack`],
+    ]) {
+      await repo.git(["config", key!, value!]);
+    }
+    await writeFile(join(repo.worktree!, "a.txt"), "alpha\napplied\n");
+    const result = await applyLocally(fakeBb({ source: { path: repo.worktree! }, target: { path: repo.root } }), {
+      sourceEnvironmentId: "source",
+      targetEnvironmentId: "target",
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect(await repo.markers()).not.toContain("uploadpack");
+    await repo.git(["cat-file", "-e", blob]);
+    expect(await repo.markers()).toContain("uploadpack");
   });
 });
