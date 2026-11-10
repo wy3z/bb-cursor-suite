@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { setSystemTime } from "bun:test";
 import plugin from "../server";
 import { fakeBb } from "../test/fake-bb";
-import { askBoundary, composeNotice, departed, needsNote, RESCAN_BATCH, RESCAN_MS, statusFromComment, transitionsOf, type NoticeBook } from "./notices";
+import { askBoundary, composeDone, composeReview, departed, needsNote, RESCAN_BATCH, RESCAN_MS, statusFromComment, transitionsOf, type NoticeBook } from "./notices";
 import type { Task } from "./contracts";
 
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -169,6 +169,17 @@ describe("muting workers on attach", () => {
     expect(fake.push.levels.get("thr_idle")).toBe("muted");
   });
 
+  it("resumes the sweep after a restart instead of starting over", async () => {
+    let fake = await withLead();
+    for (let index = 1; index <= 3 * RESCAN_BATCH + 1; index++) fake.addTask({ key: `ABC-${index}`, status: "in_progress", updatedAt: new Date(Date.parse(old) + index * 1_000).toISOString() });
+    fake.taskThreads.set("task_abc_1", [link("thr_tail", "idle")]);
+    for (let restart = 0; restart < 4; restart++) {
+      fake = await reboot(fake);
+      await tick(fake);
+    }
+    expect(fake.push.levels.get("thr_tail")).toBe("muted");
+  });
+
   it("keeps the RPC count per pass bounded, and two board reads once the sweep has covered the board", async () => {
     const fake = await withLead();
     for (let index = 1; index <= 200; index++) fake.addTask({ key: `ABC-${index}`, status: index % 3 ? "in_progress" : "done" });
@@ -272,7 +283,7 @@ describe("Done and For Review notices", () => {
     note(fake, "ABC-1", "Needs James: pick an icon");
     move(fake, "ABC-2", "done");
     await tick(fake);
-    expect(fake.push.sent).toHaveLength(1);
+    expect(fake.push.sent).toHaveLength(2);
 
     move(fake, "ABC-1", "in_progress");
     move(fake, "ABC-1", "in_review");
@@ -281,11 +292,14 @@ describe("Done and For Review notices", () => {
     move(fake, "ABC-2", "done");
     const again = await reboot(fake);
     await tick(again);
-    expect(again.push.sent).toEqual([{ title: "Needs you: ABC-1 Icon", body: "Needs James: pick again · Done: ABC-2 Docs", threadId: "thr_lead1" }]);
+    expect(again.push.sent).toEqual([
+      { title: "Needs you: ABC-1 Icon", body: "Needs James: pick again", threadId: "thr_lead1" },
+      { title: "Done: ABC-2 Docs", body: "", threadId: "thr_lead1" },
+    ]);
 
     task(again, "ABC-2").updatedAt = later();
     await tick(again);
-    expect(again.push.sent).toHaveLength(1);
+    expect(again.push.sent).toHaveLength(2);
   });
 
   it("retries a round trip whose history read failed", async () => {
@@ -367,6 +381,58 @@ describe("Done and For Review notices", () => {
     expect(title.endsWith(`and ${60 - shown} more`)).toBe(true);
   });
 
+  it("sends one notice per entry into For Review, dropping a queued ask the card has moved past", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress", title: "Icon" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: choose the old icon");
+    fake.push.failSend = 1;
+    await tick(fake);
+    expect(fake.push.sent).toEqual([]);
+    move(fake, "ABC-1", "in_progress", new Date(Date.now() - 2_000).toISOString());
+    move(fake, "ABC-1", "in_review", new Date().toISOString());
+    await tick(fake);
+    expect(fake.push.sent).toEqual([]);
+    note(fake, "ABC-1", "Needs James: approve the replacement", new Date(Date.now() + 1_000).toISOString());
+    await tick(fake);
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.body)).toEqual(["Needs James: approve the replacement"]);
+  });
+
+  it("sends Needs you and Done separately so a long ask cannot hide a Done", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress", title: "Ask" });
+    fake.addTask({ key: "ABC-2", status: "in_progress", title: "Ship" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", `Needs James: ${"a very long question ".repeat(20)}`);
+    move(fake, "ABC-2", "done");
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.title)).toEqual(["Needs you: ABC-1 Ask", "Done: ABC-2 Ship"]);
+    expect(fake.push.sent[0]!.body!.length).toBeLessThanOrEqual(180);
+  });
+
+  it("keeps the Done pending when only the Needs you send got through", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress", title: "Ask" });
+    fake.addTask({ key: "ABC-2", status: "in_progress", title: "Ship" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: merge");
+    move(fake, "ABC-2", "done");
+    const send = fake.bb.sdk.plugins.callRpc;
+    let sends = 0;
+    fake.bb.sdk.plugins.callRpc = async (args) => {
+      if (args.method === "notifications.send" && ++sends === 2) throw new Error("send failed");
+      return send(args);
+    };
+    await tick(fake);
+    fake.bb.sdk.plugins.callRpc = send;
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.title)).toEqual(["Needs you: ABC-1 Ask", "Done: ABC-2 Ship"]);
+  });
+
   it("folds sub-tasks into a parent that rolls up to Done in the same pass", async () => {
     const fake = await withLead();
     fake.addTask({ key: "ABC-1", status: "in_progress", title: "Parent" });
@@ -384,7 +450,7 @@ describe("Done and For Review notices", () => {
     ]);
   });
 
-  it("coalesces several transitions in one pass into one notification", async () => {
+  it("coalesces a pass into one notification per kind", async () => {
     const fake = await withLead();
     for (const key of ["ABC-1", "ABC-2", "ABC-3", "ABC-4"]) fake.addTask({ key, status: "in_progress", title: `Card ${key}` });
     await tick(fake);
@@ -392,7 +458,10 @@ describe("Done and For Review notices", () => {
     move(fake, "ABC-4", "in_review");
     note(fake, "ABC-4", "Needs James: pick the icon");
     await tick(fake);
-    expect(fake.push.sent).toEqual([{ title: "Needs you: ABC-4 Card ABC-4", body: "Needs James: pick the icon · 3 done: ABC-1, ABC-2, ABC-3", threadId: "thr_lead1" }]);
+    expect(fake.push.sent).toEqual([
+      { title: "Needs you: ABC-4 Card ABC-4", body: "Needs James: pick the icon", threadId: "thr_lead1" },
+      { title: "3 done: ABC-1, ABC-2, ABC-3", body: "ABC-1 Card ABC-1; ABC-2 Card ABC-2; ABC-3 Card ABC-3", threadId: "thr_lead1" },
+    ]);
   });
 
   it("waits briefly for a fresh Needs comment and ignores an old one", async () => {
@@ -520,14 +589,15 @@ describe("planning", () => {
 
   it("truncates long key lists and titles", () => {
     const done = Array.from({ length: 20 }, (_, index) => ({ key: `BCS-${100 + index}`, title: "x", folded: [] }));
-    const notice = composeNotice([], done)!;
+    const notice = composeDone(done)!;
     expect(notice.title.length).toBeLessThanOrEqual(80);
     expect(notice.title.startsWith("20 done: BCS-100, BCS-101")).toBe(true);
     expect(notice.title).toMatch(/, and \d+ more$/);
     const shown = notice.title.slice("20 done: ".length).split(", and ")[0]!.split(", ").length;
     expect(notice.title.endsWith(`and ${20 - shown} more`)).toBe(true);
-    expect(composeNotice([{ key: "A-1", title: "y".repeat(200), note: "z".repeat(400) }], [])!.body.length).toBeLessThanOrEqual(180);
-    expect(composeNotice([], [])).toBeNull();
+    expect(composeReview([{ key: "A-1", title: "y".repeat(200), note: "z".repeat(400) }])!.body.length).toBeLessThanOrEqual(180);
+    expect(composeReview([])).toBeNull();
+    expect(composeDone([])).toBeNull();
   });
 
   it("only takes comments that start with Needs <name>:", () => {

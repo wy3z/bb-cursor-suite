@@ -15,7 +15,7 @@ People who hand real work to agents and need to see where it stands: what is run
 - **A project lead:** a thread you nominate to plan, delegate and report. It gets the `projects` skill and a short block of rules pinned to its instructions.
 - **Lead tabs.** Workers open as tabs of their lead. Ctrl+Alt+1 to 8 picks the Nth tab and Ctrl+Alt+9 the last, even while you type in the composer.
 - **The loop:** an optional scheduled board sweep, pings when cards drift from their evidence, and following every pull request the lead's workers link.
-- **Quiet notifications:** workers on a led board are muted, and you hear only when a card reaches Done or needs you in For Review, batched into one notification per pass.
+- **Quiet notifications:** workers on a led board are muted, and you hear only when a card reaches Done or needs you in For Review, batched into one notification per kind.
 - **Outer-loop messages:** any agent system can hand the lead work with `bb projects send` and read its replies, with nothing lost across restarts.
 - **Board icons,** using the suite's port of Cursor's icon picker. Its notices (Hugeicons, T3 Code) are in [suite-shared's THIRD-PARTY-NOTICES.md](../../packages/suite-shared/THIRD-PARTY-NOTICES.md).
 - **A composer pill** in any thread of a linked BB project, with the working count and "N for review".

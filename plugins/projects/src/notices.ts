@@ -21,6 +21,7 @@ const STATUS_COMMENT = /^Status changed to (.+?)(?: by |\s·|$)/;
 type Lead = { projectId: string; prefix: string; meta: ProjectMeta };
 type Notable = "in_review" | "done";
 type Comment = { kind: string; body: string; createdAt: string };
+type Scan = { at: number; updatedAt: string };
 
 export type Card = { status: Status; updatedAt: string };
 export type ReviewItem = { taskId: string; key: string; title: string; note: string | null };
@@ -152,22 +153,21 @@ function keyList(lead: string, keys: readonly string[], max: number): string {
   return `${lead}${keys.slice(0, shown).join(", ")}${more(shown)}`;
 }
 
-export function composeNotice(review: readonly Omit<ReviewItem, "taskId">[], done: readonly Omit<DoneItem, "taskId">[]): { title: string; body: string } | null {
-  if (!review.length && !done.length) return null;
-  const doneLine =
-    done.length === 1
-      ? `Done: ${done[0]!.key} ${done[0]!.title}${done[0]!.folded.length ? ` (with ${done[0]!.folded.join(", ")})` : ""}`
-      : done.length > 1
-        ? keyList(`${done.length} done: `, done.map((item) => item.key), BODY_MAX)
-        : "";
-  if (!review.length) {
-    if (done.length === 1) return { title: clip(`Done: ${done[0]!.key} ${done[0]!.title}`, TITLE_MAX), body: done[0]!.folded.length ? clip(`With ${done[0]!.folded.join(", ")}`, BODY_MAX) : "" };
-    return { title: keyList(`${done.length} done: `, done.map((item) => item.key), TITLE_MAX), body: clip(done.map((item) => `${item.key} ${item.title}`).join("; "), BODY_MAX) };
-  }
-  const title =
-    review.length === 1 ? clip(`Needs you: ${review[0]!.key} ${review[0]!.title}`, TITLE_MAX) : keyList(`${review.length} need you: `, review.map((item) => item.key), TITLE_MAX);
-  const notes = review.length === 1 ? (review[0]!.note ?? "") : review.map((item) => `${item.key}: ${item.note ?? item.title}`).join("; ");
-  return { title, body: clip([notes, doneLine].filter(Boolean).join(" · "), BODY_MAX) };
+export type Notice = { title: string; body: string };
+
+export function composeReview(review: readonly Omit<ReviewItem, "taskId">[]): Notice | null {
+  if (!review.length) return null;
+  if (review.length === 1) return { title: clip(`Needs you: ${review[0]!.key} ${review[0]!.title}`, TITLE_MAX), body: clip(review[0]!.note ?? "", BODY_MAX) };
+  return {
+    title: keyList(`${review.length} need you: `, review.map((item) => item.key), TITLE_MAX),
+    body: clip(review.map((item) => `${item.key}: ${item.note ?? item.title}`).join("; "), BODY_MAX),
+  };
+}
+
+export function composeDone(done: readonly Omit<DoneItem, "taskId">[]): Notice | null {
+  if (!done.length) return null;
+  if (done.length === 1) return { title: clip(`Done: ${done[0]!.key} ${done[0]!.title}`, TITLE_MAX), body: done[0]!.folded.length ? clip(`With ${done[0]!.folded.join(", ")}`, BODY_MAX) : "" };
+  return { title: keyList(`${done.length} done: `, done.map((item) => item.key), TITLE_MAX), body: clip(done.map((item) => `${item.key} ${item.title}`).join("; "), BODY_MAX) };
 }
 
 export function createNotices(
@@ -184,7 +184,8 @@ export function createNotices(
   const bookKey = (projectId: string) => `notices:${projectId}`;
   const muteKey = (threadId: string) => `mute:${threadId}`;
   const mutes = new Map<string, MuteRecord>();
-  const scanned = new Map<string, { at: number; updatedAt: string }>();
+  const sweepKey = (projectId: string) => `sweep:${projectId}`;
+  const coverage = new Map<string, Map<string, Scan>>();
   let degraded = false;
 
   function degrade(what: string, cause: unknown) {
@@ -271,7 +272,16 @@ export function createNotices(
     }
   }
 
+  async function coverageOf(projectId: string): Promise<Map<string, Scan>> {
+    const cached = coverage.get(projectId);
+    if (cached) return cached;
+    const loaded = new Map(Object.entries((await bb.storage.kv.get<Record<string, Scan>>(sweepKey(projectId))) ?? {}));
+    coverage.set(projectId, loaded);
+    return loaded;
+  }
+
   async function attachedThreads(projectId: string, tasks: readonly Task[]): Promise<string[]> {
+    const scanned = await coverageOf(projectId);
     const meta = await tasksCall("listTaskCardMeta", { projectId }, tasksContract.listTaskCardMeta.output);
     const threads = meta.cards.flatMap((card) => card.activeThreads.map((link) => link.threadId));
     const open = tasks.filter((task) => !isComplete(task.status));
@@ -296,6 +306,14 @@ export function createNotices(
         () => [] as string[],
       ),
     );
+    const known = new Set(tasks.map((task) => task.id));
+    let pruned = false;
+    for (const taskId of scanned.keys()) {
+      if (known.has(taskId)) continue;
+      scanned.delete(taskId);
+      pruned = true;
+    }
+    if (due.length || pruned) await bb.storage.kv.set(sweepKey(projectId), Object.fromEntries(scanned));
     return [...threads, ...links.flat()];
   }
 
@@ -332,11 +350,14 @@ export function createNotices(
     }
     const review: ReviewItem[] = [];
     const done: DoneItem[] = [];
+    const superseded = new Set<string>();
     for (const move of transitionsOf(tasks, book, departedIds)) {
       if (move.to === "done") {
         done.push({ taskId: move.task.id, key: move.task.key, title: move.task.title, folded: move.folded.map((task) => task.key) });
         continue;
       }
+      superseded.add(move.task.id);
+      for (const task of move.folded) superseded.add(task.id);
       const history = await read(move.task.id);
       if (history === null) {
         deferred.add(move.task.id);
@@ -351,26 +372,36 @@ export function createNotices(
       }
       review.push({ taskId: move.task.id, key: move.task.key, title: move.task.title, note });
     }
-    const merged = livePending(mergePending(book.pending, review, done), tasks);
+    const kept = { review: book.pending.review.filter((item) => !superseded.has(item.taskId)), done: book.pending.done };
+    const merged = livePending(mergePending(kept, review, done), tasks);
     const asking = merged.review.length > 0 && (await leadIsAsking(lead.meta.leadThreadId!));
     return { deferred, pending: applyPolicy(merged, mode, asking) };
   }
 
-  async function deliver(lead: Lead, book: NoticeBook) {
-    const notice = composeNotice(book.pending.review, book.pending.done);
-    if (!notice) return;
+  async function send(lead: Lead, notice: Notice): Promise<boolean> {
     let channels: string[];
     try {
       channels = (await push("notifications.send", { ...notice, threadId: lead.meta.leadThreadId! }, z.object({ ok: z.literal(true), channels: z.array(z.string()) }).passthrough())).channels;
     } catch (cause) {
       degrade(`Could not send the ${lead.prefix} notification`, cause);
-      return;
+      return false;
     }
-    if (!channels.length) {
-      bb.log.debug(`The ${lead.prefix} notification reached no channel; it stays pending.`);
-      return;
+    if (!channels.length) bb.log.debug(`The ${lead.prefix} notification reached no channel; it stays pending.`);
+    return channels.length > 0;
+  }
+
+  async function deliver(lead: Lead, book: NoticeBook) {
+    let current = book;
+    const review = composeReview(current.pending.review);
+    if (review && (await send(lead, review))) {
+      current = { ...current, pending: { ...current.pending, review: [] } };
+      await bb.storage.kv.set(bookKey(lead.projectId), current);
     }
-    await bb.storage.kv.set(bookKey(lead.projectId), { ...book, pending: EMPTY });
+    const done = composeDone(current.pending.done);
+    if (done && (await send(lead, done))) {
+      current = { ...current, pending: { ...current.pending, done: [] } };
+      await bb.storage.kv.set(bookKey(lead.projectId), current);
+    }
   }
 
   async function pass(lead: Lead, leadIds: ReadonlySet<string>) {

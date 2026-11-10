@@ -265,8 +265,8 @@ them. The plugin sends both:
   <KEY> <title>" with your `Needs <user>:` comment as the body. Write that
   comment in the same turn as the move.
 - **Done**: when a card reaches `done`, "Done: <KEY> <title>". A parent that
-  rolls up takes its sub-tasks with it, and several moves in one pass arrive as
-  one notification.
+  rolls up takes its sub-tasks with it. Several moves of the same kind in one
+  pass arrive as one notification; Needs you and Done are always separate.
 
 So never send a notification for a card move yourself. The user picks what
 they get under Settings, Plugins, Projects (`notify`: `done-and-review`,
