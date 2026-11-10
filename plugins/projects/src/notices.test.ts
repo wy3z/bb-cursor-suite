@@ -400,6 +400,48 @@ describe("Done and For Review notices", () => {
     expect(fake.push.sent.map((sent) => sent.body)).toEqual(["Needs James: approve the replacement"]);
   });
 
+  it("holds a queued ask while its card's history can't be read, then sends only the replacement", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress", title: "Icon" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: choose the obsolete icon");
+    fake.push.failSend = 1;
+    await tick(fake);
+    move(fake, "ABC-1", "in_progress");
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: approve the replacement");
+    fake.faults.listComments = 1;
+    await tick(fake);
+    expect(fake.push.sent).toEqual([]);
+    expect((fake.kv.get("notices:proj_abc") as NoticeBook).pending.review.map((item) => item.note)).toEqual(["Needs James: choose the obsolete icon"]);
+    await tick(fake);
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.body)).toEqual(["Needs James: approve the replacement"]);
+  });
+
+  it("still delivers a valid queued ask after an ordinary edit whose history read failed", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress", title: "Icon" });
+    fake.addTask({ key: "ABC-2", status: "in_progress", title: "Ship" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: pick an icon");
+    fake.push.failSend = 1;
+    await tick(fake);
+    task(fake, "ABC-1").updatedAt = later();
+    move(fake, "ABC-2", "done");
+    fake.faults.listComments = 1;
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.title)).toEqual(["Done: ABC-2 Ship"]);
+    await tick(fake);
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => [sent.title, sent.body])).toEqual([
+      ["Done: ABC-2 Ship", ""],
+      ["Needs you: ABC-1 Icon", "Needs James: pick an icon"],
+    ]);
+  });
+
   it("sends Needs you and Done separately so a long ask cannot hide a Done", async () => {
     const fake = await withLead();
     fake.addTask({ key: "ABC-1", status: "in_progress", title: "Ask" });

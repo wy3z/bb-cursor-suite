@@ -334,7 +334,8 @@ export function createNotices(
 
   async function collect(lead: Lead, tasks: readonly Task[], book: NoticeBook, mode: NotifyMode) {
     const deferred = new Set<string>();
-    if (mode === "off") return { deferred, pending: EMPTY };
+    const held = new Set<string>();
+    if (mode === "off") return { deferred, held, pending: EMPTY };
     const comments = new Map<string, Comment[] | null>();
     const read = async (taskId: string) => {
       if (comments.has(taskId)) return comments.get(taskId)!;
@@ -345,8 +346,10 @@ export function createNotices(
     const departedIds = new Set<string>();
     for (const task of historyCandidates(tasks, book)) {
       const history = await read(task.id);
-      if (history === null) deferred.add(task.id);
-      else if (departed(task, book.cards[task.id]!, history)) departedIds.add(task.id);
+      if (history === null) {
+        deferred.add(task.id);
+        held.add(task.id);
+      } else if (departed(task, book.cards[task.id]!, history)) departedIds.add(task.id);
     }
     const review: ReviewItem[] = [];
     const done: DoneItem[] = [];
@@ -360,6 +363,7 @@ export function createNotices(
       for (const task of move.folded) superseded.add(task.id);
       const history = await read(move.task.id);
       if (history === null) {
+        held.add(move.task.id);
         deferred.add(move.task.id);
         for (const task of move.folded) deferred.add(task.id);
         continue;
@@ -375,7 +379,7 @@ export function createNotices(
     const kept = { review: book.pending.review.filter((item) => !superseded.has(item.taskId)), done: book.pending.done };
     const merged = livePending(mergePending(kept, review, done), tasks);
     const asking = merged.review.length > 0 && (await leadIsAsking(lead.meta.leadThreadId!));
-    return { deferred, pending: applyPolicy(merged, mode, asking) };
+    return { deferred, held, pending: applyPolicy(merged, mode, asking) };
   }
 
   async function send(lead: Lead, notice: Notice): Promise<boolean> {
@@ -390,16 +394,18 @@ export function createNotices(
     return channels.length > 0;
   }
 
-  async function deliver(lead: Lead, book: NoticeBook) {
+  async function deliver(lead: Lead, book: NoticeBook, held: ReadonlySet<string>) {
     let current = book;
-    const review = composeReview(current.pending.review);
+    const ready = <T extends { taskId: string }>(items: readonly T[]) => items.filter((item) => !held.has(item.taskId));
+    const waiting = <T extends { taskId: string }>(items: readonly T[]) => items.filter((item) => held.has(item.taskId));
+    const review = composeReview(ready(current.pending.review));
     if (review && (await send(lead, review))) {
-      current = { ...current, pending: { ...current.pending, review: [] } };
+      current = { ...current, pending: { ...current.pending, review: waiting(current.pending.review) } };
       await bb.storage.kv.set(bookKey(lead.projectId), current);
     }
-    const done = composeDone(current.pending.done);
+    const done = composeDone(ready(current.pending.done));
     if (done && (await send(lead, done))) {
-      current = { ...current, pending: { ...current.pending, done: [] } };
+      current = { ...current, pending: { ...current.pending, done: waiting(current.pending.done) } };
       await bb.storage.kv.set(bookKey(lead.projectId), current);
     }
   }
@@ -413,10 +419,10 @@ export function createNotices(
       await bb.storage.kv.set(bookKey(lead.projectId), { primedAt: stamp(), cards: nextCards(tasks, null, new Set()), pending: EMPTY } satisfies NoticeBook);
       return;
     }
-    const { deferred, pending } = await collect(lead, tasks, book, await deps.mode());
+    const { deferred, held, pending } = await collect(lead, tasks, book, await deps.mode());
     const next: NoticeBook = { primedAt: book.primedAt, cards: nextCards(tasks, book, deferred), pending };
     await bb.storage.kv.set(bookKey(lead.projectId), next);
-    await deliver(lead, next);
+    await deliver(lead, next, held);
   }
 
   async function tick() {
