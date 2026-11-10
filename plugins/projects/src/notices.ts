@@ -9,8 +9,8 @@ import { sleep } from "./sleep";
 
 export const NOTICES_TICK_MS = 30_000;
 export const NOTE_GRACE_MS = 2 * 60_000;
-export const SUBTASK_RESCAN_MS = 5 * 60_000;
-export const PENDING_MAX = 50;
+export const RESCAN_MS = 5 * 60_000;
+export const RESCAN_BATCH = 25;
 export const TITLE_MAX = 80;
 export const BODY_MAX = 180;
 const PUSH = "push-notifications";
@@ -102,8 +102,8 @@ export function nextCards(tasks: readonly Task[], book: NoticeBook | null, defer
 export function mergePending(pending: Pending, review: readonly ReviewItem[], done: readonly DoneItem[]): Pending {
   const fresh = new Set([...review, ...done].map((item) => item.taskId));
   return {
-    review: [...pending.review.filter((item) => !fresh.has(item.taskId)), ...review].slice(-PENDING_MAX),
-    done: [...pending.done.filter((item) => !fresh.has(item.taskId)), ...done].slice(-PENDING_MAX),
+    review: [...pending.review.filter((item) => !fresh.has(item.taskId)), ...review],
+    done: [...pending.done.filter((item) => !fresh.has(item.taskId)), ...done],
   };
 }
 
@@ -113,6 +113,22 @@ export function livePending(pending: Pending, tasks: readonly Task[]): Pending {
     review: pending.review.filter((item) => status.get(item.taskId) === "in_review"),
     done: pending.done.filter((item) => status.get(item.taskId) === "done"),
   };
+}
+
+export function applyPolicy(pending: Pending, mode: NotifyMode, asking: boolean): Pending {
+  if (mode === "off") return EMPTY;
+  return { review: asking ? [] : pending.review, done: mode === "done-and-review" ? pending.done : [] };
+}
+
+export function askBoundary(comments: readonly Comment[], fallback: string | null): string | null {
+  const changes = comments
+    .map((comment) => ({ status: statusFromComment(comment), at: Date.parse(comment.createdAt) }))
+    .filter((change): change is { status: Status; at: number } => change.status !== null)
+    .sort((a, b) => a.at - b.at);
+  let entry = -1;
+  for (let index = 0; index < changes.length; index++) if (changes[index]!.status === "in_review") entry = index;
+  if (entry < 0) return fallback;
+  return entry === 0 ? fallback : new Date(changes[entry - 1]!.at).toISOString();
 }
 
 export function needsNote(comments: readonly { body: string; createdAt: string }[], after: string | null = null): string | null {
@@ -130,14 +146,10 @@ export function clip(text: string, max: number): string {
 }
 
 function keyList(lead: string, keys: readonly string[], max: number): string {
-  let out = lead + keys[0];
-  for (let index = 1; index < keys.length; index++) {
-    const next = `${out}, ${keys[index]}`;
-    const rest = index < keys.length - 1 ? 5 : 0;
-    if (next.length + rest > max) return `${out}, ...`;
-    out = next;
-  }
-  return out;
+  const more = (shown: number) => (shown < keys.length ? `, and ${keys.length - shown} more` : "");
+  let shown = 1;
+  while (shown < keys.length && `${lead}${keys.slice(0, shown + 1).join(", ")}${more(shown + 1)}`.length <= max) shown++;
+  return `${lead}${keys.slice(0, shown).join(", ")}${more(shown)}`;
 }
 
 export function composeNotice(review: readonly Omit<ReviewItem, "taskId">[], done: readonly Omit<DoneItem, "taskId">[]): { title: string; body: string } | null {
@@ -262,11 +274,19 @@ export function createNotices(
   async function attachedThreads(projectId: string, tasks: readonly Task[]): Promise<string[]> {
     const meta = await tasksCall("listTaskCardMeta", { projectId }, tasksContract.listTaskCardMeta.output);
     const threads = meta.cards.flatMap((card) => card.activeThreads.map((link) => link.threadId));
-    const due = tasks.filter((task) => {
-      if (!task.parentTaskId || isComplete(task.status)) return false;
+    const open = tasks.filter((task) => !isComplete(task.status));
+    const changed = open.filter((task) => {
       const last = scanned.get(task.id);
-      return !last || last.updatedAt !== task.updatedAt || now() - last.at >= SUBTASK_RESCAN_MS;
+      return last !== undefined && last.updatedAt !== task.updatedAt;
     });
+    const unseen = open.filter((task) => !scanned.has(task.id)).sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+    const stale = open
+      .filter((task) => {
+        const last = scanned.get(task.id);
+        return last !== undefined && last.updatedAt === task.updatedAt && now() - last.at >= RESCAN_MS;
+      })
+      .sort((a, b) => scanned.get(a.id)!.at - scanned.get(b.id)!.at);
+    const due = [...changed, ...[...unseen, ...stale].slice(0, RESCAN_BATCH)];
     const links = await mapLimited(due, 8, (task) =>
       tasksCall("listTaskThreads", { taskId: task.id }, tasksContract.listTaskThreads.output).then(
         (result) => {
@@ -291,32 +311,39 @@ export function createNotices(
   const commentsOf = (taskId: string) =>
     tasksCall("listComments", { taskId }, tasksContract.listComments.output).then(
       (result) => result.comments as Comment[],
-      () => [] as Comment[],
+      () => null,
     );
 
   async function collect(lead: Lead, tasks: readonly Task[], book: NoticeBook, mode: NotifyMode) {
     const deferred = new Set<string>();
     if (mode === "off") return { deferred, pending: EMPTY };
-    const comments = new Map<string, Comment[]>();
+    const comments = new Map<string, Comment[] | null>();
     const read = async (taskId: string) => {
-      const cached = comments.get(taskId);
-      if (cached) return cached;
+      if (comments.has(taskId)) return comments.get(taskId)!;
       const loaded = await commentsOf(taskId);
       comments.set(taskId, loaded);
       return loaded;
     };
     const departedIds = new Set<string>();
     for (const task of historyCandidates(tasks, book)) {
-      if (departed(task, book.cards[task.id]!, await read(task.id))) departedIds.add(task.id);
+      const history = await read(task.id);
+      if (history === null) deferred.add(task.id);
+      else if (departed(task, book.cards[task.id]!, history)) departedIds.add(task.id);
     }
     const review: ReviewItem[] = [];
     const done: DoneItem[] = [];
     for (const move of transitionsOf(tasks, book, departedIds)) {
       if (move.to === "done") {
-        if (mode === "done-and-review") done.push({ taskId: move.task.id, key: move.task.key, title: move.task.title, folded: move.folded.map((task) => task.key) });
+        done.push({ taskId: move.task.id, key: move.task.key, title: move.task.title, folded: move.folded.map((task) => task.key) });
         continue;
       }
-      const note = needsNote(await read(move.task.id), book.cards[move.task.id]?.updatedAt ?? null);
+      const history = await read(move.task.id);
+      if (history === null) {
+        deferred.add(move.task.id);
+        for (const task of move.folded) deferred.add(task.id);
+        continue;
+      }
+      const note = needsNote(history, askBoundary(history, book.cards[move.task.id]?.updatedAt ?? null));
       if (note === null && now() - Date.parse(move.task.updatedAt) < NOTE_GRACE_MS) {
         deferred.add(move.task.id);
         for (const task of move.folded) deferred.add(task.id);
@@ -324,8 +351,9 @@ export function createNotices(
       }
       review.push({ taskId: move.task.id, key: move.task.key, title: move.task.title, note });
     }
-    const asking = review.length > 0 && (await leadIsAsking(lead.meta.leadThreadId!));
-    return { deferred, pending: mergePending(book.pending, asking ? [] : review, done) };
+    const merged = livePending(mergePending(book.pending, review, done), tasks);
+    const asking = merged.review.length > 0 && (await leadIsAsking(lead.meta.leadThreadId!));
+    return { deferred, pending: applyPolicy(merged, mode, asking) };
   }
 
   async function deliver(lead: Lead, book: NoticeBook) {
@@ -355,7 +383,7 @@ export function createNotices(
       return;
     }
     const { deferred, pending } = await collect(lead, tasks, book, await deps.mode());
-    const next: NoticeBook = { primedAt: book.primedAt, cards: nextCards(tasks, book, deferred), pending: livePending(pending, tasks) };
+    const next: NoticeBook = { primedAt: book.primedAt, cards: nextCards(tasks, book, deferred), pending };
     await bb.storage.kv.set(bookKey(lead.projectId), next);
     await deliver(lead, next);
   }

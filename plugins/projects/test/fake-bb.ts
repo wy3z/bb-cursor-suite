@@ -54,7 +54,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
   const calls: string[] = [];
   const services = new Map<string, { start(signal: AbortSignal): Promise<void> | void }>();
   const logs: string[] = [];
-  const faults = { listProjects: 0, threadsList: 0, send: 0, kvSetDelayMs: 0 };
+  const faults = { listProjects: 0, threadsList: 0, send: 0, kvSetDelayMs: 0, listComments: 0 };
   const settings = { notify: "done-and-review", wakeEnabled: false, wakeHeaderName: "", wakeRemindMinutes: 60, ...opts.settings };
   let cli: Cli | null = null;
   let instructions: ((ctx: { threadId: string; projectId: string }) => string | null) | null = null;
@@ -150,7 +150,13 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
           }
           if (pluginId === "tasks" && method === "listTaskThreads") return { taskThreads: taskThreads.get(String(input.taskId)) ?? [] };
           if (pluginId === "tasks" && method === "listTaskPullRequests") return { pullRequests: taskPrs.get(String(input.taskId)) ?? [], unavailableThreadIds: [] };
-          if (pluginId === "tasks" && method === "listComments") return { comments: comments.get(String(input.taskId)) ?? [] };
+          if (pluginId === "tasks" && method === "listComments") {
+            if (faults.listComments > 0) {
+              faults.listComments--;
+              throw new Error("comments unavailable");
+            }
+            return { comments: comments.get(String(input.taskId)) ?? [] };
+          }
           if (pluginId === "tasks" && method === "updateTask") {
             const task = tasks.get(String(input.taskId));
             if (!task) return { ok: false, error: { message: "no such task" } };

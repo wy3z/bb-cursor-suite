@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setSystemTime } from "bun:test";
 import plugin from "../server";
 import { fakeBb } from "../test/fake-bb";
-import { composeNotice, departed, needsNote, statusFromComment, transitionsOf, type NoticeBook } from "./notices";
+import { askBoundary, composeNotice, departed, needsNote, RESCAN_BATCH, RESCAN_MS, statusFromComment, transitionsOf, type NoticeBook } from "./notices";
 import type { Task } from "./contracts";
 
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -11,6 +12,8 @@ const later = () => new Date((clock += 1_000)).toISOString();
 const LABEL: Record<Task["status"], string> = { backlog: "Backlog", todo: "Todo", in_progress: "In Progress", in_review: "In Review", done: "Done", canceled: "Canceled" };
 
 type Fake = ReturnType<typeof fakeBb>;
+
+afterEach(() => setSystemTime());
 
 function boot(opts: Parameters<typeof fakeBb>[0] = {}) {
   const fake = fakeBb(opts);
@@ -158,21 +161,43 @@ describe("muting workers on attach", () => {
     expect(fake.push.sent).toEqual([]);
   });
 
-  it("costs one card-meta read per board on an unchanged board", async () => {
+  it("finds idle workers on top-level cards with a bounded sweep", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress" });
+    fake.taskThreads.set("task_abc_1", [link("thr_idle", "idle")]);
+    await tick(fake);
+    expect(fake.push.levels.get("thr_idle")).toBe("muted");
+  });
+
+  it("keeps the RPC count per pass bounded, and two board reads once the sweep has covered the board", async () => {
     const fake = await withLead();
     for (let index = 1; index <= 200; index++) fake.addTask({ key: `ABC-${index}`, status: index % 3 ? "in_progress" : "done" });
     for (let index = 1; index <= 20; index++) fake.addTask({ key: `ABC-S${index}`, status: "in_progress", parentTaskId: "task_abc_1" });
-    for (let index = 1; index <= 30; index++) fake.taskThreads.set(`task_abc_${index}`, [link(`thr_w${index}`)]);
-    await tick(fake);
-    await tick(fake);
+    for (let index = 1; index <= 30; index++) fake.taskThreads.set(`task_abc_${index}`, [link(`thr_w${index}`, index % 2 ? "idle" : "working")]);
+    const count = (name: string) => fake.calls.filter((call) => call === name).length;
+    const open = [...fake.tasks.values()].filter((item) => item.status !== "done").length;
+    for (let pass = 0; pass < Math.ceil(open / RESCAN_BATCH); pass++) {
+      fake.calls.length = 0;
+      await tick(fake);
+      expect(count("tasks.listTaskThreads")).toBeLessThanOrEqual(RESCAN_BATCH);
+    }
+    for (let index = 1; index <= 30; index++) {
+      const openCard = index % 3 !== 0;
+      const working = index % 2 === 0;
+      expect(fake.push.levels.get(`thr_w${index}`)).toBe(openCard || working ? "muted" : undefined);
+    }
     fake.calls.length = 0;
     await tick(fake);
-    const count = (name: string) => fake.calls.filter((call) => call === name).length;
     expect(count("tasks.listAllTasks")).toBe(1);
     expect(count("tasks.listTaskCardMeta")).toBe(1);
     expect(count("tasks.listTaskThreads")).toBe(0);
     expect(count("tasks.listComments")).toBe(0);
     expect(fake.calls.filter((call) => call.startsWith("push-notifications."))).toEqual([]);
+    setSystemTime(new Date(Date.now() + RESCAN_MS + 1_000));
+    fake.calls.length = 0;
+    await tick(fake);
+    expect(count("tasks.listTaskThreads")).toBe(RESCAN_BATCH);
+    setSystemTime();
   });
 });
 
@@ -261,6 +286,85 @@ describe("Done and For Review notices", () => {
     task(again, "ABC-2").updatedAt = later();
     await tick(again);
     expect(again.push.sent).toHaveLength(1);
+  });
+
+  it("retries a round trip whose history read failed", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "done", title: "Shipped" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_progress");
+    move(fake, "ABC-1", "done");
+    fake.faults.listComments = 1;
+    await tick(fake);
+    expect(fake.push.sent).toEqual([]);
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.title)).toEqual(["Done: ABC-1 Shipped"]);
+  });
+
+  it("applies the notify setting to a pending backlog", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress" });
+    fake.addTask({ key: "ABC-2", status: "in_progress" });
+    await tick(fake);
+    move(fake, "ABC-1", "done");
+    fake.push.failSend = 1;
+    await tick(fake);
+    fake.settings.notify = "review-only";
+    await tick(fake);
+    expect(fake.push.sent).toEqual([]);
+    move(fake, "ABC-2", "in_review");
+    note(fake, "ABC-2", "Needs James: merge");
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => [sent.title, sent.body])).toEqual([["Needs you: ABC-2 ABC-2", "Needs James: merge"]]);
+  });
+
+  it("holds back a pending For Review once the lead is asking", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: pick");
+    fake.push.failSend = 1;
+    await tick(fake);
+    fake.threads.get("thr_lead1")!.hasPendingInteraction = true;
+    await tick(fake);
+    fake.threads.get("thr_lead1")!.hasPendingInteraction = false;
+    await tick(fake);
+    expect(fake.push.sent).toEqual([]);
+  });
+
+  it("does not reuse the ask from an earlier review when the card returns to For Review", async () => {
+    const fake = await withLead();
+    fake.addTask({ key: "ABC-1", status: "in_progress", title: "Icon" });
+    await tick(fake);
+    move(fake, "ABC-1", "in_review");
+    note(fake, "ABC-1", "Needs James: first ask");
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.body)).toEqual(["Needs James: first ask"]);
+    move(fake, "ABC-1", "in_progress", new Date(Date.now() - 2_000).toISOString());
+    move(fake, "ABC-1", "in_review", new Date().toISOString());
+    await tick(fake);
+    expect(fake.push.sent).toHaveLength(1);
+    note(fake, "ABC-1", "Needs James: second ask", new Date(Date.now() + 1_000).toISOString());
+    await tick(fake);
+    expect(fake.push.sent.map((sent) => sent.body)).toEqual(["Needs James: first ask", "Needs James: second ask"]);
+  });
+
+  it("keeps every card in a large backlog and counts the overflow", async () => {
+    const fake = await withLead();
+    for (let index = 1; index <= 60; index++) fake.addTask({ key: `ABC-${index}`, status: "in_progress" });
+    await tick(fake);
+    for (let index = 1; index <= 60; index++) move(fake, `ABC-${index}`, "done");
+    fake.push.failSend = 1;
+    await tick(fake);
+    expect((fake.kv.get("notices:proj_abc") as NoticeBook).pending.done).toHaveLength(60);
+    await tick(fake);
+    expect(fake.push.sent).toHaveLength(1);
+    const title = fake.push.sent[0]!.title;
+    expect(title.length).toBeLessThanOrEqual(80);
+    expect(title).toMatch(/^60 done: ABC-1, ABC-2, .*, and \d+ more$/);
+    const shown = title.slice("60 done: ".length).split(", and ")[0]!.split(", ").length;
+    expect(title.endsWith(`and ${60 - shown} more`)).toBe(true);
   });
 
   it("folds sub-tasks into a parent that rolls up to Done in the same pass", async () => {
@@ -406,12 +510,22 @@ describe("planning", () => {
     expect(departed({ status: "done" }, stored, [system("Status changed to In Progress by Lead", "2026-11-03T00:00:00.000Z")])).toBe(true);
   });
 
+  it("bounds the ask by the change before the latest entry to For Review", () => {
+    const system = (status: string, createdAt: string) => ({ kind: "system", body: `Status changed to ${status} by Lead`, createdAt });
+    const history = [system("In Review", "2026-11-02T00:00:00.000Z"), system("In Progress", "2026-11-03T00:00:00.000Z"), system("In Review", "2026-11-04T00:00:00.000Z")];
+    expect(askBoundary(history, null)).toBe("2026-11-03T00:00:00.000Z");
+    expect(askBoundary([system("In Review", "2026-11-02T00:00:00.000Z")], "2026-11-01T00:00:00.000Z")).toBe("2026-11-01T00:00:00.000Z");
+    expect(askBoundary([], "2026-11-01T00:00:00.000Z")).toBe("2026-11-01T00:00:00.000Z");
+  });
+
   it("truncates long key lists and titles", () => {
     const done = Array.from({ length: 20 }, (_, index) => ({ key: `BCS-${100 + index}`, title: "x", folded: [] }));
     const notice = composeNotice([], done)!;
     expect(notice.title.length).toBeLessThanOrEqual(80);
     expect(notice.title.startsWith("20 done: BCS-100, BCS-101")).toBe(true);
-    expect(notice.title.endsWith(", ...")).toBe(true);
+    expect(notice.title).toMatch(/, and \d+ more$/);
+    const shown = notice.title.slice("20 done: ".length).split(", and ")[0]!.split(", ").length;
+    expect(notice.title.endsWith(`and ${20 - shown} more`)).toBe(true);
     expect(composeNotice([{ key: "A-1", title: "y".repeat(200), note: "z".repeat(400) }], [])!.body.length).toBeLessThanOrEqual(180);
     expect(composeNotice([], [])).toBeNull();
   });
