@@ -112,6 +112,10 @@ Two ways to start a worker on a task:
 2. Fire and forget: `bb tasks dispatch <KEY> --preset "<preset name>"`. The
    worker reports back on the task, but you get no lifecycle notification.
 
+Message a worker with `bb thread tell <worker>`: it steers, so the message
+lands in its current turn. Add `--mode queue` only when that turn should
+finish first.
+
 ### Workers in the cloud
 
 A local worktree is the default. A worker can run on a cloud machine instead:
