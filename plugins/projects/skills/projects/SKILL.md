@@ -112,9 +112,9 @@ Two ways to start a worker on a task:
 2. Fire and forget: `bb tasks dispatch <KEY> --preset "<preset name>"`. The
    worker reports back on the task, but you get no lifecycle notification.
 
-To steer a running worker, use `bb thread tell <worker>`, which steers: the
-message lands in its current turn. Add `--mode queue` only when the worker's
-current turn should finish first.
+Message a worker with `bb thread tell <worker>`: it steers, so the message
+lands in its current turn. Add `--mode queue` only when that turn should
+finish first.
 
 ### Workers in the cloud
 
