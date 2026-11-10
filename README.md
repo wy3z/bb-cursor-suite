@@ -34,6 +34,7 @@ Not affiliated with Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
 - Live cards show their agents, changes, and pull requests with review and CI state.
 - Cards flag when they're behind their evidence. The board never marks anything Done by itself.
 - A lead thread plans the work, starts workers, answers their questions and brings you the rest.
+- You're notified only when a card is Done or needs you in For Review. Workers stay muted.
 - Visible work needs a screenshot before it reaches Done.
 - `bb projects` gives agents 16 commands to run the board.
 

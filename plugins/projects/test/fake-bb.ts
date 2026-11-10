@@ -41,11 +41,13 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
   const plugins = [
     { id: "tasks", enabled: true, status: "running" },
     { id: "pull-requests", enabled: true, status: "running" },
+    { id: "push-notifications", enabled: true, status: "running" },
   ];
+  const push = { levels: new Map<string, string>(), sets: [] as { threadId: string; level: string }[], sent: [] as { title: string; body?: string; threadId?: string }[] };
   const services = new Map<string, { start(signal: AbortSignal): Promise<void> | void }>();
   const logs: string[] = [];
   const faults = { listProjects: 0, threadsList: 0, send: 0, kvSetDelayMs: 0 };
-  const settings = { wakeEnabled: false, wakeHeaderName: "", wakeRemindMinutes: 60, ...opts.settings };
+  const settings = { notify: "done-and-review", wakeEnabled: false, wakeHeaderName: "", wakeRemindMinutes: 60, ...opts.settings };
   let cli: Cli | null = null;
   let instructions: ((ctx: { threadId: string; projectId: string }) => string | null) | null = null;
   const tasks = new Map<string, FakeTask>();
@@ -141,6 +143,22 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
             task.status = input.status as FakeTask["status"];
             return { ok: true, task: structuredClone(task) };
           }
+          if (pluginId === "push-notifications" && method === "threadNotifications.list") {
+            const ids = input.threadIds as string[];
+            return { threads: Object.fromEntries(ids.filter((id) => push.levels.has(id)).map((id) => [id, { own: push.levels.get(id)!, ancestorCap: null }])) };
+          }
+          if (pluginId === "push-notifications" && method === "threadNotifications.set") {
+            const threadId = String(input.threadId);
+            const level = String(input.level);
+            push.sets.push({ threadId, level });
+            if (level === "inherit") push.levels.delete(threadId);
+            else push.levels.set(threadId, level);
+            return { own: level, ancestorCap: null };
+          }
+          if (pluginId === "push-notifications" && method === "notifications.send") {
+            push.sent.push(structuredClone(input) as { title: string; body?: string; threadId?: string });
+            return { ok: true, channels: ["web"] };
+          }
           if (pluginId === "pull-requests" && method === "linked_list") return { urls: linked.get(String(input.threadId)) ?? [] };
           if (pluginId === "pull-requests" && method === "subscribe") {
             subscribed.push({ threadId: String(input.threadId), urls: input.urls as string[] });
@@ -211,6 +229,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     subscribed,
     linked,
     plugins,
+    push,
     services,
     logs,
     faults,

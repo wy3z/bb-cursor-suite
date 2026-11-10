@@ -18,6 +18,8 @@ export function leadInstructions(prefix: string): string {
     "",
     'The board flags cards behind their evidence: PRs all merged (Done), a commit naming the key on the default branch (Done), an agent running (In Progress), agents idle with an open PR (For Review), sub-tasks rolling up, and 4 idle hours (Queued). A status you or the user set, or a comment starting "Holding: <reason>", holds the card until that evidence changes; routine comments don\'t, so still move the card.',
     "",
+    "Workers attached to your cards are muted: their questions, approvals and errors reach you, not the user. Answer what you can. Escalate anything a worker can't resolve (an error or crash you can't fix, a question only the user can answer) by asking the user yourself or moving the card to For Review with its Needs comment. The plugin notifies the user when a card reaches For Review or Done, so don't send your own notification for a card move.",
+    "",
     `How work lands (who merges, how, and with whose go) is project policy: read \`bb projects notes ${prefix}\` at the start of a session and follow it.`,
     `Run \`bb projects reconcile ${prefix}\` before a status update, and \`bb projects status ${prefix}\` before ending a turn that changed work. The plugin never writes Done for you.`,
     "</project_lead_instructions>",
