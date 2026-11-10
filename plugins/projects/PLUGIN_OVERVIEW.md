@@ -56,7 +56,7 @@ bb projects reply ABC --to req_456 --kind result "Fixed in PR #12, waiting on re
 
 ### Agent instructions
 
-When a thread is a project's lead, the plugin contributes a `<project_lead_instructions project="ABC">` block to that thread's instructions: the status rules, how to answer a worker blocked on a question, when to run a worker in the cloud, the proof rule for visible work and presenting it to the user, the derived-status rules and the landing rule. BB applies it when the provider session is next built (thread start, resume or restart), never mid-session. Setting a lead also sets the lead thread's notifications to questions and approvals only, unless the thread already has its own level.
+When a thread is a project's lead, the plugin contributes a `<project_lead_instructions project="ABC">` block to that thread's instructions: the status rules, how to answer a worker blocked on a question, when to run a worker in the cloud, the proof rule for visible work and presenting it to the user, the derived-status rules and the landing rule. BB applies it when the provider session is next built (thread start, resume or restart), never mid-session. Setting a lead also sets the lead thread's notifications to questions and approvals only, unless the thread already has its own level. The block also tells the lead that its workers are muted, that it must escalate what a worker can't resolve, and that the plugin sends the For Review and Done notifications.
 
 ### Skill
 
@@ -106,6 +106,7 @@ Under Settings → Plugins → Projects. The URL and the header value are secret
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
+| `notify` | select | `done-and-review` | What Projects sends for boards with a lead: `done-and-review`, `review-only` or `off`. See Notifications |
 | `wakeEnabled` | boolean | false | POST a wake-up when replies are waiting |
 | `wakeUrl` | secret string | | Where the wake-up goes. https, or plain http to loopback only |
 | `wakeHeaderName` | string | empty | Auth header name |
@@ -117,16 +118,17 @@ Under Settings → Plugins → Projects. The URL and the header value are secret
 - `outer-loop`: runs scheduled sweeps and follows the PRs linked to the lead's workers. Ticks every minute.
 - `pm-mailbox`: delivers, checks and retries requests, sends wake-ups and prunes history. Ticks every 5 seconds.
 - `board-drift`: pings the lead about cards behind their evidence. Ticks every minute.
+- `board-notices`: mutes workers attached to cards, restores a muted worker that becomes the lead, and sends the For Review and Done notifications. Ticks every 30 seconds.
 
 ### What it calls in other plugins
 
 - Tasks (`tasks`): projects, tasks, labels, card metadata, presets, comments, board moves, updates and delegation.
 - Pull Requests (`pull-requests`): `gitApplyLocally` and `gitCreatePullRequest` for the card menu, `summaries` for PR chip state, `linked_list` and `subscribe` for Follow PRs, and the `bb-pull-requests:open` event to open a PR chip in BB.
-- Push Notifications (`push-notifications`): `threadNotifications.list` and `threadNotifications.set`, to quiet the lead thread.
+- Push Notifications (`push-notifications`): `threadNotifications.list` and `threadNotifications.set`, to quiet the lead thread and mute its workers, and `notifications.send` for the For Review and Done notifications. Without it, muting waits, notifications stay pending, and the plugin logs one warning until it answers again.
 
 ### Storage
 
-Focus, the lead and loop settings in the plugin's key-value store (`meta:<projectId>`), board icons beside them, and requests, replies and consumers in the plugin's SQLite database.
+Focus, the lead and loop settings in the plugin's key-value store (`meta:<projectId>`), the last status seen per card and any notification still waiting to be delivered (`notices:<projectId>`), how far the worker sweep has got (`sweep:<projectId>`), who owns each worker's notification level (`mute:<threadId>`, one per thread across boards, never pruned), board icons beside them, and requests, replies and consumers in the plugin's SQLite database.
 
 ## Reference
 
@@ -160,6 +162,21 @@ Behind the loop button in the board header:
 - **Sweep:** off by default. The board offers 1, 2, 4 or 8 hours; the CLI accepts 30 minutes to 24 hours. Weekdays 08:00-19:00 unless set to any hours. The lead gets a `[Scheduled sweep] ABC` message.
 - **Drift pings:** off by default. The lead hears only when cards stay behind for ten minutes, at most one ping per project an hour and once per drift every two hours, as `[Board drift] ABC`.
 - **Follow PRs:** subscribes the lead to every PR its workers link, so it gets `[Subscription update]` messages.
+
+### Notifications
+
+On a board with a lead, the user hears about work that is complete and work that needs them, and nothing else.
+
+- **Workers are muted.** A thread attached to an open card (other than a lead) is set to muted the first time the plugin sees it. A thread running on a top-level card is seen within 30 seconds. Idle, failed and sub-task workers are found by a sweep that reads a card's threads when the card changes, and otherwise at most 25 cards a pass, each again every five minutes. Where the sweep has got to is saved per board, so a restart picks up where it left off. The plugin records a mute only once the write succeeds, so a failed one is retried. A thread that already has its own level keeps it and is never touched again, and a worker the user sets back afterwards stays as they left it, on every board. Their questions, approvals and errors go to the lead, which answers them or escalates.
+- **A muted worker that becomes the lead** gets its previous level back, then the lead's usual questions-and-approvals level. If the user changed its level meanwhile, theirs stays.
+- **The lead keeps its level**, so its own questions and approvals still notify.
+- **For Review:** when a card reaches For Review, "Needs you: ABC-12 <title>", with the latest comment starting `Needs <name>:` as the body. Only a comment written after the card's previous status change before it entered For Review counts, so an ask from an earlier review is never reused, while one written just before the move is. If there is none yet, the plugin waits up to two minutes for one, then sends without a body. Skipped while the lead is asking the user a question, which has already notified.
+- **Done:** when a card reaches Done, "Done: ABC-12 <title>". Sub-tasks that reach the same column in the same pass as their parent are folded into the parent's notification.
+- **One notification per kind per pass.** Needs you and Done are always sent separately, so a long ask can never crowd out a Done. Within a kind, several moves arrive together, such as "3 done: ABC-1, ABC-2, ABC-3" or "2 need you: ABC-4, ABC-5". Keys that don't fit show as "and N more". Titles are cut to 80 characters and bodies to 180.
+- Moves are read from Tasks, never from the agent. The plugin saves the last status and update time it saw per card, so a restart or a repeat pass sends nothing twice, and the first pass on a board only records where every card is. A card that moved away and back between two passes is caught from Tasks' "Status changed to" comments, read only for cards whose update time changed. If that read fails, the card is checked again on the next pass, and anything already queued for it waits until the read succeeds; a move Tasks records without that comment is missed if the card is back in the same column by the next pass.
+- **Delivery is retried.** A notification waits in `notices:<projectId>` until Push Notifications accepts it on at least one channel, across restarts. While it waits, cards that left For Review or Done drop out of it, new moves join it, and nothing is dropped for size. Each send applies the current `notify` setting and the pending-question rule to everything waiting. Needs you and Done are cleared separately, each once its own send succeeds. A card that leaves For Review and comes back replaces its waiting ask, so there is one notice per entry into For Review.
+
+Clicking a notification opens the lead. The `notify` setting picks `done-and-review` (the default), `review-only` or `off`; workers are muted in every mode.
 
 ### Outer loop and inner loop
 

@@ -258,27 +258,43 @@ isn't held: a comment counts as activity and restarts its four hours.
 
 ## Notifications
 
-Your thread is set to notify only for questions, approvals and errors, so
-finishing a turn is silent. Most of your turns are routine (a worker reported,
-you moved a card) and should stay that way. Send a notification yourself only
-when the user has something to do or to see:
+The user hears about two things: work that is complete, and work that needs
+them. The plugin sends both:
+
+- **For Review**: when a card reaches `in_review`, the user gets "Needs you:
+  <KEY> <title>" with your `Needs <user>:` comment as the body. Write that
+  comment in the same turn as the move.
+- **Done**: when a card reaches `done`, "Done: <KEY> <title>". A parent that
+  rolls up takes its sub-tasks with it. Several moves of the same kind in one
+  pass arrive as one notification; Needs you and Done are always separate.
+
+So never send a notification for a card move yourself. The user picks what
+they get under Settings, Plugins, Projects (`notify`: `done-and-review`,
+`review-only` or `off`).
+
+Your thread notifies only for questions, approvals and errors, so finishing a
+turn is silent. Workers attached to your cards are muted: their questions,
+approvals and errors come to you, never to the user. That makes you the only
+path to the user, so escalate whatever a worker can't resolve:
+
+- A question you can answer: answer it (see Answering a blocked worker).
+- A question only the user can answer, an approval only they can give, or an
+  error or crash you can't fix: move the card to For Review with a
+  `Needs <user>:` comment, or ask the user yourself.
+
+A question that waits as a pending interaction notifies the user. A question at
+the end of a turn does not, whether it is typed or a ```ui block that waits for
+an answer (Form, Button choices, Decision, Plan, OptionCards, Choice). When
+your reply asks the user to pick, approve or fill something in and no card
+moved for it, send one notification in the same turn, naming the question in
+the body:
 
 ```sh
-bb push-notifications send --thread <your thread id> --title "<PREFIX>: <what happened>" --body "<one line: what you need or what is ready>"
+bb push-notifications send --thread <your thread id> --title "<PREFIX>: <what you need>" --body "<one line>"
 ```
 
-- Ready for the user: a task moved to `in_review`, or a PR is ready to merge.
-- Needs the user: a decision, credentials, access, or a worker blocked on them.
-  A question at the end of a turn does not notify on its own, whether it is
-  typed or a ```ui block that waits for an answer (Form, Button choices,
-  Decision, Plan, OptionCards, Choice). Whenever your reply asks the user to
-  pick, approve or fill something in, send one in the same turn, naming the
-  question in the body.
-- Complete: everything in the current focus or plan is done.
-
-One notification per event, never for progress, a worker starting, a card
-moving between in-flight columns, or a status update the user asked for in
-chat. Batch events that land in the same turn into one notification.
+Never notify for progress, a worker starting, a card moving between in-flight
+columns, or a status update the user asked for in chat.
 
 ## Status updates
 

@@ -6,6 +6,7 @@ import { cleanRef, cleanSource, createCourier, type LeadState } from "./courier"
 import { httpTransport } from "./transport";
 import { sight } from "./probe";
 import { sleep } from "./sleep";
+import type { ProjectsSettings } from "./settings";
 
 const TICK_MS = 5_000;
 
@@ -13,24 +14,14 @@ type Deps = {
   resolveProject: (ref: string) => Promise<Project>;
   projects: () => Promise<Project[]>;
   readMeta: (projectId: string) => Promise<ProjectMeta>;
+  settings: ProjectsSettings;
 };
 
 const json = { type: "boolean", description: "Emit JSON" } as const;
 const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
 export function createMessaging(bb: BbPluginApi, deps: Deps) {
-  const settings = bb.settings.define({
-    wakeEnabled: {
-      type: "boolean",
-      label: "Wake the outer loop by webhook",
-      description: "Sends a wake-up (counts and ids only, never message text) when a project lead replies. Off by default. Turn on once your receiver is ready.",
-      default: false,
-    },
-    wakeUrl: { type: "string", label: "Webhook URL", description: "Where the wake-up goes. Use https; plain http works only for a loopback test receiver.", secret: true },
-    wakeHeaderName: { type: "string", label: "Auth header name", description: "Exactly as the receiver documents it. Leave empty if it needs none.", default: "" },
-    wakeHeaderValue: { type: "string", label: "Auth header value", description: "Sent in the header above. Leave empty if the receiver needs none.", secret: true },
-    wakeRemindMinutes: { type: "number", label: "Remind every (minutes)", description: "Wakes the receiver again while replies stay unacknowledged. 60 by default.", default: 60 },
-  });
+  const settings = deps.settings;
 
   let migrated = false;
   const db = (): SqlDb => {
