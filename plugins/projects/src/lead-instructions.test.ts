@@ -19,6 +19,12 @@ describe("leadInstructions", () => {
     expect(text).toContain("show them inline in your reply, never just a link or path");
   });
 
+  it("tells the lead to steer workers with a tell and queue only when their turn should finish", () => {
+    const text = leadInstructions("BCS");
+    expect(text).toContain("Message workers with `bb thread tell <worker>`, which steers");
+    expect(text).toContain("add `--mode queue` only when the worker's current turn should finish first");
+  });
+
   it("tells the lead when to run a worker in the cloud and what it costs", () => {
     const text = leadInstructions("BCS");
     expect(text).toContain("A cloud worker only when the user asks");
