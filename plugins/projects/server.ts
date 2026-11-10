@@ -35,6 +35,7 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   const settings = defineSettings(bb);
+  const notices = createNotices(bb, { leads: leadsWithMeta, mode: async () => notifyMode((await settings.get()).notify), restoreLead: quietLead });
   const leadPrefixes = new Map<string, string>();
   const completionCache = new Map<string, string>();
 
@@ -71,6 +72,7 @@ export default function plugin(bb: BbPluginApi) {
 
   async function quietLead(threadId: string): Promise<void> {
     try {
+      await notices.release(threadId);
       const listed = await bb.sdk.plugins.callRpc({
         pluginId: "push-notifications",
         method: "threadNotifications.list",
@@ -172,7 +174,6 @@ export default function plugin(bb: BbPluginApi) {
 
   const loop = createLoop(bb, { leads: leadsWithMeta, writeMeta });
   const messaging = createMessaging(bb, { resolveProject, projects, readMeta, settings });
-  createNotices(bb, { leads: leadsWithMeta, mode: async () => notifyMode((await settings.get()).notify) });
   const board = createBoard(bb, {
     leads: leadsWithMeta,
     projects,

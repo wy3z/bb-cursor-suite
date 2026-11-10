@@ -43,7 +43,15 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     { id: "pull-requests", enabled: true, status: "running" },
     { id: "push-notifications", enabled: true, status: "running" },
   ];
-  const push = { levels: new Map<string, string>(), sets: [] as { threadId: string; level: string }[], sent: [] as { title: string; body?: string; threadId?: string }[] };
+  const push = {
+    levels: new Map<string, string>(),
+    sets: [] as { threadId: string; level: string }[],
+    sent: [] as { title: string; body?: string; threadId?: string }[],
+    channels: ["web"] as string[],
+    failSend: 0,
+    failSet: 0,
+  };
+  const calls: string[] = [];
   const services = new Map<string, { start(signal: AbortSignal): Promise<void> | void }>();
   const logs: string[] = [];
   const faults = { listProjects: 0, threadsList: 0, send: 0, kvSetDelayMs: 0 };
@@ -123,6 +131,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
       plugins: {
         list: async () => ({ plugins: structuredClone(plugins) }),
         callRpc: async ({ pluginId, method, input }: { pluginId: string; method: string; input: Record<string, unknown> }) => {
+          calls.push(`${pluginId}.${method}`);
           if (!plugins.some((plugin) => plugin.id === pluginId && plugin.enabled)) throw new Error(`Plugin ${pluginId} is not running`);
           if (pluginId === "tasks" && method === "listProjects") {
             if (faults.listProjects > 0) {
@@ -132,7 +141,13 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
             return { projects: [{ id: "proj_abc", name: "Acme", prefix: "ABC", color: "blue", linkedBbProjectId: null }, { id: "proj_other", name: "Other", prefix: "OTHER", color: "red", linkedBbProjectId: null }] };
           }
           if (pluginId === "tasks" && method === "listAllTasks") return { tasks: [...tasks.values()].filter((task) => task.projectId === input.projectId).map((task) => structuredClone(task)) };
-          if (pluginId === "tasks" && method === "listTaskCardMeta") return { cards: [] };
+          if (pluginId === "tasks" && method === "listTaskCardMeta") {
+            const cards = [...tasks.values()]
+              .filter((task) => task.projectId === input.projectId && task.parentTaskId === null)
+              .map((task) => ({ taskId: task.id, attachmentCount: 0, activeThreads: (taskThreads.get(task.id) ?? []).filter((link) => link.liveStatus === "starting" || link.liveStatus === "working") }))
+              .filter((card) => card.activeThreads.length);
+            return { cards };
+          }
           if (pluginId === "tasks" && method === "listTaskThreads") return { taskThreads: taskThreads.get(String(input.taskId)) ?? [] };
           if (pluginId === "tasks" && method === "listTaskPullRequests") return { pullRequests: taskPrs.get(String(input.taskId)) ?? [], unavailableThreadIds: [] };
           if (pluginId === "tasks" && method === "listComments") return { comments: comments.get(String(input.taskId)) ?? [] };
@@ -150,14 +165,23 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
           if (pluginId === "push-notifications" && method === "threadNotifications.set") {
             const threadId = String(input.threadId);
             const level = String(input.level);
+            if (push.failSet > 0) {
+              push.failSet--;
+              throw new Error("set failed");
+            }
             push.sets.push({ threadId, level });
             if (level === "inherit") push.levels.delete(threadId);
             else push.levels.set(threadId, level);
             return { own: level, ancestorCap: null };
           }
           if (pluginId === "push-notifications" && method === "notifications.send") {
+            if (push.failSend > 0) {
+              push.failSend--;
+              throw new Error("send failed");
+            }
+            if (!push.channels.length) return { ok: true, channels: [] };
             push.sent.push(structuredClone(input) as { title: string; body?: string; threadId?: string });
-            return { ok: true, channels: ["web"] };
+            return { ok: true, channels: [...push.channels] };
           }
           if (pluginId === "pull-requests" && method === "linked_list") return { urls: linked.get(String(input.threadId)) ?? [] };
           if (pluginId === "pull-requests" && method === "subscribe") {
@@ -230,6 +254,7 @@ export function fakeBb(opts: { dbPath?: string; kv?: Map<string, unknown>; setti
     linked,
     plugins,
     push,
+    calls,
     services,
     logs,
     faults,
