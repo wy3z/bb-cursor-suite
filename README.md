@@ -70,11 +70,14 @@ Not affiliated with Anysphere, Inc. Cursor is a trademark of Anysphere, Inc.
 
 ## Install
 
-Add the suite's marketplace and install from the store:
+Install the whole suite in one go:
 
 ```sh
 bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+for p in cursor-sidebar agent-pills filetree projects pull-requests ui-tweaks machine-boat; do bb plugin install "$p@bb-cursor-suite"; done
 ```
+
+Or add the marketplace and pick plugins from BB's store. Leave `machine-boat` out of the loop if you don't want cloud VMs. Projects needs BB's built-in Tasks plugin enabled.
 
 Or install one plugin straight from Git. Each plugin has its own tags, `<id>/vX.Y.Z`:
 

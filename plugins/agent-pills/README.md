@@ -39,6 +39,13 @@ bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marke
 bb plugin install git:https://github.com/wy3z/bb-cursor-suite.git@^1.0.0 --plugin agent-pills --tag-prefix agent-pills/
 ```
 
+To install the whole suite instead:
+
+```sh
+bb marketplace add git:github.com/wy3z/bb-cursor-suite@main --subdirectory marketplace
+for p in cursor-sidebar agent-pills filetree projects pull-requests ui-tweaks machine-boat; do bb plugin install "$p@bb-cursor-suite"; done
+```
+
 Needs BB 0.49 or newer with plugin SDK 0.6.132 or newer. It uses the experimental thread context segment slot. Turn it off with `bb plugin disable agent-pills`.
 
 ## For agents
