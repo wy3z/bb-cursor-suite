@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leadInstructions } from "./lead-instructions";
+import { leadInstructions, workerInstructions } from "./lead-instructions";
 
 describe("leadInstructions", () => {
   it("tells the lead to answer a blocked worker's question instead of queueing a tell", () => {
@@ -25,14 +25,31 @@ describe("leadInstructions", () => {
     expect(text).toContain("add `--mode queue` only when the worker's current turn should finish first");
   });
 
-  it("tells the lead when to run a worker in the cloud and what it costs", () => {
+  it("tells the lead when to run a worker in the cloud and what it costs, leaving the syntax to the skill", () => {
     const text = leadInstructions("BCS");
+    expect(text).toContain("A local worktree by default");
     expect(text).toContain("A cloud worker only when the user asks");
-    expect(text).toContain("bb environment providers --json");
-    expect(text).toContain("machineProviderId set");
-    expect(text).toContain("`--environment-inputs` branch JSON");
-    expect(text).toContain("otherwise a local worktree");
     expect(text).toContain("Cloud costs money");
+    expect(text).not.toContain("--environment-inputs");
+  });
+
+  it("groups the rules under headings", () => {
+    const text = leadInstructions("BCS");
+    const headings = text.split("\n").filter((line) => line.startsWith("## "));
+    expect(headings).toEqual(["## Statuses", "## Workers", "## Proof", "## Talking to the user", "## Landing"]);
+  });
+
+  it("tells the lead that a spawn or tell succeeding is not a result", () => {
+    const text = leadInstructions("BCS");
+    expect(text).toContain("A spawn or a tell that succeeded is not a result");
+    expect(text).toContain("Check the worker's thread before you tell the user it is still working or has finished");
+  });
+
+  it("tells the lead how to talk to the user", () => {
+    const text = leadInstructions("BCS");
+    expect(text).toContain("Lead with the answer, the result or the blocker");
+    expect(text).toContain('with one marked "(Recommended)"');
+    expect(text).toContain("Don't act on an assumed answer");
   });
 
   it("tells the lead that workers are muted and it must escalate", () => {
@@ -47,5 +64,29 @@ describe("leadInstructions", () => {
     const text = leadInstructions("BCS");
     expect(text.startsWith('<project_lead_instructions project="BCS">')).toBe(true);
     expect(text.endsWith("</project_lead_instructions>")).toBe(true);
+  });
+});
+
+describe("workerInstructions", () => {
+  it("tells a worker it is not the lead and who the lead is", () => {
+    const text = workerInstructions("BCS", "thr_lead1");
+    expect(text).toContain("You work on a card of the BCS board for its lead, thread thr_lead1");
+    expect(text).toContain("You are not the lead");
+    expect(text).toContain("The lead owns card statuses, the project notes and everything said to the user");
+  });
+
+  it("asks for the result last, proof on the task and no chatter", () => {
+    const text = workerInstructions("BCS", "thr_lead1");
+    expect(text).toContain("End your last turn with the result");
+    expect(text).toContain("bb tasks attachment add <task> --file <path>");
+    expect(text).toContain("No progress chatter");
+    expect(text).toContain("bb thread tell thr_lead1 --mode queue --image/--file");
+    expect(text).toContain("Never merge, and never commit to the default branch, unless your brief says so");
+  });
+
+  it("wraps the rules in the project's tag", () => {
+    const text = workerInstructions("BCS", "thr_lead1");
+    expect(text.startsWith('<project_worker_instructions project="BCS">')).toBe(true);
+    expect(text.endsWith("</project_worker_instructions>")).toBe(true);
   });
 });

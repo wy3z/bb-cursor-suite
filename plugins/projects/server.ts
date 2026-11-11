@@ -13,7 +13,7 @@ import { COLUMNS, COLUMN_LABEL, columnOf, isComplete } from "./src/status";
 import { enteredStatusAt, mapLimited } from "./src/completion";
 import { createBoard } from "./src/board";
 import { describeDrift } from "./src/reconcile";
-import { leadInstructions } from "./src/lead-instructions";
+import { leadInstructions, workerInstructions } from "./src/lead-instructions";
 import { createNotices } from "./src/notices";
 import { defineSettings, notifyMode } from "./src/settings";
 
@@ -35,8 +35,18 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   const settings = defineSettings(bb);
-  const notices = createNotices(bb, { leads: leadsWithMeta, mode: async () => notifyMode((await settings.get()).notify), restoreLead: quietLead });
   const leadPrefixes = new Map<string, string>();
+  const workerLeads = new Map<string, { prefix: string; leadThreadId: string }>();
+  const notices = createNotices(bb, {
+    leads: leadsWithMeta,
+    mode: async () => notifyMode((await settings.get()).notify),
+    restoreLead: quietLead,
+    workersSeen: (lead, threadIds) => {
+      const leadThreadId = lead.meta.leadThreadId;
+      if (!leadThreadId) return;
+      for (const threadId of threadIds) workerLeads.set(threadId, { prefix: lead.prefix, leadThreadId });
+    },
+  });
   const completionCache = new Map<string, string>();
 
   const icons = createBoardIcons(
@@ -60,7 +70,9 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.agents.contributeInstructions(({ threadId }) => {
     const prefix = leadPrefixes.get(threadId);
-    return prefix ? leadInstructions(prefix) : null;
+    if (prefix) return leadInstructions(prefix);
+    const worker = workerLeads.get(threadId);
+    return worker ? workerInstructions(worker.prefix, worker.leadThreadId) : null;
   });
 
   async function rememberLead(projectId: string, before: string | null, after: string | null) {
