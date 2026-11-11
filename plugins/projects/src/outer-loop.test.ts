@@ -44,6 +44,7 @@ describe("sweepDue", () => {
 describe("sweepPrompt", () => {
   it("labels the sweep for the lead", () => {
     expect(sweepPrompt("ABC").split("\n")[0]).toBe("[Scheduled sweep] ABC");
+    expect(sweepPrompt("ABC")).toContain("Don't notify me: the plugin does that when a card reaches For Review or Done");
   });
 });
 

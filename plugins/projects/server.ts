@@ -35,7 +35,7 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   const settings = defineSettings(bb);
-  const leadPrefixes = new Map<string, string>();
+  const leadPrefixes = new Map<string, string[]>();
   const workerLeads = new Map<string, { prefix: string; leadThreadId: string }>();
   const notices = createNotices(bb, {
     leads: leadsWithMeta,
@@ -46,6 +46,7 @@ export default function plugin(bb: BbPluginApi) {
       if (!leadThreadId) return;
       for (const threadId of threadIds) workerLeads.set(threadId, { prefix: lead.prefix, leadThreadId });
     },
+    workerReleased: (threadId) => workerLeads.delete(threadId),
   });
   const completionCache = new Map<string, string>();
 
@@ -69,17 +70,21 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   bb.agents.contributeInstructions(({ threadId }) => {
-    const prefix = leadPrefixes.get(threadId);
-    if (prefix) return leadInstructions(prefix);
+    const prefixes = leadPrefixes.get(threadId);
+    if (prefixes?.length) return prefixes.map(leadInstructions).join("\n\n");
     const worker = workerLeads.get(threadId);
     return worker ? workerInstructions(worker.prefix, worker.leadThreadId) : null;
   });
 
   async function rememberLead(projectId: string, before: string | null, after: string | null) {
-    if (before && leadPrefixes.get(before) !== undefined) leadPrefixes.delete(before);
-    if (!after) return;
     const project = (await projects().catch(() => [] as Project[])).find((item) => item.id === projectId);
-    if (project) leadPrefixes.set(after, project.prefix);
+    if (!project) return;
+    if (before) {
+      const kept = (leadPrefixes.get(before) ?? []).filter((prefix) => prefix !== project.prefix);
+      if (kept.length) leadPrefixes.set(before, kept);
+      else leadPrefixes.delete(before);
+    }
+    if (after) leadPrefixes.set(after, [...new Set([...(leadPrefixes.get(after) ?? []), project.prefix])]);
   }
 
   async function quietLead(threadId: string): Promise<void> {
@@ -194,7 +199,7 @@ export default function plugin(bb: BbPluginApi) {
     leadOf: async (projectId) => (await readMeta(projectId)).leadThreadId,
     syncLeads: (leads) => {
       leadPrefixes.clear();
-      for (const lead of leads) if (lead.meta.leadThreadId) leadPrefixes.set(lead.meta.leadThreadId, lead.prefix);
+      for (const lead of leads) if (lead.meta.leadThreadId) leadPrefixes.set(lead.meta.leadThreadId, [...(leadPrefixes.get(lead.meta.leadThreadId) ?? []), lead.prefix]);
     },
   });
 
@@ -538,11 +543,12 @@ export default function plugin(bb: BbPluginApi) {
           },
         }),
         lead: cliCommand({
-          summary: "Show or set the project's lead thread (defaults to the thread running the command)",
+          summary: "Show, set or clear the project's lead thread (defaults to the thread running the command)",
           positionals: [{ name: "project", description: "Tracker project prefix, such as ABC", required: true }],
           options: {
             thread: { type: "string", description: "Thread id to make the lead; defaults to the current thread" },
             show: { type: "boolean", description: "Only show the current lead" },
+            clear: { type: "boolean", description: "Leave the project without a lead" },
             json,
           },
           async run(input, ctx) {
@@ -551,8 +557,15 @@ export default function plugin(bb: BbPluginApi) {
               const meta = await readMeta(project.id);
               return { exitCode: 0, stdout: input.options.json ? JSON.stringify(meta) + "\n" : `${meta.leadThreadId ?? "No lead set."}\n` };
             }
+            if (input.options.clear) {
+              if (input.options.thread) throw new PluginCliError("Pass --thread or --clear, not both.");
+              const meta = await writeMeta(project.id, { leadThreadId: null });
+              return { exitCode: 0, stdout: input.options.json ? JSON.stringify(meta) + "\n" : `${project.prefix} has no lead now.\n` };
+            }
             const threadId = input.options.thread ?? ctx.threadId ?? null;
             if (!threadId) throw new PluginCliError("Run this inside a thread, or pass --thread <id>.");
+            const found = await loop.leadStatus(threadId).catch(() => null);
+            if (found === "missing") throw new PluginCliError(`No thread ${threadId}. Check the id, or run this inside the thread that should lead.`);
             const meta = await writeMeta(project.id, { leadThreadId: threadId });
             return { exitCode: 0, stdout: input.options.json ? JSON.stringify(meta) + "\n" : `Lead for ${project.prefix} is ${threadId}\n` };
           },

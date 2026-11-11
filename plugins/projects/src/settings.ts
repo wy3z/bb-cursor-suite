@@ -13,7 +13,7 @@ export function defineSettings(bb: BbPluginApi) {
       type: "select",
       label: "Project notifications",
       description:
-        "What Projects sends you for boards that have a lead: a notification when a card reaches Done or For Review, For Review only, or nothing. Worker threads on those boards are muted either way; the lead's own questions still notify.",
+        "What Projects sends you for boards that have a lead: a notification when a card reaches Done or For Review, For Review only, or nothing. Workers the lead spawned are muted either way; the lead's own questions still notify.",
       options: [...NOTIFY_MODES],
       experimental_optionLabels: { "done-and-review": "Done and For Review (default)", "review-only": "For Review only", off: "Off" },
       default: "done-and-review",

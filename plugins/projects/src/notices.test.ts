@@ -15,8 +15,17 @@ type Fake = ReturnType<typeof fakeBb>;
 
 afterEach(() => setSystemTime());
 
+function adoptWorkers(fake: Fake) {
+  const set = fake.taskThreads.set.bind(fake.taskThreads);
+  fake.taskThreads.set = (taskId, links) => {
+    for (const link of links) if (!fake.threads.has(link.threadId)) fake.addThread(link.threadId, { parentThreadId: "thr_lead1" });
+    return set(taskId, links);
+  };
+  return fake;
+}
+
 function boot(opts: Parameters<typeof fakeBb>[0] = {}) {
-  const fake = fakeBb(opts);
+  const fake = adoptWorkers(fakeBb(opts));
   plugin(fake.bb as never);
   return fake;
 }
@@ -38,7 +47,7 @@ async function withLead(opts: Parameters<typeof fakeBb>[0] = {}) {
 }
 
 async function reboot(fake: Fake) {
-  const again = fakeBb({ kv: fake.kv });
+  const again = adoptWorkers(fakeBb({ kv: fake.kv }));
   plugin(again.bb as never);
   for (const [id, thread] of fake.threads) again.threads.set(id, structuredClone(thread));
   for (const [id, task] of fake.tasks) again.tasks.set(id, structuredClone(task));
@@ -118,8 +127,8 @@ describe("muting workers on attach", () => {
 
   it("restores a worker it muted when that worker becomes the lead, but not one the user changed", async () => {
     const fake = await withLead();
-    fake.addThread("thr_w1");
-    fake.addThread("thr_w2");
+    fake.addThread("thr_w1", { parentThreadId: "thr_lead1" });
+    fake.addThread("thr_w2", { parentThreadId: "thr_lead1" });
     fake.addTask({ key: "ABC-1", status: "in_progress" });
     fake.taskThreads.set("task_abc_1", [link("thr_w1"), link("thr_w2")]);
     await tick(fake);
@@ -128,14 +137,15 @@ describe("muting workers on attach", () => {
     await settle();
     expect(fake.push.levels.get("thr_w1")).toBe("input-only");
     expect(fake.kv.has("mute:thr_w1")).toBe(false);
-    await tick(fake);
-    expect(fake.push.levels.get("thr_w1")).toBe("input-only");
 
     fake.push.levels.set("thr_w2", "all");
     await fake.run(["lead", "ABC"], "thr_w2");
     await settle();
     expect(fake.push.levels.get("thr_w2")).toBe("all");
     expect(fake.kv.get("mute:thr_w2")).toMatchObject({ owner: "user", level: "all" });
+    await tick(fake);
+    expect(fake.push.levels.get("thr_w1")).toBe("input-only");
+    expect(fake.push.levels.get("thr_w2")).toBe("all");
   });
 
   it("restores an owned mute on a lead set before the plugin saw the change", async () => {
@@ -148,6 +158,65 @@ describe("muting workers on attach", () => {
     const again = await reboot(fake);
     await tick(again);
     expect(again.push.levels.get("thr_w1")).toBe("input-only");
+  });
+
+  it("leaves alone a thread the lead did not spawn, and restores one muted before that rule", async () => {
+    const fake = await withLead();
+    fake.addThread("thr_mine");
+    fake.addThread("thr_grandchild", { parentThreadId: "thr_child" });
+    fake.addThread("thr_child", { parentThreadId: "thr_lead1" });
+    fake.addThread("thr_legacy");
+    fake.push.levels.set("thr_legacy", "muted");
+    fake.kv.set("mute:thr_legacy", { owner: "projects", previous: "inherit", at: old });
+    fake.addTask({ key: "ABC-1", status: "in_progress" });
+    fake.taskThreads.set("task_abc_1", [link("thr_mine"), link("thr_grandchild"), link("thr_legacy")]);
+    await tick(fake);
+    expect(fake.push.levels.has("thr_mine")).toBe(false);
+    expect(fake.push.levels.get("thr_grandchild")).toBe("muted");
+    expect(fake.push.levels.has("thr_legacy")).toBe(false);
+    expect(fake.kv.has("mute:thr_legacy")).toBe(false);
+    expect(fake.instructions("thr_grandchild")).toContain('<project_worker_instructions project="ABC">');
+    expect(fake.instructions("thr_grandchild")).toContain("thread thr_lead1");
+    expect(fake.instructions("thr_mine")).toBeNull();
+    move(fake, "ABC-1", "done");
+    await tick(fake);
+    expect(fake.instructions("thr_grandchild")).toBeNull();
+  });
+
+  it("restores a worker when its card completes, the lead changes or the lead is cleared", async () => {
+    const fake = await withLead();
+    fake.addThread("thr_lead2");
+    fake.addTask({ key: "ABC-1", status: "in_progress" });
+    fake.addTask({ key: "ABC-2", status: "in_progress" });
+    fake.addTask({ key: "ABC-3", status: "in_progress" });
+    fake.taskThreads.set("task_abc_1", [link("thr_w1")]);
+    fake.taskThreads.set("task_abc_2", [link("thr_w2", "idle")]);
+    fake.taskThreads.set("task_abc_3", [link("thr_w3")]);
+    await tick(fake);
+    expect(fake.kv.get("mute:thr_w1")).toMatchObject({ owner: "projects", projectId: "proj_abc", taskId: "task_abc_1", leadThreadId: "thr_lead1" });
+    move(fake, "ABC-1", "done");
+    await tick(fake);
+    expect(fake.push.levels.has("thr_w1")).toBe(false);
+    expect(fake.kv.has("mute:thr_w1")).toBe(false);
+    expect(fake.push.levels.get("thr_w2")).toBe("muted");
+    await tick(fake);
+    expect(fake.push.levels.has("thr_w1")).toBe(false);
+
+    await fake.run(["lead", "ABC"], "thr_lead2");
+    await settle();
+    await tick(fake);
+    expect(fake.push.levels.has("thr_w2")).toBe(false);
+    expect(fake.push.levels.has("thr_w3")).toBe(false);
+
+    await fake.run(["lead", "ABC"], "thr_lead1");
+    await settle();
+    await tick(fake);
+    expect(fake.push.levels.get("thr_w3")).toBe("muted");
+    await fake.run(["lead", "ABC", "--clear"]);
+    await settle();
+    await tick(fake);
+    expect(fake.push.levels.has("thr_w3")).toBe(false);
+    expect(fake.kv.has("mute:thr_w3")).toBe(false);
   });
 
   it("does nothing on a board without a lead", async () => {
@@ -195,7 +264,7 @@ describe("muting workers on attach", () => {
     for (let index = 1; index <= 30; index++) {
       const openCard = index % 3 !== 0;
       const working = index % 2 === 0;
-      expect(fake.push.levels.get(`thr_w${index}`)).toBe(openCard || working ? "muted" : undefined);
+      expect(fake.push.levels.get(`thr_w${index}`)).toBe(openCard ? "muted" : undefined);
     }
     fake.calls.length = 0;
     await tick(fake);
@@ -646,5 +715,7 @@ describe("planning", () => {
     expect(needsNote([{ body: "Holding: waiting", createdAt: old }, { body: "needs review", createdAt: old }])).toBeNull();
     expect(needsNote([{ body: "Needs Sam: approve", createdAt: old }])).toBe("Needs Sam: approve");
     expect(needsNote([{ body: "Needs Sam: approve", createdAt: old }], old)).toBeNull();
+    expect(needsNote([{ body: "**Needs Sam:** approve", createdAt: old }])).toBe("**Needs Sam:** approve");
+    expect(needsNote([{ body: "needs the user: approve", createdAt: old }])).toBe("needs the user: approve");
   });
 });

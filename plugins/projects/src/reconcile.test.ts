@@ -84,6 +84,7 @@ describe("commit matching", () => {
     const ask: CommentSignal = { kind: "agent", body: "Needs James: look at the board on mobile", createdAt: hoursAgo(3) };
     expect(hasAsk([ask], hoursAgo(3))).toBe(true);
     expect(hasAsk([{ ...ask, body: "**Needs James:** decide" }], hoursAgo(3))).toBe(true);
+    expect(hasAsk([{ ...ask, body: "Needs the user: decide" }], hoursAgo(3))).toBe(true);
     expect(hasAsk([{ ...ask, body: "This needs James to look" }], hoursAgo(3))).toBe(false);
     expect(hasAsk([ask], hoursAgo(1))).toBe(false);
   });

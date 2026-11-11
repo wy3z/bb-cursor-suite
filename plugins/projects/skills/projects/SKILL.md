@@ -43,14 +43,18 @@ Two ways to start a worker on a task:
    attach it to the task in the same turn.
 
    ```sh
-   bb thread spawn --parent-self --new-environment worktree --base-branch main \
-     --provider claude-code --model claude-opus-5-5 --prompt-file brief.md
+   bb thread spawn --parent-self --new-environment worktree --base-branch <default branch> \
+     --provider <provider> --model <model> --prompt-file brief.md
    bb tasks attach <KEY> --thread <new thread id>
    bb tasks update <KEY> --status in_progress
    ```
 
 2. Fire and forget: `bb tasks dispatch <KEY> --preset "<preset name>"`. The
-   worker reports back on the task, but you get no lifecycle notification.
+   worker reports back on the task, but you get no lifecycle notification. It
+   is not your child thread, so it is not muted: its questions go to the user.
+
+Use the provider and model the project notes name, or your own when they name
+none, and the repository's default branch.
 
 Message a worker with `bb thread tell <worker>`: it steers, so the message
 lands in its current turn. Add `--mode queue` only when that turn should
@@ -87,8 +91,8 @@ A local worktree is the default. A worker can run on a cloud machine instead:
 
 ```sh
 bb thread spawn --parent-self --project <id> --environment-provider boat-sandbox \
-  --environment-inputs '{"branch":{"kind":"new","baseBranch":"main"}}' \
-  --provider claude-code --model claude-opus-5-5 --prompt-file brief.md
+  --environment-inputs '{"branch":{"kind":"new","baseBranch":"<default branch>"}}' \
+  --provider <provider> --model <model> --prompt-file brief.md
 ```
 
 Choose it when the user asks, the work needs a desktop or a browser with
@@ -201,7 +205,7 @@ they get under Settings, Plugins, Projects (`notify`: `done-and-review`,
 `review-only` or `off`).
 
 Your thread notifies only for questions, approvals and errors, so finishing a
-turn is silent. Workers attached to your cards are muted: their questions,
+turn is silent. Workers you spawned are muted once attached to your cards: their questions,
 approvals and errors come to you, never to the user. That makes you the only
 path to the user, so escalate whatever a worker can't resolve:
 
@@ -245,7 +249,7 @@ messages. Each says what to do with it; follow that. What they leave out:
 
 ## Status updates
 
-When asked for a status update (or prompted by the weekly automation):
+When asked for a status update:
 
 1. Run `bb projects status <PREFIX>` and `bb projects reconcile <PREFIX>`, and
    fix the statuses that are behind first.

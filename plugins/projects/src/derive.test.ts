@@ -45,6 +45,8 @@ describe("deriveStatus", () => {
     expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 12, state: "merged" }] })).toMatchObject({ status: "done", rule: "merged-prs-done", reason: "PR #12 merged" });
     expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 1, state: "merged" }, { number: 2, state: "closed" }] })).toMatchObject({ status: "done" });
     expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 1, state: "closed" }] })?.rule).not.toBe("merged-prs-done");
+    expect(deriveStatus({ ...base, threads: [working], pullRequests: [{ number: 12, state: "merged" }] })).toBeNull();
+    expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 12, state: "merged" }], children: ["in_progress"] })?.rule).not.toBe("merged-prs-done");
     expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 1, state: "merged" }, { number: 2, state: "open" }] })?.status).toBe("in_review");
   });
 
@@ -63,7 +65,7 @@ describe("deriveStatus", () => {
   });
 
   it("shows For Review when every agent is idle and a PR is open", () => {
-    expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 7, state: "open" }] })).toMatchObject({ status: "in_review", rule: "agent-idle-open-pr-for-review", reason: "agents idle, PR #7 open" });
+    expect(deriveStatus({ ...base, threads: [idle], pullRequests: [{ number: 7, state: "open" }] })).toMatchObject({ status: "in_review", rule: "agent-idle-open-pr-for-review", reason: "agents idle, PR #7 open: land it, or For Review if the user must act" });
     expect(deriveStatus({ ...base, threads: [idle, working], pullRequests: [{ number: 7, state: "open" }] })).toBeNull();
   });
 

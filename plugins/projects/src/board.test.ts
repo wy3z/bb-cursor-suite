@@ -52,10 +52,41 @@ describe("pinned lead instructions", () => {
     expect(block).toContain("--mode queue --image/--file");
     expect(block).toContain("bb tasks attachment get");
     expect(fake.instructions("thr_other")).toBeNull();
+    fake.addThread("thr_lead2");
     await fake.run(["lead", "ABC", "--thread", "thr_lead2"]);
     await settle();
     expect(fake.instructions("thr_lead1")).toBeNull();
     expect(fake.instructions("thr_lead2")).toContain('project="ABC"');
+  });
+
+  it("gives a thread leading two boards both blocks, and drops one when that board changes lead", async () => {
+    const fake = boot();
+    fake.addThread("thr_lead1");
+    fake.addThread("thr_lead2");
+    await fake.run(["lead", "ABC"], "thr_lead1");
+    await fake.run(["lead", "OTHER"], "thr_lead1");
+    await settle();
+    expect(fake.instructions("thr_lead1")).toContain('project="ABC"');
+    expect(fake.instructions("thr_lead1")).toContain('project="OTHER"');
+    await fake.run(["lead", "OTHER"], "thr_lead2");
+    await settle();
+    expect(fake.instructions("thr_lead1")).toContain('project="ABC"');
+    expect(fake.instructions("thr_lead1")).not.toContain('project="OTHER"');
+    expect(fake.instructions("thr_lead2")).toContain('project="OTHER"');
+  });
+
+  it("refuses a lead thread that does not exist, and clears the lead on request", async () => {
+    const fake = boot();
+    fake.addThread("thr_lead1");
+    const typo = await fake.run(["lead", "ABC", "--thread", "thr_typo"]);
+    expect(typo.exitCode).not.toBe(0);
+    expect((await fake.run(["lead", "ABC", "--show"])).stdout).toBe("No lead set.\n");
+    await fake.run(["lead", "ABC"], "thr_lead1");
+    await settle();
+    expect((await fake.run(["lead", "ABC", "--clear"])).stdout).toBe("ABC has no lead now.\n");
+    await settle();
+    expect(fake.instructions("thr_lead1")).toBeNull();
+    expect((await fake.run(["lead", "ABC", "--show"])).stdout).toBe("No lead set.\n");
   });
 
   it("restores lead threads from storage on start", async () => {

@@ -94,10 +94,10 @@ export function evaluate(input: DeriveInput): Derived | null {
   const prs = input.pullRequests;
   const working = input.threads.some(isWorking);
   const merged = prs.filter((pr) => pr.state === "merged");
-  if (merged.length > 0 && prs.every((pr) => pr.state === "merged" || pr.state === "closed")) {
+  const childrenOpen = input.children.some((child) => !isComplete(child));
+  if (merged.length > 0 && !working && !childrenOpen && prs.every((pr) => pr.state === "merged" || pr.state === "closed")) {
     return { status: "done", rule: "merged-prs-done", reason: `${prList(merged)} merged` };
   }
-  const childrenOpen = input.children.some((child) => !isComplete(child));
   if (input.landing && !working && !childrenOpen) {
     return { status: "done", rule: "merged-commit-done", reason: `${input.landing.sha.slice(0, 7)} landed on ${input.landing.ref}` };
   }
@@ -107,7 +107,7 @@ export function evaluate(input: DeriveInput): Derived | null {
   }
   const openPrs = prs.filter((pr) => pr.state === "open" || pr.state === "draft");
   if (stored === "in_progress" && openPrs.length > 0 && input.threads.length > 0 && !working) {
-    return { status: "in_review", rule: "agent-idle-open-pr-for-review", reason: `agents idle, ${prList(openPrs)} open` };
+    return { status: "in_review", rule: "agent-idle-open-pr-for-review", reason: `agents idle, ${prList(openPrs)} open: land it, or For Review if the user must act` };
   }
   if (stored === "in_progress" && !working) {
     const idle = input.now - lastActivity(input);

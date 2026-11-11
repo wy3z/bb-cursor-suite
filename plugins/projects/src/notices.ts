@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { STATUSES, TASKS_PLUGIN, tasksContract, type Status, type Task } from "./contracts";
 import { mapLimited } from "./completion";
-import { isComplete } from "./status";
+import { NEEDS_RE, isComplete } from "./status";
 import type { ProjectMeta } from "./meta";
 import type { NotifyMode } from "./settings";
 import { sleep } from "./sleep";
@@ -15,13 +15,14 @@ export const TITLE_MAX = 80;
 export const BODY_MAX = 180;
 const PUSH = "push-notifications";
 const LEVELS_BATCH = 200;
-const NEEDS = /^Needs [^:\n]{1,60}:/;
+const FAMILY_DEPTH = 4;
 const STATUS_COMMENT = /^Status changed to (.+?)(?: by |\s·|$)/;
 
 type Lead = { projectId: string; prefix: string; meta: ProjectMeta };
 type Notable = "in_review" | "done";
 type Comment = { kind: string; body: string; createdAt: string };
 type Scan = { at: number; updatedAt: string };
+type Link = { threadId: string; taskId: string };
 
 export type Card = { status: Status; updatedAt: string };
 export type ReviewItem = { taskId: string; key: string; title: string; note: string | null };
@@ -29,7 +30,9 @@ export type DoneItem = { taskId: string; key: string; title: string; folded: str
 export type Pending = { review: ReviewItem[]; done: DoneItem[] };
 export type NoticeBook = { primedAt: string; cards: Record<string, Card>; pending: Pending };
 export type Transition = { task: Task; to: Notable; folded: Task[] };
-export type MuteRecord = { owner: "projects"; previous: string; at: string } | { owner: "user"; level: string; at: string };
+export type MuteRecord =
+  | { owner: "projects"; previous: string; at: string; projectId?: string; taskId?: string; leadThreadId?: string }
+  | { owner: "user"; level: string; at: string };
 
 const EMPTY: Pending = { review: [], done: [] };
 const notable = (status: Status): status is Notable => status === "in_review" || status === "done";
@@ -136,7 +139,7 @@ export function needsNote(comments: readonly { body: string; createdAt: string }
   const since = after === null ? -Infinity : Date.parse(after);
   let latest: { body: string; createdAt: string } | null = null;
   for (const comment of comments) {
-    if (!NEEDS.test(comment.body.trim()) || Date.parse(comment.createdAt) <= since) continue;
+    if (!NEEDS_RE.test(comment.body) || Date.parse(comment.createdAt) <= since) continue;
     if (!latest || Date.parse(comment.createdAt) >= Date.parse(latest.createdAt)) latest = comment;
   }
   return latest ? latest.body.trim().replace(/\s+/g, " ") : null;
@@ -177,6 +180,7 @@ export function createNotices(
     mode: () => Promise<NotifyMode>;
     restoreLead: (threadId: string) => Promise<void>;
     workersSeen?: (lead: Lead, threadIds: readonly string[]) => void;
+    workerReleased?: (threadId: string) => void;
     now?: () => number;
   },
 ) {
@@ -185,6 +189,8 @@ export function createNotices(
   const bookKey = (projectId: string) => `notices:${projectId}`;
   const muteKey = (threadId: string) => `mute:${threadId}`;
   const mutes = new Map<string, MuteRecord>();
+  const lineage = new Map<string, boolean>();
+  let mutesLoaded = false;
   const sweepKey = (projectId: string) => `sweep:${projectId}`;
   const coverage = new Map<string, Map<string, Scan>>();
   let degraded = false;
@@ -244,10 +250,85 @@ export function createNotices(
     await saveMute(threadId, null);
   }
 
-  async function muteWorkers(threadIds: readonly string[], leadIds: ReadonlySet<string>) {
-    const fresh: string[] = [];
+  async function loadMutes() {
+    if (mutesLoaded) return;
+    for (const storageKey of await bb.storage.kv.list("mute:")) {
+      const threadId = storageKey.slice("mute:".length);
+      if (mutes.has(threadId)) continue;
+      const stored = await bb.storage.kv.get<MuteRecord>(storageKey);
+      if (stored) mutes.set(threadId, stored);
+    }
+    mutesLoaded = true;
+  }
+
+  async function spawnedBy(leadId: string, threadIds: readonly string[]): Promise<Set<string>> {
+    const known = (threadId: string) => lineage.get(`${leadId}:${threadId}`);
+    const parentOf = new Map<string, string | null>();
+    let frontier = [...new Set(threadIds)].filter((threadId) => known(threadId) === undefined);
+    for (let depth = 0; depth < FAMILY_DEPTH && frontier.length; depth++) {
+      for (let index = 0; index < frontier.length; index += LEVELS_BATCH) {
+        const threads = await bb.sdk.threads.list({ threadIds: frontier.slice(index, index + LEVELS_BATCH), includeHidden: true });
+        for (const thread of threads) parentOf.set(thread.id, thread.parentThreadId ?? null);
+      }
+      const parents = [...parentOf.values()].filter((parent): parent is string => parent !== null && parent !== leadId && !parentOf.has(parent));
+      frontier = [...new Set(parents)];
+    }
+    const own = new Set<string>();
     for (const threadId of new Set(threadIds)) {
-      if (!leadIds.has(threadId) && !(await muteRecord(threadId))) fresh.push(threadId);
+      let verdict = known(threadId);
+      if (verdict === undefined) {
+        verdict = false;
+        let current: string | null | undefined = threadId;
+        for (let depth = 0; depth <= FAMILY_DEPTH && current; depth++) {
+          const parent = parentOf.get(current);
+          if (parent === leadId) {
+            verdict = true;
+            break;
+          }
+          current = parent;
+        }
+        lineage.set(`${leadId}:${threadId}`, verdict);
+      }
+      if (verdict) own.add(threadId);
+    }
+    return own;
+  }
+
+  async function releaseQuietly(threadId: string) {
+    try {
+      await release(threadId);
+      deps.workerReleased?.(threadId);
+    } catch (cause) {
+      degrade(`Could not restore notifications for ${threadId}`, cause);
+    }
+  }
+
+  async function releaseFinished(lead: Lead, tasks: readonly Task[]) {
+    const byId = new Map(tasks.map((task) => [task.id, task]));
+    for (const [threadId, record] of [...mutes]) {
+      if (record.owner !== "projects" || record.projectId !== lead.projectId) continue;
+      const task = record.taskId ? byId.get(record.taskId) : undefined;
+      if (!task || isComplete(task.status) || record.leadThreadId !== lead.meta.leadThreadId) await releaseQuietly(threadId);
+    }
+  }
+
+  async function releaseOrphans(ledProjects: ReadonlySet<string>) {
+    for (const [threadId, record] of [...mutes]) {
+      if (record.owner === "projects" && record.projectId && !ledProjects.has(record.projectId)) await releaseQuietly(threadId);
+    }
+  }
+
+  async function muteWorkers(links: readonly Link[], lead: Lead) {
+    const fresh: string[] = [];
+    const taskOf = new Map<string, string>();
+    for (const link of links) {
+      if (taskOf.has(link.threadId)) continue;
+      taskOf.set(link.threadId, link.taskId);
+      const record = await muteRecord(link.threadId);
+      if (!record) fresh.push(link.threadId);
+      else if (record.owner === "projects" && !record.projectId) {
+        await saveMute(link.threadId, { ...record, projectId: lead.projectId, taskId: link.taskId, leadThreadId: lead.meta.leadThreadId! });
+      }
     }
     if (!fresh.length) return;
     let levels: Record<string, { own: string }>;
@@ -269,7 +350,7 @@ export function createNotices(
         bb.log.debug(`Could not mute ${threadId}: ${cause instanceof Error ? cause.message : String(cause)}`);
         continue;
       }
-      await saveMute(threadId, { owner: "projects", previous: own ?? "inherit", at: stamp() });
+      await saveMute(threadId, { owner: "projects", previous: own ?? "inherit", at: stamp(), projectId: lead.projectId, taskId: taskOf.get(threadId)!, leadThreadId: lead.meta.leadThreadId! });
     }
   }
 
@@ -281,11 +362,12 @@ export function createNotices(
     return loaded;
   }
 
-  async function attachedThreads(projectId: string, tasks: readonly Task[]): Promise<string[]> {
+  async function attachedThreads(projectId: string, tasks: readonly Task[]): Promise<Link[]> {
     const scanned = await coverageOf(projectId);
     const meta = await tasksCall("listTaskCardMeta", { projectId }, tasksContract.listTaskCardMeta.output);
-    const threads = meta.cards.flatMap((card) => card.activeThreads.map((link) => link.threadId));
     const open = tasks.filter((task) => !isComplete(task.status));
+    const openIds = new Set(open.map((task) => task.id));
+    const threads = meta.cards.filter((card) => openIds.has(card.taskId)).flatMap((card) => card.activeThreads.map((link): Link => ({ threadId: link.threadId, taskId: card.taskId })));
     const changed = open.filter((task) => {
       const last = scanned.get(task.id);
       return last !== undefined && last.updatedAt !== task.updatedAt;
@@ -302,9 +384,9 @@ export function createNotices(
       tasksCall("listTaskThreads", { taskId: task.id }, tasksContract.listTaskThreads.output).then(
         (result) => {
           scanned.set(task.id, { at: now(), updatedAt: task.updatedAt });
-          return result.taskThreads.map((link) => link.threadId);
+          return result.taskThreads.map((link): Link => ({ threadId: link.threadId, taskId: task.id }));
         },
-        () => [] as string[],
+        () => [] as Link[],
       ),
     );
     const known = new Set(tasks.map((task) => task.id));
@@ -414,9 +496,17 @@ export function createNotices(
   async function pass(lead: Lead, leadIds: ReadonlySet<string>) {
     if (!lead.meta.leadThreadId) return;
     const tasks = (await tasksCall("listAllTasks", { projectId: lead.projectId }, tasksContract.listAllTasks.output)).tasks as Task[];
-    const attached = await attachedThreads(lead.projectId, tasks);
-    deps.workersSeen?.(lead, attached.filter((threadId) => !leadIds.has(threadId)));
-    await muteWorkers(attached, leadIds);
+    const attached = (await attachedThreads(lead.projectId, tasks)).filter((link) => !leadIds.has(link.threadId));
+    const own = await spawnedBy(lead.meta.leadThreadId, attached.map((link) => link.threadId));
+    for (const link of attached) {
+      if (own.has(link.threadId)) continue;
+      const record = await muteRecord(link.threadId);
+      if (record?.owner === "projects" && !record.projectId) await releaseQuietly(link.threadId);
+    }
+    const workers = attached.filter((link) => own.has(link.threadId));
+    deps.workersSeen?.(lead, [...new Set(workers.map((link) => link.threadId))]);
+    await muteWorkers(workers, lead);
+    await releaseFinished(lead, tasks);
     const book = await bb.storage.kv.get<NoticeBook>(bookKey(lead.projectId));
     if (!book) {
       await bb.storage.kv.set(bookKey(lead.projectId), { primedAt: stamp(), cards: nextCards(tasks, null, new Set()), pending: EMPTY } satisfies NoticeBook);
@@ -430,6 +520,7 @@ export function createNotices(
 
   async function tick() {
     const leads = await deps.leads();
+    await loadMutes();
     const leadIds = new Set(leads.map((lead) => lead.meta.leadThreadId).filter((id): id is string => Boolean(id)));
     for (const threadId of leadIds) {
       if ((await muteRecord(threadId))?.owner === "projects") await deps.restoreLead(threadId);
@@ -441,6 +532,7 @@ export function createNotices(
         bb.log.warn(`Notification check for ${lead.prefix} failed: ${cause instanceof Error ? cause.message : String(cause)}`);
       }
     }
+    await releaseOrphans(new Set(leads.map((lead) => lead.projectId)));
   }
 
   bb.background.service("board-notices", {

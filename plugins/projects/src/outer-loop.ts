@@ -35,7 +35,7 @@ export function sweepPrompt(prefix: string): string {
     `[Scheduled sweep] ${prefix}`,
     "",
     `Sweep the ${prefix} board: workers that stalled or failed, pull requests waiting on review, failing checks or conflicts, and cards in the wrong column. Fix what you can now.`,
-    "Notify me only if something needs me or finished. Otherwise end with one line saying the board is clean.",
+    "Don't notify me: the plugin does that when a card reaches For Review or Done. If nothing needs me, end with one line saying the board is clean.",
   ].join("\n");
 }
 
