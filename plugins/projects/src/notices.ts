@@ -176,6 +176,7 @@ export function createNotices(
     leads: () => Promise<Lead[]>;
     mode: () => Promise<NotifyMode>;
     restoreLead: (threadId: string) => Promise<void>;
+    workersSeen?: (lead: Lead, threadIds: readonly string[]) => void;
     now?: () => number;
   },
 ) {
@@ -413,7 +414,9 @@ export function createNotices(
   async function pass(lead: Lead, leadIds: ReadonlySet<string>) {
     if (!lead.meta.leadThreadId) return;
     const tasks = (await tasksCall("listAllTasks", { projectId: lead.projectId }, tasksContract.listAllTasks.output)).tasks as Task[];
-    await muteWorkers(await attachedThreads(lead.projectId, tasks), leadIds);
+    const attached = await attachedThreads(lead.projectId, tasks);
+    deps.workersSeen?.(lead, attached.filter((threadId) => !leadIds.has(threadId)));
+    await muteWorkers(attached, leadIds);
     const book = await bb.storage.kv.get<NoticeBook>(bookKey(lead.projectId));
     if (!book) {
       await bb.storage.kv.set(bookKey(lead.projectId), { primedAt: stamp(), cards: nextCards(tasks, null, new Set()), pending: EMPTY } satisfies NoticeBook);
