@@ -17,7 +17,7 @@ export const SECTION_HEADING_LABEL =
 
 /** The disclosure chevron: hidden until the heading is hovered on a pointer. */
 export const SECTION_HEADING_CHEVRON =
-  "size-3.5 shrink-0 text-[color:var(--bbs-text-secondary)] opacity-0 transition-transform duration-150 ease-out motion-reduce:transition-none group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100";
+  "size-3.5 shrink-0 text-[color:var(--bbs-text-secondary)] opacity-0 transition-transform duration-150 ease-out motion-reduce:transition-none group-hover/section:opacity-100 group-data-[focus-visible-within]/section:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100";
 
 /** One collapsible heading, the same in every grouping. */
 export function SectionHeading({
