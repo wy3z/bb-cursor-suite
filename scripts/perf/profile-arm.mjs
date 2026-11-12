@@ -8,8 +8,10 @@ import {
   DEFAULT_CHROME,
   DEFAULT_PLAYWRIGHT,
   DEFAULT_SNAPSHOT,
+  PERF_ROOT,
   SERVER_URL,
   bb,
+  clockTicks,
   connectChrome,
   findServerPid,
   getPlugins,
@@ -20,6 +22,7 @@ import {
   startChrome,
   stopBbApp,
   stopChrome,
+  treeCpuTicks,
   waitForHttp,
 } from "./lib.mjs";
 
@@ -30,7 +33,7 @@ const plugins = (args.plugins ?? "").split(",").filter(Boolean);
 const bbApp = resolve(args.bbapp ?? DEFAULT_BB_APP);
 const bbCli = resolve(args.cli ?? DEFAULT_BB_CLI);
 const snapshot = resolve(args.snapshot ?? DEFAULT_SNAPSHOT);
-const outRoot = resolve(args.out ?? join(suiteRoot, "results", "profile"));
+const outRoot = resolve(args.out ?? join(PERF_ROOT, "results", "profile"));
 const chromePath = args.chrome ?? DEFAULT_CHROME;
 const playwrightPath = args.playwright ?? DEFAULT_PLAYWRIGHT;
 const titles = (
@@ -41,7 +44,7 @@ const titles = (
   .map((item) => item.trim())
   .filter(Boolean);
 const warmupTitle = args.warmup ?? "Fixture short thread 25";
-const runDir = resolve(args["run-dir"] ?? join(suiteRoot, "runs", `profile-${arm}`));
+const runDir = resolve(args["run-dir"] ?? join(PERF_ROOT, "runs", `profile-${arm}`));
 
 rmSync(runDir, { recursive: true, force: true });
 mkdirSync(outRoot, { recursive: true });
@@ -74,6 +77,24 @@ try {
     if (plugins.every((id) => byId.get(id)?.status === "running")) break;
     await sleep(1000);
   }
+  const settleStart = Date.now();
+  const settleRate = clockTicks();
+  const settleThresholdTicks = settleRate * 0.1;
+  let settleQuiet = 0;
+  let settled = false;
+  while (Date.now() - settleStart < 120000) {
+    const settleBefore = treeCpuTicks(bbProcess.pid);
+    await sleep(1000);
+    const settleUsed = treeCpuTicks(bbProcess.pid) - settleBefore;
+    if (settleUsed < settleThresholdTicks) settleQuiet++;
+    else settleQuiet = 0;
+    if (settleQuiet >= 5) {
+      settled = true;
+      break;
+    }
+  }
+  const settleMs = Date.now() - settleStart;
+
   const pluginByHash = new Map();
   for (const plugin of installedPlugins) {
     if (plugin.app?.bundle?.hash) pluginByHash.set(plugin.app.bundle.hash, plugin.id);
@@ -265,6 +286,8 @@ try {
     attributedByCategoryMs,
     topNativeCallers,
     pluginBundlesLoadedBeforeOpen: loaded.size,
+    settleMs,
+    settled,
     machine: machineInfo(),
   };
   writeFileSync(join(outRoot, `${arm}.json`), `${JSON.stringify(result, null, 2)}\n`);

@@ -115,7 +115,11 @@
         "openStyleCountMedian",
         "openLongTaskMsMedian",
         "opensExpected",
-        "opensCompleted"
+        "opensCompleted",
+        "settleMs",
+        "settled",
+        "serverCpuMsDuringOpens",
+        "serverCpuMsPerOpen"
       ],
       "additionalProperties": false,
       "properties": {
@@ -420,6 +424,21 @@
         },
         "opensCompleted": {
           "type": "integer",
+          "minimum": 0
+        },
+        "settleMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "settled": {
+          "type": "boolean"
+        },
+        "serverCpuMsDuringOpens": {
+          "type": "number",
+          "minimum": 0
+        },
+        "serverCpuMsPerOpen": {
+          "type": "number",
           "minimum": 0
         }
       }

@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   DEFAULT_BB_APP,
   DEFAULT_BB_CLI,
-  HOME,
+  PERF_ROOT,
   SERVER_PORT,
   SERVER_URL,
   bb,
@@ -24,7 +24,7 @@ const { prs } = require("./fakegh/data.cjs");
 const args = parseArgs(process.argv.slice(2));
 const bbApp = resolve(args.app ?? DEFAULT_BB_APP);
 const bbCli = resolve(args.cli ?? DEFAULT_BB_CLI);
-const perfRoot = resolve(process.env.PERF_ROOT ?? join(HOME, "perf"));
+const perfRoot = resolve(PERF_ROOT);
 const fixtureRoot = resolve(args.fixture ?? join(perfRoot, "fixture"));
 const snapshot = resolve(args.snapshot ?? join(fixtureRoot, "snapshot"));
 const staging = resolve(args.staging ?? join(fixtureRoot, "staging"));

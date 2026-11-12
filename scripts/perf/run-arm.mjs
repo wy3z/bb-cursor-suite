@@ -8,6 +8,7 @@ import {
   DEFAULT_CHROME,
   DEFAULT_PLAYWRIGHT,
   DEFAULT_SNAPSHOT,
+  PERF_ROOT,
   SERVER_URL,
   bb,
   clockTicks,
@@ -25,6 +26,7 @@ import {
   startChrome,
   stopBbApp,
   stopChrome,
+  treeCpuTicks,
   waitForHttp,
 } from "./lib.mjs";
 
@@ -42,7 +44,7 @@ const chromePath = args.chrome ?? DEFAULT_CHROME;
 const playwrightPath = args.playwright ?? DEFAULT_PLAYWRIGHT;
 const idleSeconds = Number(args["idle-seconds"] ?? 60);
 const openCount = Number(args.opens ?? 20);
-const runDir = resolve(args["run-dir"] ?? join(suiteRoot, "runs", `${arm}-${runIndex}`));
+const runDir = resolve(args["run-dir"] ?? join(PERF_ROOT, "runs", `${arm}-${runIndex}`));
 const screenshotPath = args.screenshot ? resolve(args.screenshot) : null;
 const resultPath = join(outRoot, arm, `${runIndex}.json`);
 const errors = [];
@@ -142,6 +144,24 @@ try {
       }
     }
   }
+  const settleStart = Date.now();
+  const settleRate = clockTicks();
+  const settleThresholdTicks = settleRate * 0.1;
+  let settleQuiet = 0;
+  let settled = false;
+  while (Date.now() - settleStart < 120000) {
+    const settleBefore = treeCpuTicks(bbProcess.pid);
+    await sleep(1000);
+    const settleUsed = treeCpuTicks(bbProcess.pid) - settleBefore;
+    if (settleUsed < settleThresholdTicks) settleQuiet++;
+    else settleQuiet = 0;
+    if (settleQuiet >= 5) {
+      settled = true;
+      break;
+    }
+  }
+  const settleMs = Date.now() - settleStart;
+
   const expectedAppBundles = installedPlugins
     .filter((plugin) => plugin.enabled && plugin.app?.hasApp && plugin.app.bundle?.jsUrl)
     .map((plugin) => ({
@@ -211,6 +231,8 @@ try {
   );
   const bootNetwork = tracker.markBootEnd();
 
+  const cpuRate = clockTicks();
+  const serverCpuBefore = treeCpuTicks(bbProcess.pid, true);
   const samples = [];
   const seen = new Set();
   for (let index = 0; index < plan.length; index++) {
@@ -253,6 +275,10 @@ try {
       ...perfDelta(perfBefore, perfAfter),
     });
   }
+
+  const serverCpuAfter = treeCpuTicks(bbProcess.pid, true);
+  const serverCpuMsDuringOpens = ((serverCpuAfter - serverCpuBefore) / cpuRate) * 1000;
+  const serverCpuMsPerOpen = samples.length ? serverCpuMsDuringOpens / samples.length : 0;
 
   let prTextVisible = false;
   try {
@@ -345,6 +371,10 @@ try {
     fakeGhCalls: countLines(join(runDir, "fakegh-calls.log")),
     sidebarThreadRows,
     prTextVisible,
+    settleMs,
+    settled,
+    serverCpuMsDuringOpens: round(serverCpuMsDuringOpens),
+    serverCpuMsPerOpen: round(serverCpuMsPerOpen),
   };
   record.valid = invalidReasons.length === 0;
 } catch (error) {
@@ -429,6 +459,10 @@ function emptyMetrics() {
     fakeGhCalls: 0,
     sidebarThreadRows: 0,
     prTextVisible: false,
+    settleMs: 0,
+    settled: false,
+    serverCpuMsDuringOpens: 0,
+    serverCpuMsPerOpen: 0,
   };
 }
 
