@@ -42,7 +42,12 @@ for (let runIndex = 1; runIndex <= runs; runIndex++) {
   const sequence = runIndex % 2 === 1 ? arms : [...arms].reverse();
   for (const arm of sequence) {
     order++;
-    const plugins = arm === "stock" ? [] : arm === "suite" ? suitePlugins : (args[`${arm}-plugins`] ?? "").split(",").filter(Boolean);
+    const plugins =
+      arm === "stock"
+        ? []
+        : arm === "suite"
+          ? suitePlugins
+          : (args[`${arm}-plugins`] ?? (suitePlugins.includes(arm) ? arm : "")).split(",").filter(Boolean);
     console.error(`run ${runIndex} order ${order} arm ${arm}${plugins.length ? ` (${plugins.length} plugins)` : ""}`);
     execFileSync(
       process.execPath,
@@ -124,7 +129,9 @@ function buildSummary(root, armNames) {
     return {
       navToSidebarMs: m.navToSidebarMs,
       domContentLoadedMs: m.domContentLoadedMs,
-      jsBytes: m.jsBytes,
+      jsBytesBoot: m.jsBytesBoot,
+      jsBytesSession: m.jsBytesSession,
+      jsBytesPerOpenMedian: m.jsBytesPerOpen.median,
       requestCount: m.requestCount,
       longTaskCount: m.longTaskCount,
       longTaskMs: m.longTaskMs,
@@ -171,6 +178,24 @@ function buildSummary(root, armNames) {
       };
     }
   }
+  summary.comparisons = {};
+  if (stock) {
+    for (const [arm, value] of Object.entries(summary.arms)) {
+      if (arm === "stock") continue;
+      const comparison = {};
+      for (const key of Object.keys(stock.metrics)) {
+        const base = stock.metrics[key].median;
+        const current = value.metrics[key].median;
+        comparison[key] = {
+          stock: base,
+          arm: current,
+          delta: round(current - base),
+          deltaPct: base > 0 ? round(((current - base) / base) * 100) : null,
+        };
+      }
+      summary.comparisons[arm] = comparison;
+    }
+  }
   return summary;
 }
 
@@ -191,6 +216,20 @@ function renderText(summary) {
       lines.push(`${key.padEnd(26)} ${String(value.stock).padStart(8)} ${String(value.suite).padStart(10)} ${delta.padStart(10)}`);
     }
   }
+  const comparisonKeys = ["threadOpenMedianMs", "threadOpenP90Ms", "jsBytesBoot", "jsBytesSession", "longTaskMs"];
+  if (Object.keys(summary.comparisons).length) {
+    lines.push("");
+    lines.push(`arm                    ${comparisonKeys.map((key) => key.padStart(18)).join("")}`);
+    for (const [arm, comparison] of Object.entries(summary.comparisons)) {
+      const cells = comparisonKeys.map((key) => {
+        const value = comparison[key];
+        if (!value) return "n/a".padStart(18);
+        const delta = value.deltaPct === null ? "n/a" : `${value.deltaPct > 0 ? "+" : ""}${value.deltaPct}%`;
+        return `${value.arm} (${delta})`.padStart(18);
+      });
+      lines.push(`${arm.padEnd(22)} ${cells.join("")}`);
+    }
+  }
   return lines.join("\n");
 }
 
@@ -203,6 +242,17 @@ function renderMarkdown(summary) {
     lines.push(`| ${key} | ${value.stock} | ${value.suite} | ${delta} |`);
   }
   lines.push("");
+  if (Object.keys(summary.comparisons).length) {
+    lines.push("## Comparison vs stock", "");
+    lines.push("| arm | metric | stock | arm | delta | delta % |");
+    lines.push("| --- | --- | ---: | ---: | ---: | ---: |");
+    for (const [arm, comparison] of Object.entries(summary.comparisons)) {
+      for (const [key, value] of Object.entries(comparison)) {
+        lines.push(`| ${arm} | ${key} | ${value.stock} | ${value.arm} | ${value.delta} | ${value.deltaPct ?? "n/a"} |`);
+      }
+    }
+    lines.push("");
+  }
   for (const [arm, value] of Object.entries(summary.arms)) {
     lines.push(`## ${arm}`, "", `valid ${value.valid}/${value.runs}`, "");
     lines.push("| metric | median | min | max |");

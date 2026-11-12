@@ -55,7 +55,32 @@
       "properties": {
         "navToSidebarMs": { "type": "number", "minimum": 0 },
         "domContentLoadedMs": { "type": "number", "minimum": 0 },
-        "jsBytes": { "type": "integer", "minimum": 0 },
+        "jsBytesBoot": { "type": "integer", "minimum": 0 },
+        "jsBytesSession": { "type": "integer", "minimum": 0 },
+        "jsBytesPerOpen": {
+          "type": "object",
+          "required": ["median", "min", "max"],
+          "additionalProperties": false,
+          "properties": {
+            "median": { "type": "number", "minimum": 0 },
+            "min": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 }
+          }
+        },
+        "pluginAppJs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["url", "pluginId", "phase", "bytes"],
+            "additionalProperties": false,
+            "properties": {
+              "url": { "type": "string" },
+              "pluginId": { "type": ["string", "null"] },
+              "phase": { "enum": ["boot", "open"] },
+              "bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
         "requestCount": { "type": "integer", "minimum": 0 },
         "longTaskCount": { "type": "integer", "minimum": 0 },
         "longTaskMs": { "type": "number", "minimum": 0 },
@@ -71,7 +96,7 @@
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["threadId", "title", "kind", "cold", "ms", "requests", "bytes", "longTaskCount", "longTaskMs"],
+                "required": ["threadId", "title", "kind", "cold", "ms", "requests", "bytes", "jsBytes", "longTaskCount", "longTaskMs"],
                 "additionalProperties": false,
                 "properties": {
                   "threadId": { "type": "string" },
@@ -81,6 +106,7 @@
                   "ms": { "type": "number", "minimum": 0 },
                   "requests": { "type": "integer", "minimum": 0 },
                   "bytes": { "type": "integer", "minimum": 0 },
+                  "jsBytes": { "type": "integer", "minimum": 0 },
                   "longTaskCount": { "type": "integer", "minimum": 0 },
                   "longTaskMs": { "type": "number", "minimum": 0 }
                 }

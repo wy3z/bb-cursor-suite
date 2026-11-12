@@ -50,6 +50,7 @@ const suiteSha = execFileSync("git", ["-C", suiteRoot, "rev-parse", "HEAD"], { e
 const bbVersion = execFileSync(bbCli, ["--version"], { encoding: "utf8", env: cleanEnv() }).trim();
 const longTitles = Array.from({ length: 5 }, (_, i) => `Fixture long thread ${String(i + 1).padStart(2, "0")}`);
 const shortTitles = Array.from({ length: 5 }, (_, i) => `Fixture short thread ${String(i + 1).padStart(2, "0")}`);
+const PLUGIN_APP_JS_PATTERN = /\/api\/v1\/(?:plugin-app-assets\/[a-f0-9]{16}|plugins\/[^/]+\/assets)\/app\.js$/;
 const openPlan = [];
 for (let round = 0; round < Math.ceil(openCount / 10); round++) {
   for (let i = 0; i < 5; i++) {
@@ -114,23 +115,33 @@ try {
   serverPid = await waitForServerPid(bbProcess.pid);
   await sleep(1500);
 
+  const pluginById = new Map();
+  for (const plugin of (await getPlugins()).plugins) pluginById.set(plugin.id, plugin);
   if (plugins.length) {
     const deadline = Date.now() + 90000;
-    let byId = new Map();
     while (Date.now() < deadline) {
       const installed = await getPlugins();
-      byId = new Map(installed.plugins.map((plugin) => [plugin.id, plugin]));
-      if (plugins.every((id) => byId.get(id)?.status === "running")) break;
+      for (const plugin of installed.plugins) pluginById.set(plugin.id, plugin);
+      if (plugins.every((id) => pluginById.get(id)?.status === "running")) break;
       await sleep(1000);
     }
     for (const id of plugins) {
-      const plugin = byId.get(id);
+      const plugin = pluginById.get(id);
       if (!plugin || plugin.status !== "running") {
         errors.push({ kind: "plugin-load", message: `${id}: ${plugin?.status ?? "missing"}` });
         invalidReasons.push(`plugin-load ${id}`);
       }
     }
   }
+  const pluginIdByJsUrl = new Map();
+  for (const plugin of pluginById.values()) {
+    const jsUrl = plugin.app?.bundle?.jsUrl;
+    if (jsUrl) pluginIdByJsUrl.set(new URL(jsUrl, SERVER_URL).href, plugin.id);
+  }
+  const expectedPluginJsUrls = plugins
+    .map((id) => pluginById.get(id)?.app?.bundle?.jsUrl)
+    .filter(Boolean)
+    .map((url) => new URL(url, SERVER_URL).href);
 
   const chromium = await loadPlaywright(playwrightPath);
   const chromePort = 9300 + ((process.pid + runIndex) % 500);
@@ -178,7 +189,13 @@ try {
   const domContentLoadedMs = await page.evaluate(
     () => performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ?? 0,
   );
-  const coldNetwork = tracker.snapshot();
+  const missingPluginJs = await tracker.waitForUrls(expectedPluginJsUrls, 60000);
+  for (const url of missingPluginJs) {
+    errors.push({ kind: "plugin-load", message: `app.js not fetched: ${url}`.slice(0, 500) });
+    invalidReasons.push(`plugin-app ${pluginIdByJsUrl.get(url) ?? url}`);
+  }
+  const bootNetwork = tracker.snapshot();
+  tracker.setPhase("open");
 
   const samples = [];
   const seen = new Set();
@@ -190,7 +207,7 @@ try {
     tracker.startWindow();
     const started = Date.now();
     let ms = 0;
-    let windowStats = { requests: 0, bytes: 0 };
+    let windowStats = { requests: 0, bytes: 0, jsBytes: 0 };
     try {
       await openThread(page, item.title);
       await waitForThreadReady(page, `END-OF-TRANSCRIPT ${item.title}`);
@@ -213,14 +230,26 @@ try {
       ms,
       requests: windowStats.requests,
       bytes: windowStats.bytes,
+      jsBytes: windowStats.jsBytes,
       longTaskCount: longTasks.length,
       longTaskMs: longTasks.reduce((sum, entry) => sum + entry.duration, 0),
     });
   }
 
   const openTimes = samples.map((sample) => sample.ms);
+  const openJsBytes = samples.map((sample) => sample.jsBytes);
   const allLongTasks = await readLongTasks(page);
   const firstCold = samples.find((sample) => sample.cold) ?? samples[0];
+  const sessionNetwork = tracker.snapshot();
+  const pluginAppJs = tracker
+    .scriptRequests()
+    .filter((request) => PLUGIN_APP_JS_PATTERN.test(new URL(request.url).pathname))
+    .map((request) => ({
+      url: request.url,
+      pluginId: pluginIdByJsUrl.get(request.url) ?? null,
+      phase: request.phase,
+      bytes: request.bytes,
+    }));
 
   await page.close();
   await browser.close();
@@ -235,8 +264,15 @@ try {
   record.metrics = {
     navToSidebarMs,
     domContentLoadedMs,
-    jsBytes: coldNetwork.jsBytes,
-    requestCount: coldNetwork.requests,
+    jsBytesBoot: bootNetwork.jsBytes,
+    jsBytesSession: sessionNetwork.jsBytes,
+    jsBytesPerOpen: {
+      median: round(median(openJsBytes)),
+      min: round(openJsBytes.length ? Math.min(...openJsBytes) : 0),
+      max: round(openJsBytes.length ? Math.max(...openJsBytes) : 0),
+    },
+    pluginAppJs,
+    requestCount: bootNetwork.requests,
     longTaskCount: allLongTasks.entries.length,
     longTaskMs: allLongTasks.entries.reduce((sum, entry) => sum + entry.duration, 0),
     threadOpenMs: {
@@ -305,7 +341,10 @@ function emptyMetrics() {
   return {
     navToSidebarMs: 0,
     domContentLoadedMs: 0,
-    jsBytes: 0,
+    jsBytesBoot: 0,
+    jsBytesSession: 0,
+    jsBytesPerOpen: { median: 0, min: 0, max: 0 },
+    pluginAppJs: [],
     requestCount: 0,
     longTaskCount: 0,
     longTaskMs: 0,
@@ -427,13 +466,15 @@ async function createTracker(context, page) {
   const session = await context.newCDPSession(page);
   await session.send("Network.enable");
   const requests = new Map();
+  const scripts = new Map();
   let totalRequests = 0;
   let totalBytes = 0;
   let totalJsBytes = 0;
   let window = null;
+  let phase = "boot";
   session.on("Network.requestWillBeSent", (event) => {
     totalRequests++;
-    requests.set(event.requestId, { type: event.type, url: event.request.url });
+    requests.set(event.requestId, { type: event.type, url: event.request.url, bytes: 0, phase });
     if (window) {
       window.requests++;
       window.ids.add(event.requestId);
@@ -443,7 +484,13 @@ async function createTracker(context, page) {
     const bytes = event.encodedDataLength ?? 0;
     totalBytes += bytes;
     const request = requests.get(event.requestId);
-    if (request?.type === "Script") totalJsBytes += bytes;
+    if (!request) return;
+    request.bytes = bytes;
+    if (request.type === "Script") {
+      totalJsBytes += bytes;
+      scripts.set(request.url, { url: request.url, bytes, phase: request.phase });
+      if (window) window.jsBytes += bytes;
+    }
     if (window && window.ids.has(event.requestId)) window.bytes += bytes;
   });
   return {
@@ -452,17 +499,34 @@ async function createTracker(context, page) {
       totalBytes = 0;
       totalJsBytes = 0;
       requests.clear();
+      scripts.clear();
     },
     snapshot() {
       return { requests: totalRequests, bytes: totalBytes, jsBytes: totalJsBytes };
     },
     startWindow() {
-      window = { requests: 0, bytes: 0, ids: new Set() };
+      window = { requests: 0, bytes: 0, jsBytes: 0, ids: new Set() };
     },
     endWindow() {
-      const result = window ? { requests: window.requests, bytes: window.bytes } : { requests: 0, bytes: 0 };
+      const result = window
+        ? { requests: window.requests, bytes: window.bytes, jsBytes: window.jsBytes }
+        : { requests: 0, bytes: 0, jsBytes: 0 };
       window = null;
       return result;
+    },
+    setPhase(value) {
+      phase = value;
+    },
+    scriptRequests() {
+      return [...scripts.values()];
+    },
+    async waitForUrls(urls, timeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (urls.every((url) => scripts.has(url))) return [];
+        await sleep(100);
+      }
+      return urls.filter((url) => !scripts.has(url));
     },
   };
 }

@@ -49,11 +49,14 @@ The snapshot is warmed after seeding by starting BB once and letting the migrati
 
 - `navToSidebarMs` — wall time from navigation start until the fixture threads are visible in the sidebar.
 - `domContentLoadedMs` — `navigation.domContentLoadedEventEnd`.
-- `jsBytes` — transferred bytes for requests whose CDP type is `Script` during the cold load.
-- `requestCount` — network requests during the cold load.
+- `jsBytesBoot` — transferred bytes for requests whose CDP type is `Script` from navigation start until every expected plugin `app.js` has loaded (the sidebar, for `stock`).
+- `jsBytesSession` — the same total for the whole session, boot plus every thread open.
+- `jsBytesPerOpen` — median, min and max of the per-open script bytes.
+- `pluginAppJs` — every plugin `app.js` URL fetched in the run, with its plugin id, boot/open phase and transferred bytes.
+- `requestCount` — network requests during boot.
 - `longTaskCount`, `longTaskMs` — long tasks for the whole run (cold load plus every thread open).
 - `threadOpenMs` — 20 opens alternating long and short transcripts over 5 long and 5 short threads, so every thread is opened cold once and warm once. Readiness means the last transcript message and the composer are both visible and the main thread has had no long task for 250 ms.
-- `threadOpenRequests` — requests and transferred bytes fired by the first cold thread open in the run.
+- `threadOpenRequests` — requests and transferred bytes fired by the first cold thread open in the run. Plugin bundles load in the boot window, not here.
 - `serverRssMB` — BB server RSS after the browser closes.
 - `serverIdleCpuPct60s` — total BB server CPU over a 60 s idle window, as a percentage of one core.
 
