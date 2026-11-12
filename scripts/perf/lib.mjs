@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, openSync, readFileSync, readdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,11 +9,13 @@ export const DAEMON_PORT = 39582;
 export const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 
 export const HOME = homedir();
-export const DEFAULT_BB_APP = join(HOME, "perf/bb/node_modules/.bin/bb-app");
-export const DEFAULT_BB_CLI = join(HOME, "perf/bb/node_modules/.bin/bb");
-export const DEFAULT_SNAPSHOT = join(HOME, "perf/fixture/snapshot");
+export const PERF_ROOT = process.env.PERF_ROOT ?? join(HOME, "perf");
+export const DEFAULT_BB_APP = join(PERF_ROOT, "bb/node_modules/.bin/bb-app");
+export const DEFAULT_BB_CLI = join(PERF_ROOT, "bb/node_modules/.bin/bb");
+export const DEFAULT_SNAPSHOT = join(PERF_ROOT, "fixture/snapshot");
 export const DEFAULT_CHROME = "/usr/bin/google-chrome";
-export const DEFAULT_PLAYWRIGHT = join(HOME, "perf/tools/node_modules/playwright-core/index.mjs");
+export const DEFAULT_PLAYWRIGHT = join(PERF_ROOT, "tools/node_modules/playwright-core/index.mjs");
+export const FAKEGH_DIR = join(import.meta.dirname, "fakegh");
 
 export function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
@@ -85,6 +87,13 @@ export async function waitForPortFree(port, timeoutMs = 60000) {
 
 export function startBbApp(bbApp, dataDir, logPath) {
   const out = logPath ? openSync(logPath, "a") : "ignore";
+  const ghConfigDir = join(dataDir, "gh-config");
+  mkdirSync(ghConfigDir, { recursive: true });
+  for (const path of [FAKEGH_DIR, join(FAKEGH_DIR, "gh")]) {
+    try {
+      chmodSync(path, 0o755);
+    } catch {}
+  }
   const child = spawn(
     bbApp,
     [
@@ -97,7 +106,21 @@ export function startBbApp(bbApp, dataDir, logPath) {
       "--host-daemon-port",
       String(DAEMON_PORT),
     ],
-    { detached: true, stdio: ["ignore", out, out], env: { ...process.env, BB_CLI: "" } },
+    {
+      detached: true,
+      stdio: ["ignore", out, out],
+      env: {
+        ...process.env,
+        BB_CLI: "",
+        PATH: `${FAKEGH_DIR}:${process.env.PATH ?? ""}`,
+        FAKEGH_DIR,
+        FAKEGH_REPOS: join(PERF_ROOT, "fixture", "repos"),
+        FAKEGH_LOG: join(dataDir, "fakegh-calls.log"),
+        GIT_CONFIG_GLOBAL: join(PERF_ROOT, "fixture", "gitconfig"),
+        GH_CONFIG_DIR: ghConfigDir,
+        GIT_TERMINAL_PROMPT: "0",
+      },
+    },
   );
   return child;
 }
@@ -179,6 +202,30 @@ export function readCpuTicks(pid) {
   const close = stat.lastIndexOf(")");
   const fields = stat.slice(close + 2).split(" ");
   return Number(fields[11]) + Number(fields[12]);
+}
+
+export function readCpuStat(pid) {
+  const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+  const close = stat.lastIndexOf(")");
+  const fields = stat.slice(close + 2).split(" ");
+  return {
+    utime: Number(fields[11]),
+    stime: Number(fields[12]),
+    cutime: Number(fields[13]),
+    cstime: Number(fields[14]),
+  };
+}
+
+export function treeCpuTicks(rootPid, includeChildren = false) {
+  let total = 0;
+  for (const pid of [rootPid, ...descendantPids(rootPid)]) {
+    try {
+      const stat = readCpuStat(pid);
+      total += stat.utime + stat.stime;
+      if (includeChildren) total += stat.cutime + stat.cstime;
+    } catch {}
+  }
+  return total;
 }
 
 export function clockTicks() {

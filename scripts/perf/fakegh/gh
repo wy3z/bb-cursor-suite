@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node "$FAKEGH_DIR/gh.cjs" "$@"

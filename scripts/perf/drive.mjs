@@ -8,6 +8,7 @@ import {
   DEFAULT_CHROME,
   DEFAULT_PLAYWRIGHT,
   DEFAULT_SNAPSHOT,
+  PERF_ROOT,
   median,
 } from "./lib.mjs";
 
@@ -16,7 +17,7 @@ const suiteRoot = resolve(args.suite ?? process.cwd());
 const bbApp = resolve(args.bbapp ?? DEFAULT_BB_APP);
 const bbCli = resolve(args.cli ?? DEFAULT_BB_CLI);
 const snapshot = resolve(args.snapshot ?? DEFAULT_SNAPSHOT);
-const outRoot = resolve(args.out ?? join(suiteRoot, "results"));
+const outRoot = resolve(args.out ?? join(PERF_ROOT, "results"));
 const runs = Number(args.runs ?? 1);
 const idleSeconds = Number(args["idle-seconds"] ?? 60);
 const opens = Number(args.opens ?? 20);
@@ -40,6 +41,9 @@ const tableKeys = [
   "openLongTaskMsMedian",
   "longTaskMs",
   "bootJsBytes",
+  "serverCpuMsPerOpen",
+  "openStyleMsMedian",
+  "openScriptMsMedian",
 ];
 
 if (!existsSync(`${snapshot}/bb.db`)) {
@@ -193,6 +197,9 @@ function buildSummary(root, armNames) {
       threadOpenBytes: m.threadOpenRequests.bytes,
       serverRssMB: m.serverRssMB,
       serverIdleCpuPct60s: m.serverIdleCpuPct60s,
+      settleMs: m.settleMs,
+      serverCpuMsDuringOpens: m.serverCpuMsDuringOpens,
+      serverCpuMsPerOpen: m.serverCpuMsPerOpen,
     };
   };
   for (const [arm, records] of Object.entries(results)) {
