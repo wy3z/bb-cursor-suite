@@ -33,7 +33,9 @@ node scripts/perf/run-arm.mjs \
   --suite "$PWD" --plugins cursor-sidebar,agent-pills,filetree,projects,pull-requests,ui-tweaks,machine-boat
 ```
 
-Useful flags: `--idle-seconds` (default 60), `--opens` (default 20), `--out`, `--snapshot`.
+Useful flags: `--idle-seconds` (default 60), `--opens` (default 20), `--out`, `--snapshot`, `--profile 1`.
+
+`--profile 1` profiles the first thread open with the CDP CPU profiler and writes `<out>/<arm>/profile.json` with the top self-time functions and their script URLs. The profiled open is slower than an unprofiled one, so use a throwaway run for attribution only.
 
 ## Fixture
 

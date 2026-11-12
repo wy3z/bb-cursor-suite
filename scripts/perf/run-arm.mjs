@@ -42,6 +42,7 @@ const chromePath = args.chrome ?? DEFAULT_CHROME;
 const playwrightPath = args.playwright ?? DEFAULT_PLAYWRIGHT;
 const idleSeconds = Number(args["idle-seconds"] ?? 60);
 const openCount = Number(args.opens ?? 20);
+const profileEnabled = args.profile === "1";
 const runDir = resolve(args["run-dir"] ?? join(suiteRoot, "runs", `${arm}-${runIndex}`));
 const resultPath = join(outRoot, arm, `${runIndex}.json`);
 const errors = [];
@@ -199,6 +200,8 @@ try {
 
   const samples = [];
   const seen = new Set();
+  const profiler = profileEnabled ? await context.newCDPSession(page) : null;
+  if (profiler) await profiler.send("Profiler.enable");
   for (let index = 0; index < plan.length; index++) {
     const item = plan[index];
     const cold = !seen.has(item.title);
@@ -208,13 +211,39 @@ try {
     const started = Date.now();
     let ms = 0;
     let windowStats = { requests: 0, bytes: 0, jsBytes: 0 };
+    const profiling = profiler !== null && index === 0;
+    if (profiling) {
+      await profiler.send("Profiler.setSamplingInterval", { interval: 200 });
+      await profiler.send("Profiler.start");
+    }
     try {
       await openThread(page, item.title);
       await waitForThreadReady(page, `END-OF-TRANSCRIPT ${item.title}`);
       ms = Date.now() - started;
       windowStats = tracker.endWindow();
+      if (profiling) {
+        const { profile } = await profiler.send("Profiler.stop");
+        mkdirSync(join(outRoot, arm), { recursive: true });
+        writeFileSync(
+          join(outRoot, arm, "profile.json"),
+          `${JSON.stringify(
+            {
+              arm,
+              title: item.title,
+              kind: item.kind,
+              cold,
+              ms,
+              totalSampledMs: round(profile.timeDeltas.reduce((sum, value) => sum + value, 0) / 1000),
+              top: topSelfTime(profile),
+            },
+            null,
+            2,
+          )}\n`,
+        );
+      }
     } catch (error) {
       tracker.endWindow();
+      if (profiling) await profiler.send("Profiler.stop").catch(() => {});
       errors.push({ kind: "harness", message: `open ${item.title}: ${error.message}`.slice(0, 500) });
       invalidReasons.push(`open ${item.title}`);
       continue;
@@ -335,6 +364,25 @@ function cleanEnv() {
 
 function round(value) {
   return Math.round(value * 100) / 100;
+}
+
+function topSelfTime(profile, limit = 30) {
+  const nodes = new Map(profile.nodes.map((node) => [node.id, node]));
+  const self = new Map();
+  for (let index = 0; index < profile.samples.length; index++) {
+    const node = nodes.get(profile.samples[index]);
+    if (!node) continue;
+    const frame = node.callFrame;
+    const key = `${frame.functionName || "(anonymous)"}\u0000${frame.url || ""}\u0000${frame.lineNumber + 1}`;
+    self.set(key, (self.get(key) ?? 0) + (profile.timeDeltas[index] ?? 0));
+  }
+  return [...self.entries()]
+    .map(([key, microseconds]) => {
+      const [fn, url, line] = key.split("\u0000");
+      return { function: fn, url, line: Number(line), selfMs: round(microseconds / 1000) };
+    })
+    .sort((a, b) => b.selfMs - a.selfMs)
+    .slice(0, limit);
 }
 
 function emptyMetrics() {
