@@ -54,3 +54,11 @@ One boat VM (2 vCPU, 3916 MB), 8 arms interleaved, 5 runs per arm, 20 opens per 
 
 | id | hypothesis | change | before | after | delta | gate | verdict | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| H1 | cursor-sidebar's `:root:has([data-cursor-sidebar-root])` and `group-has-[:focus-visible]` rules force a whole-document style recalc on every open | Root marker attribute set by a hook, focus marker attribute kept by delegated listeners. Measured as 96ee0ec, shipped as baa11ae (same tree), PR #59 | suite 967.5 ms (840 to 1729.5), gap to stock +319 (209 to 983.5), 6/6 | h1 676 ms (596.5 to 810.5), gap to stock +73 (-157 to 125.5), 5/6 | -291.8 ms paired (-919 to -208), faster 6/6 | check cursor-sidebar green, 95 to 103 tests | kept | R3, fixture v1, 6 interleaved runs per arm, 18/18 valid. Style recalc per open 405 to 105 ms (stock 72). Sidebar pixel-identical in default, hover and keyboard-focus states. Raw data `bcs-117-r3.tar.gz` |
+
+## Fixture v2 (realistic workload)
+
+James has about 300 live threads with environments and PRs. Fixture v1 has 30 threads and neither. Fixture v2 (branch `bcs-117-fixture`): 3 projects, 300 threads, 50 environments on real worktrees, a fake `gh` serving 10 acme PRs. PR lookups are proven to run (fake `gh` call counts per run).
+
+R2 on fixture v2, main, 6 interleaved pairs, 12/12 valid: stock 1071.5 ms (719.5 to 1306) vs suite 2796.5 ms (1641.5 to 4094), paired +1640.5 ms (839.5 to 3105), 6/6. Style recalc per open 128 ms vs 1240 ms. Script per open 454 ms vs 865 ms. The VM ran at load 4 to 8 on 2 cores, so the spread is wide. Raw data `bcs-117-r2.tar.gz`.
+
