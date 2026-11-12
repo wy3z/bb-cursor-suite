@@ -1,2 +1,2 @@
-#!/usr/bin/env node
-require(process.env.FAKEGH_DIR + "/gh.cjs");
+#!/bin/sh
+exec node "$FAKEGH_DIR/gh.cjs" "$@"
