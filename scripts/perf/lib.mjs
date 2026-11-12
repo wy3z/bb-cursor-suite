@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, readdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -89,6 +89,11 @@ export function startBbApp(bbApp, dataDir, logPath) {
   const out = logPath ? openSync(logPath, "a") : "ignore";
   const ghConfigDir = join(dataDir, "gh-config");
   mkdirSync(ghConfigDir, { recursive: true });
+  for (const path of [FAKEGH_DIR, join(FAKEGH_DIR, "gh")]) {
+    try {
+      chmodSync(path, 0o755);
+    } catch {}
+  }
   const child = spawn(
     bbApp,
     [
