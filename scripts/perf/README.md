@@ -8,6 +8,7 @@ Measures BB thread-open and cold-load performance for the stock app and for an a
 - `setup-vm.sh` — installs `bb-app@0.49.0`, clones the suite at a commit, runs `npm ci`, builds every plugin, installs `playwright-core`, and seeds the fixture snapshot.
 - `seed-fixture.mjs` — builds the fake project, 100 tasks, and 30 threads, then stores a pristine `cp -a` snapshot.
 - `run-arm.mjs` — one measured run for one arm.
+- `profile-arm.mjs` — one unmeasured CDP-profiled thread open per arm, for the limiter.
 - `drive.mjs` — interleaves arms, writes `results/<arm>/<run>.json`, and writes `results/summary.json` plus `results/summary.md`.
 
 ## Setup
@@ -49,11 +50,16 @@ The snapshot is warmed after seeding by starting BB once and letting the migrati
 
 - `navToSidebarMs` — wall time from navigation start until the fixture threads are visible in the sidebar.
 - `domContentLoadedMs` — `navigation.domContentLoadedEventEnd`.
-- `jsBytes` — transferred bytes for requests whose CDP type is `Script` during the cold load.
+- `jsBytes` / `bootJsBytes` — transferred bytes for `Script` requests from navigation until every enabled plugin app.js has loaded (same boot boundary for every arm).
+- `bootEndMs` — navigation start until that boot boundary.
+- `openJsBytes`, `openJsBytesMedian` — `Script` bytes fetched inside the 20 open windows, total and per open.
+- `sessionJsBytes`, `unattributedJsBytes` — whole-session `Script` bytes, and any bytes outside boot plus open windows.
+- `pluginAppUrls` — every plugin app.js URL fetched in the run, mapped to its plugin id, with bytes and whether it arrived during boot.
 - `requestCount` — network requests during the cold load.
 - `longTaskCount`, `longTaskMs` — long tasks for the whole run (cold load plus every thread open).
 - `threadOpenMs` — 20 opens alternating long and short transcripts over 5 long and 5 short threads, so every thread is opened cold once and warm once. Readiness means the last transcript message and the composer are both visible and the main thread has had no long task for 250 ms.
 - `threadOpenRequests` — requests and transferred bytes fired by the first cold thread open in the run.
+- `firstColdOpenMs` — the first cold open in the summary.
 - `serverRssMB` — BB server RSS after the browser closes.
 - `serverIdleCpuPct60s` — total BB server CPU over a 60 s idle window, as a percentage of one core.
 
