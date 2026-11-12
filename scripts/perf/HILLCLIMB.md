@@ -57,6 +57,7 @@ One boat VM (2 vCPU, 3916 MB), 8 arms interleaved, 5 runs per arm, 20 opens per 
 | id | hypothesis | change | before | after | delta | gate | verdict | note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | H1 | cursor-sidebar's `:root:has([data-cursor-sidebar-root])` and `group-has-[:focus-visible]` rules force a whole-document style recalc on every open | Root marker attribute set by a hook, focus marker attribute kept by delegated listeners. Measured as 96ee0ec, shipped as baa11ae (same tree), PR #59 | suite 967.5 ms (840 to 1729.5), gap to stock +319 (209 to 983.5), 6/6 | h1 676 ms (596.5 to 810.5), gap to stock +73 (-157 to 125.5), 5/6 | -291.8 ms paired (-919 to -208), faster 6/6 | check cursor-sidebar green, 95 to 103 tests | kept | R3, fixture v1, 6 interleaved runs per arm, 18/18 valid. Style recalc per open 405 to 105 ms (stock 72). Sidebar pixel-identical in default, hover and keyboard-focus states. Raw data `bcs-117-r3.tar.gz` |
+| H3a | agent-pills mounts `useActivity` in three components, so each open sends `threadActivity` three or four times and the server reads the whole timeline each time | Module-level store shared by the three callers, one request per key, refreshes coalesced per tick. 7a51185 on `bcs-117-h3a-activity-store`, measured as 560b731 on top of H1 | h1 1059.75 ms (826 to 1313) | h1 plus H3a 1026.25 ms (849.5 to 1322) | +9.8 ms paired (-81 to +144), slower 4/6 | check agent-pills green, 87 to 93 tests | reverted, not shipped | R8, fixture v2, 6 interleaved runs per arm, 24/24 valid. Requests per open 35 to 32.5. Script, style and long tasks per open unchanged. Bounded in advance by R6: removing agent-pills entirely moves the median -7 ms. The -379.5 ms seen in R7 came from a resumed VM and is void |
 
 ## Fixture v2 (realistic workload)
 
@@ -114,4 +115,32 @@ The fake `gh` re-derived every PR's SHA and file list on each call, about 40 `gi
 ## R7 is void
 
 VM 1 was resumed from suspend for R7 (H1 against H1 plus H3a). Its H1 arm read 2559 ms against 835 ms for stock, with single opens of 4 to 11 seconds, while the same commit on VM 2 reads 823 ms. A lazy filesystem process held 627 MB and the VM was swapping. H3a is re-measured in R8 on VM 2.
+
+## R8: final before and after (VM 2, harness a931aa1, fixture v2, 6 runs per arm, 24/24 valid, 480/480 opens)
+
+| arm | thread-open median ms (range) | p90 ms | style recalc ms per open | long-task ms per run | vs stock, paired |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| stock | 648.75 (620 to 770.5) | 943 | 84 | 6879.5 | |
+| suite on main | 1730 (1368.5 to 2414.5) | 2613.5 | 974 | 33232.5 | +1068.5 (748.5 to 1777.5), 6/6 |
+| H1 | 1059.75 (826 to 1313) | 1278.5 | 183 | 14112 | +344.2 (87 to 676), 6/6 |
+| H1 plus H3a | 1026.25 (849.5 to 1322) | 1510 | 186 | 15666.5 | +331 (97.5 to 686.5), 6/6 |
+
+- H1 minus suite: -670.2 ms paired (-1167 to -471), faster 6/6. First cold open 4477 ms to 2754 ms. Boot JS bytes unchanged (3,521,263 vs 2,043,536 stock).
+- H1 minus stock over the 11 pairs measured with the final harness (R6 and R8): +236.5 ms (87 to 676), slower 11/11. Stock 637 ms (580.5 to 770.5), H1 859.5 ms (806.5 to 1313).
+- Limiter of what is left, from the per-open counters: script +104 to +171 ms, style +62 to +86 ms. The R8 h1 profile was taken without plugins by mistake and is not used. The earlier v2 profile (`bcs-117-prof-v2.tar.gz`) bills cursor-sidebar about 43 ms per open and agent-pills about 12 ms under the profiler.
+
+## Verdict
+
+- Fixture v1 (30 threads): gap +319 ms to +73 ms (-157 to +125.5). Inside the stock range. Predicate met.
+- Fixture v2 (300 threads, environments, PRs): gap +1068.5 ms to +236.5 ms (87 to 676). Outside the stock range (580.5 to 770.5). Predicate not met.
+- Stopped because the remaining ideas are bounded below what the harness can resolve. R6 shows no single plugin owns more than 79 ms, and the one in-plugin fix tried after H1 (H3a) measured nothing.
+- Attempts: 2 measured changes (H1 kept, H3a reverted), 6 leave-one-out bounds, 3 rig diagnostics that did not become changes.
+
+## Next ideas, best first
+
+1. The other 38 `:has()` rules across the five stylesheets. Together they are worth about a quarter of the remaining long-task time on the local rig (94 to 69 ms), though none matters alone. Each needs its own like-for-like rewrite and a parity check.
+2. Upstream to BB: plugin CSS scoping (`:where([data-bb-plugin="x"], [data-bb-plugin-root]:not([data-bb-plugin])) .util`) makes every plugin's utility rules a slow-path match for every element. That is most of the +62 to +86 ms of style that is left, and stock's built-in plugins pay it too.
+3. cursor-sidebar's row tree has no `memo` and carries `activeThreadId` in its context. Bounded by R6 at 79 ms.
+4. pull-requests calls `linked_list` and `subscriptions_list` once per descendant thread, three times over. No measured thread in the fixture has children, so this is unmeasured. A lead thread with many workers would show it.
+5. Boot JS bytes (secondary metric, untouched): the hugeicons table is bundled twice, filetree inlines a 1.2 MB icon table and 783 KB of worker source, zod is bundled six times.
 
