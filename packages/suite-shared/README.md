@@ -122,7 +122,7 @@ This package adds no CLI commands, agent tools or RPC methods of its own. It def
   reads machine env names, never values, plus Account Pooler routing
   (`status.get`: `routing`, `accounts[].provider/enabled/status/error`), plus
   logins the vendor's own machine supplies. A `machine-login` requirement
-  (`claude`, `codex`) is met by `launchCheck.machineLogins(context, signal)`,
+  (`claude`, `codex`, `opencode`) is met by `launchCheck.machineLogins(context, signal)`,
   which the vendor implements by checking the VM itself (or, before one
   exists, its own account settings) and answers `{ logins, note }`; the
   helper asks only when env and pool don't already satisfy the rule, gives it

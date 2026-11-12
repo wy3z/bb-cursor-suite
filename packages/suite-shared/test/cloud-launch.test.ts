@@ -110,15 +110,40 @@ describe("cloud launch check", () => {
     expect(await decide(sdk, context("codex"))).toEqual({ action: "proceed" });
   });
 
-  it("checks OPENCODE_API_KEY for acp-opencode and pi, naming the provider", async () => {
+  it("checks OPENCODE_API_KEY or a machine login for acp-opencode and pi, naming the provider", async () => {
     const sdk = setup();
     const rejected = await decide(sdk, context("pi"));
     expect(rejected.message).toBe(
-      "Cloud thread blocked: pi has no OpenCode Go key for cloud machines. Fix: `bb machine env set OPENCODE_API_KEY` (value on stdin).",
+      "Cloud thread blocked: pi has no OpenCode Go login for cloud machines. Fix: let the cloud machine supply one (Boat Sandbox: connect OpenCode Go on boat.dev and name a boat environment that passes Agents credentials), or set `bb machine env set OPENCODE_API_KEY` (value on stdin).",
     );
     sdk.state.projectEnv = ["OPENCODE_API_KEY"];
     expect(await decide(sdk, context("acp-opencode"))).toEqual({ action: "proceed" });
     expect(await decide(sdk, context("pi"))).toEqual({ action: "proceed" });
+  });
+
+  it("lets an OpenCode machine login stand in for OPENCODE_API_KEY on acp-opencode and pi", async () => {
+    let report = { logins: [] as string[], note: null as string | null };
+    const asked: Array<string | null> = [];
+    const sdk = setup({
+      launchCheck: {
+        machineLogins: async (ctx) => {
+          asked.push((ctx as { host: { id: string } | null }).host?.id ?? null);
+          return { ...report, logins: [...report.logins] };
+        },
+      },
+    });
+    report = { logins: ["claude"], note: null };
+    const wrong = await decide(sdk, context("acp-opencode", "sandbox-host"));
+    expect(wrong.action).toBe("reject");
+    expect(wrong.message).toContain("acp-opencode has no OpenCode Go login for cloud machines");
+    report = { logins: ["opencode"], note: null };
+    expect(await decide(sdk, context("acp-opencode", "sandbox-host"))).toEqual({ action: "proceed" });
+    expect(await decide(sdk, context("pi", "sandbox-host"))).toEqual({ action: "proceed" });
+    expect(asked).toEqual(["host_sb", "host_sb", "host_sb"]);
+    sdk.state.projectEnv = ["OPENCODE_API_KEY"];
+    report = { logins: [], note: null };
+    expect(await decide(sdk, context("pi", "sandbox-host"))).toEqual({ action: "proceed" });
+    expect(asked).toHaveLength(3);
   });
 
   it("rejects unknown providers and missing GitHub credentials", async () => {
@@ -208,6 +233,10 @@ describe("evaluateCloudLogin", () => {
       evaluateCloudLogin("codex", { ...facts, pool: { routing: { codex: true }, usableProviders: ["codex"] } }),
     ).toEqual({ ok: true });
     expect(evaluateCloudLogin("codex", { ...facts, machineLogins: ["codex"] })).toEqual({ ok: true });
+    expect(evaluateCloudLogin("acp-opencode", { ...facts, envNames: [], machineLogins: ["opencode"] })).toEqual({ ok: true });
+    expect(evaluateCloudLogin("pi", { ...facts, envNames: [], machineLogins: ["opencode"] })).toEqual({ ok: true });
+    expect(evaluateCloudLogin("pi", { ...facts, envNames: [], machineLogins: [] }).ok).toBe(false);
+    expect(evaluateCloudLogin("acp-opencode", { ...facts, envNames: [], machineLogins: ["claude", "codex"] }).ok).toBe(false);
     expect(evaluateCloudLogin("claude-code", { ...facts, machineLogins: ["codex"] }, undefined, "only codex").ok).toBe(false);
     const gitless = evaluateCloudLogin("claude-code", { ...facts, builtInGit: false, machineLogins: ["claude"] }, undefined, "vm note");
     expect(gitless.ok ? "" : gitless.message).not.toContain("vm note");
