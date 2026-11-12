@@ -33,7 +33,13 @@ const snapshot = resolve(args.snapshot ?? DEFAULT_SNAPSHOT);
 const outRoot = resolve(args.out ?? join(suiteRoot, "results", "profile"));
 const chromePath = args.chrome ?? DEFAULT_CHROME;
 const playwrightPath = args.playwright ?? DEFAULT_PLAYWRIGHT;
-const title = args.title ?? "Fixture long thread 01";
+const titles = (
+  args.titles ??
+  "Fixture long thread 01,Fixture short thread 01,Fixture long thread 02,Fixture short thread 02,Fixture long thread 01,Fixture short thread 01"
+)
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
 const warmupTitle = args.warmup ?? "Fixture short thread 25";
 const runDir = resolve(args["run-dir"] ?? join(suiteRoot, "runs", `profile-${arm}`));
 
@@ -112,7 +118,7 @@ try {
     await sleep(100);
   }
 
-  if (warmupTitle && warmupTitle !== title) {
+  if (warmupTitle) {
     const warmLocator = await threadLocator(page, warmupTitle);
     await warmLocator.waitFor({ state: "visible", timeout: 30000 });
     await warmLocator.click({ timeout: 60000 }).catch(() => warmLocator.click({ timeout: 60000, force: true }));
@@ -120,20 +126,26 @@ try {
     await sleep(1000);
   }
 
-  const locator = await threadLocator(page, title);
-  await locator.waitFor({ state: "visible", timeout: 30000 });
-  const windowStart = Date.now();
   const beforeIds = new Set(requests.keys());
+  const windowStart = Date.now();
   await session.send("Profiler.start");
-  await locator.click({ timeout: 60000 }).catch(() => locator.click({ timeout: 60000, force: true }));
-  await waitForThreadReady(page, `END-OF-TRANSCRIPT ${title}`);
+  for (const title of titles) {
+    const locator = await threadLocator(page, title);
+    await locator.waitFor({ state: "visible", timeout: 30000 });
+    await locator.click({ timeout: 60000 }).catch(() => locator.click({ timeout: 60000, force: true }));
+    await waitForThreadReady(page, `END-OF-TRANSCRIPT ${title}`);
+  }
   const wallMs = Date.now() - windowStart;
   const { profile } = await session.send("Profiler.stop");
-  const threadId = await currentThreadId(page, title);
+  const threadId = await currentThreadId(page, titles.at(-1) ?? "");
 
   const samples = profile.samples ?? [];
   const deltas = profile.timeDeltas ?? [];
   const nodes = new Map(profile.nodes.map((node) => [node.id, node]));
+  const parentOf = new Map();
+  for (const node of profile.nodes) {
+    for (const child of node.children ?? []) parentOf.set(child, node.id);
+  }
   const selfByNode = new Map();
   for (let i = 0; i < samples.length; i++) {
     const duration = (deltas[i] ?? 0) / 1000;
@@ -146,31 +158,69 @@ try {
   for (const [id, ms] of selfByNode) {
     const node = nodes.get(id);
     if (!node) continue;
-    const name = node.callFrame.functionName || "(anonymous)";
-    const url = node.callFrame.url || "";
+    const frame = node.callFrame;
+    const name = frame.functionName || "(anonymous)";
+    const url = frame.url || "";
     totalMs += ms;
     if (name === "(idle)") idleMs += ms;
     else if (name === "(program)" || name === "(root)") continue;
     else scriptMs += ms;
-    rows.push({ functionName: name, url, selfMs: round(ms), category: classify(url, pluginByHash) });
+    rows.push({
+      functionName: name,
+      url,
+      lineNumber: frame.lineNumber ?? 0,
+      columnNumber: frame.columnNumber ?? 0,
+      selfMs: round(ms),
+      category: classify(url, pluginByHash),
+    });
   }
-  rows.sort((a, b) => b.selfMs - a.selfMs);
-  const top = [];
-  const seen = new Set();
+  const grouped = new Map();
   for (const row of rows) {
-    const key = `${row.functionName}|${row.url}`;
-    if (seen.has(key)) {
-      const existing = top.find((item) => `${item.functionName}|${item.url}` === key);
-      if (existing) existing.selfMs = round(existing.selfMs + row.selfMs);
-      continue;
+    const key = `${row.functionName}|${row.url}|${row.lineNumber}|${row.columnNumber}`;
+    const existing = grouped.get(key);
+    if (existing) existing.selfMs = round(existing.selfMs + row.selfMs);
+    else grouped.set(key, { ...row });
+  }
+  const top = [...grouped.values()].sort((a, b) => b.selfMs - a.selfMs).slice(0, 40);
+  const scriptSelfByCategoryMs = {};
+  for (const row of rows) {
+    if (!row.url) continue;
+    scriptSelfByCategoryMs[row.category] = round((scriptSelfByCategoryMs[row.category] ?? 0) + row.selfMs);
+  }
+  const nativeByCallerCategoryMs = {};
+  const nativeCallers = new Map();
+  for (const [id, ms] of selfByNode) {
+    const node = nodes.get(id);
+    if (!node) continue;
+    const frame = node.callFrame;
+    const name = frame.functionName || "(anonymous)";
+    if (frame.url || ["(idle)", "(program)", "(root)", "(garbage collector)"].includes(name)) continue;
+    let ancestorId = parentOf.get(id);
+    let caller = null;
+    while (ancestorId !== undefined) {
+      const ancestor = nodes.get(ancestorId);
+      if (!ancestor) break;
+      if (ancestor.callFrame.url) {
+        caller = ancestor;
+        break;
+      }
+      ancestorId = parentOf.get(ancestorId);
     }
-    seen.add(key);
-    top.push({ ...row });
-    if (top.length >= 25) break;
+    const category = caller ? classify(caller.callFrame.url, pluginByHash) : "none";
+    nativeByCallerCategoryMs[category] = round((nativeByCallerCategoryMs[category] ?? 0) + ms);
+    const callerFunction = caller ? caller.callFrame.functionName || "(anonymous)" : "(none)";
+    const callerUrl = caller?.callFrame.url ?? "";
+    const lineNumber = caller?.callFrame.lineNumber ?? 0;
+    const columnNumber = caller?.callFrame.columnNumber ?? 0;
+    const key = `${name}|${callerFunction}|${callerUrl}|${lineNumber}|${columnNumber}`;
+    const existing = nativeCallers.get(key);
+    if (existing) existing.ms = round(existing.ms + ms);
+    else nativeCallers.set(key, { native: name, callerFunction, callerUrl, lineNumber, columnNumber, category, ms: round(ms) });
   }
-  const byCategory = {};
-  for (const row of rows) {
-    byCategory[row.category] = round((byCategory[row.category] ?? 0) + row.selfMs);
+  const topNativeCallers = [...nativeCallers.values()].sort((a, b) => b.ms - a.ms).slice(0, 40);
+  const attributedByCategoryMs = { ...scriptSelfByCategoryMs };
+  for (const [category, ms] of Object.entries(nativeByCallerCategoryMs)) {
+    attributedByCategoryMs[category] = round((attributedByCategoryMs[category] ?? 0) + ms);
   }
 
   const windowRequests = [...requests.entries()]
@@ -199,9 +249,10 @@ try {
     arm,
     plugins,
     threadId,
-    title,
+    titles,
     warmupTitle,
     wallMs: round(wallMs),
+    opens: titles.length,
     profileSampledMs: round(totalMs),
     scriptSelfMs: round(scriptMs),
     idleMs: round(idleMs),
@@ -209,7 +260,10 @@ try {
     networkRequests: windowRequests.length,
     windowJsBytes,
     topSelfFunctions: top,
-    scriptSelfByCategoryMs: byCategory,
+    scriptSelfByCategoryMs,
+    nativeByCallerCategoryMs,
+    attributedByCategoryMs,
+    topNativeCallers,
     pluginBundlesLoadedBeforeOpen: loaded.size,
     machine: machineInfo(),
   };

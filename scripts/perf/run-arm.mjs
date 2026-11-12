@@ -178,6 +178,8 @@ try {
   });
 
   const tracker = await createTracker(context, page);
+  const perfSession = await context.newCDPSession(page);
+  await perfSession.send("Performance.enable");
   tracker.reset();
   const navStart = Date.now();
   await page.goto(SERVER_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -206,13 +208,16 @@ try {
     const cold = !seen.has(item.title);
     seen.add(item.title);
     const before = await readLongTasks(page);
+    const perfBefore = await readPerfMetrics(perfSession);
     tracker.startWindow();
     const started = Date.now();
     let ms = 0;
     let windowStats = { requests: 0, bytes: 0, jsBytes: 0 };
+    let perfAfter;
     try {
       await openThread(page, item.title);
       await waitForThreadReady(page, `END-OF-TRANSCRIPT ${item.title}`);
+      perfAfter = await readPerfMetrics(perfSession);
       ms = Date.now() - started;
       windowStats = tracker.endWindow();
     } catch (error) {
@@ -235,6 +240,7 @@ try {
       jsBytes: windowStats.jsBytes,
       longTaskCount: longTasks.length,
       longTaskMs: longTasks.reduce((sum, entry) => sum + entry.duration, 0),
+      ...perfDelta(perfBefore, perfAfter),
     });
   }
 
@@ -285,6 +291,21 @@ try {
       p90: round(percentile(openTimes, 90)),
       samples,
     },
+    threadOpenByKind: {
+      longCold: round(median(openTimesOf(samples, "long", true))),
+      longWarm: round(median(openTimesOf(samples, "long", false))),
+      shortCold: round(median(openTimesOf(samples, "short", true))),
+      shortWarm: round(median(openTimesOf(samples, "short", false))),
+    },
+    openTaskMsMedian: round(median(samples.map((sample) => sample.taskMs))),
+    openScriptMsMedian: round(median(samples.map((sample) => sample.scriptMs))),
+    openLayoutMsMedian: round(median(samples.map((sample) => sample.layoutMs))),
+    openStyleMsMedian: round(median(samples.map((sample) => sample.styleMs))),
+    openLayoutCountMedian: round(median(samples.map((sample) => sample.layoutCount))),
+    openStyleCountMedian: round(median(samples.map((sample) => sample.styleCount))),
+    openLongTaskMsMedian: round(median(samples.map((sample) => sample.longTaskMs))),
+    opensExpected: plan.length,
+    opensCompleted: samples.length,
     threadOpenRequests: {
       requests: firstCold?.requests ?? 0,
       bytes: firstCold?.bytes ?? 0,
@@ -359,6 +380,16 @@ function emptyMetrics() {
     longTaskCount: 0,
     longTaskMs: 0,
     threadOpenMs: { median: 0, p90: 0, samples: [] },
+    threadOpenByKind: { longCold: 0, longWarm: 0, shortCold: 0, shortWarm: 0 },
+    openTaskMsMedian: 0,
+    openScriptMsMedian: 0,
+    openLayoutMsMedian: 0,
+    openStyleMsMedian: 0,
+    openLayoutCountMedian: 0,
+    openStyleCountMedian: 0,
+    openLongTaskMsMedian: 0,
+    opensExpected: 0,
+    opensCompleted: 0,
     threadOpenRequests: { requests: 0, bytes: 0, threadId: "", cold: true },
     serverRssMB: 0,
     serverIdleCpuPct60s: 0,
@@ -461,6 +492,29 @@ async function currentThreadId(page, title) {
 async function readLongTasks(page) {
   const entries = await page.evaluate(() => window.__perfLongTasks ?? []);
   return { entries };
+}
+
+async function readPerfMetrics(session) {
+  const { metrics } = await session.send("Performance.getMetrics");
+  const map = {};
+  for (const entry of metrics) map[entry.name] = entry.value;
+  return map;
+}
+
+function perfDelta(before, after) {
+  const diff = (name) => (after[name] ?? 0) - (before[name] ?? 0);
+  return {
+    taskMs: round(diff("TaskDuration") * 1000),
+    scriptMs: round(diff("ScriptDuration") * 1000),
+    layoutMs: round(diff("LayoutDuration") * 1000),
+    styleMs: round(diff("RecalcStyleDuration") * 1000),
+    layoutCount: round(diff("LayoutCount")),
+    styleCount: round(diff("RecalcStyleCount")),
+  };
+}
+
+function openTimesOf(samples, kind, cold) {
+  return samples.filter((sample) => sample.kind === kind && sample.cold === cold).map((sample) => sample.ms);
 }
 
 async function idleCpuPercent(pid, seconds, ticksPerSecond) {

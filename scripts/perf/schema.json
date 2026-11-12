@@ -101,7 +101,17 @@
         "openJsBytesMedian",
         "sessionJsBytes",
         "unattributedJsBytes",
-        "pluginAppUrls"
+        "pluginAppUrls",
+        "threadOpenByKind",
+        "openTaskMsMedian",
+        "openScriptMsMedian",
+        "openLayoutMsMedian",
+        "openStyleMsMedian",
+        "openLayoutCountMedian",
+        "openStyleCountMedian",
+        "openLongTaskMsMedian",
+        "opensExpected",
+        "opensCompleted"
       ],
       "additionalProperties": false,
       "properties": {
@@ -161,7 +171,13 @@
                   "bytes",
                   "longTaskCount",
                   "longTaskMs",
-                  "jsBytes"
+                  "jsBytes",
+                  "taskMs",
+                  "scriptMs",
+                  "layoutMs",
+                  "styleMs",
+                  "layoutCount",
+                  "styleCount"
                 ],
                 "additionalProperties": false,
                 "properties": {
@@ -202,6 +218,26 @@
                   },
                   "jsBytes": {
                     "type": "integer",
+                    "minimum": 0
+                  },
+                  "taskMs": {
+                    "type": "number"
+                  },
+                  "scriptMs": {
+                    "type": "number"
+                  },
+                  "layoutMs": {
+                    "type": "number"
+                  },
+                  "styleMs": {
+                    "type": "number"
+                  },
+                  "layoutCount": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "styleCount": {
+                    "type": "number",
                     "minimum": 0
                   }
                 }
@@ -302,6 +338,70 @@
               }
             }
           }
+        },
+        "threadOpenByKind": {
+          "type": "object",
+          "required": [
+            "longCold",
+            "longWarm",
+            "shortCold",
+            "shortWarm"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "longCold": {
+              "type": "number",
+              "minimum": 0
+            },
+            "longWarm": {
+              "type": "number",
+              "minimum": 0
+            },
+            "shortCold": {
+              "type": "number",
+              "minimum": 0
+            },
+            "shortWarm": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "openTaskMsMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "openScriptMsMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "openLayoutMsMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "openStyleMsMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "openLayoutCountMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "openStyleCountMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "openLongTaskMsMedian": {
+          "type": "number",
+          "minimum": 0
+        },
+        "opensExpected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "opensCompleted": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
