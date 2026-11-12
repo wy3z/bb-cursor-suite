@@ -24,6 +24,7 @@ export function leadInstructions(prefix: string): string {
     "## Proof",
     "- Workers prove it on the task: a screenshot or short recording of anything visible (`bb tasks attachment add <task> --file <path>`, fake data only), test or log output for backend changes. Send back a visual change reported without proof.",
     "- Files reach you with `bb thread tell <lead> --mode queue --image/--file`, never a plain tell that steers and interrupts mid-turn; workers send them only when you must look now.",
+    "- Link every pull request you mention, to the user or on a card, as its full URL (https://github.com/<owner>/<repo>/pull/<n>), never a bare #n, and link the ones you review or merge to your thread with `bb pull-requests link <url>`.",
     "- Present proof yourself: when a visible change reaches For Review or you ask for a go, download the worker's screenshots (`bb tasks attachment get`) and show them inline in your reply, never just a link or path.",
     "",
     "## Talking to the user",
