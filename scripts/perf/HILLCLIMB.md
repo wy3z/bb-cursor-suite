@@ -15,6 +15,8 @@ Goal: opening a thread in BB should feel snappy. This log tracks the part the su
 - At least 5 runs per arm, interleaved. Report median and range.
 - The limiter comes from a profiled run that is not reported.
 - A run with a plugin-load or harness error is invalid.
+- Never measure on a VM that has been suspended and resumed. Boat serves a resumed disk through a lazy filesystem process, which slows every arm unevenly (R7, and the BCS-115 baseline).
+- The fixture lives outside `/home/user` (`PERF_ROOT=/var/tmp/bcs117`). Boat sweeps the home directory with `find` and `git status`.
 - Boat suspends a sandbox after 15 idle minutes, so a measurement worker polls at least every 4 minutes.
 
 ## Starting evidence (BCS-115, not trusted as a baseline)
@@ -87,4 +89,29 @@ R2 on fixture v2, main, 6 interleaved pairs, 12/12 valid: stock 1071.5 ms (719.5
 | Selector matching per stylesheet | Blink selector stats, 4 switches: every plugin stylesheet costs 13 to 38 ms, built-in ones included. BB scopes plugin CSS with `:where([data-bb-plugin="x"], [data-bb-plugin-root]:not([data-bb-plugin])) .util`, and about two thirds of match attempts miss the fast reject | BB core design. Upstream issue material |
 | Duplicate RPCs per open | agent-pills `threadActivity` x3 to 4, pull-requests `subscriptions_list` x3 to 4 and `linked_list` x2 for the same thread. Each hook is mounted by the slot's `useVisible` and by two renderers. pull-requests also calls both once per descendant thread | Candidate, sized by R6 |
 | `ThreadRow` re-render on every switch | No `memo` in `ThreadTree.tsx`, `activeThreadId` sits in the row context. Sidebar DOM changes 6 attributes per switch. v2 profile bills cursor-sidebar about 43 ms per open after H1 | Candidate, sized by R6 |
+
+## Fixture artifact fixed before R6 (a931aa1)
+
+The fake `gh` re-derived every PR's SHA and file list on each call, about 40 `git` processes per call (20 calls took 1851 ms, 480 ms after the fix, identical output). Real `gh` spawns none. Arms with more PR lookups paid server CPU a real machine would not. Numbers from R2, R4 and R5 carry that artifact in every arm that has environments. H1's delta is style recalculation and does not depend on it.
+
+## R6: leave one plugin out on top of H1 (VM 2, harness a931aa1, fixture v2, 5 runs per arm, 40/40 valid)
+
+| arm | thread-open median ms (range) | vs stock, paired | vs H1, paired | requests per open |
+| --- | ---: | ---: | ---: | ---: |
+| stock | 620.5 (580.5 to 688) | | | 16 |
+| H1, all seven plugins | 823 (806.5 to 862) | +202.5 (118 to 252), 5/5 | | 34.5 |
+| H1 without cursor-sidebar | 778.5 (704 to 1022.5) | +123.5 (40 to 413), 5/5 | -79 (-113 to +160), slower 2/5 | 35.5 |
+| H1 without agent-pills | 855 (718 to 1001) | +222 (98 to 330), 5/5 | -7 (-105 to +142), slower 2/5 | 26.5 |
+| H1 without pull-requests | 908.5 (759.5 to 1486) | +299 (179 to 816), 5/5 | +46.5 (-58 to +626), slower 4/5 | 25.5 |
+| H1 without filetree | 1049 (1008 to 2024) | +431 (387 to 1353), 5/5 | +232 (178 to 1164), slower 5/5 | 35 |
+| H1 without projects | 994 (896 to 1084) | +381 (306 to 426), 5/5 | +187.5 (80 to 224), slower 5/5 | 34.5 |
+| H1 without ui-tweaks | 898 (784 to 1237) | +288.5 (96 to 566), 5/5 | +36 (-23 to +378), slower 3/5 | 33.5 |
+
+- After H1 the gap on fixture v2 is +202.5 ms (118 to 252). Per open: script +104 ms, style +62 ms, long tasks +115 ms, server CPU +47 ms.
+- No single plugin owns the remainder. Removing a whole plugin recovers at most 79 ms (cursor-sidebar, and that is inside its own spread). Any fix inside one plugin is bounded by that plugin's row.
+- Removing filetree or projects makes opens slower, 5/5 each. Not explained. Without projects, cursor-sidebar's `listLeads` call fails with a 404 on every open.
+
+## R7 is void
+
+VM 1 was resumed from suspend for R7 (H1 against H1 plus H3a). Its H1 arm read 2559 ms against 835 ms for stock, with single opens of 4 to 11 seconds, while the same commit on VM 2 reads 823 ms. A lazy filesystem process held 627 MB and the VM was swapping. H3a is re-measured in R8 on VM 2.
 
