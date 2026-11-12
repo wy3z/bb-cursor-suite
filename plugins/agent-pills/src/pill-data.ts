@@ -2,7 +2,13 @@
  * One row's worth of activity: active child threads from BB's live sidebar
  * feed, plus everything the backend folds out of the thread timeline.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import {
   experimental_useSidebarThreads,
   useRealtime,
@@ -11,11 +17,16 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { AGENT_PILLS_CHANNEL } from "./channels";
 import {
+  IDLE_THREAD,
+  readActivity,
+  refreshActivity,
+  subscribeActivity,
+} from "./activity-store";
+import {
   agentPillsRpcContract,
   type ActiveGoal,
   type ActivePlan,
   type ActiveWorkflow,
-  type BackgroundTask,
   type MachineState,
   type ModelFallback,
   type PendingTodos,
@@ -121,41 +132,9 @@ function childState(thread: SidebarThread): PillState | null {
   return null;
 }
 
-const IDLE_THREAD: ThreadState = {
-  archived: false,
-  workspaceGone: false,
-  environmentId: null,
-};
-
 const EMPTY: Activity = {
   subagents: [],
   background: [],
-  workflows: [],
-  plan: null,
-  goal: null,
-  todos: null,
-  modelFallback: null,
-  queue: [],
-  thread: IDLE_THREAD,
-  machine: null,
-};
-
-interface ActivityResponse {
-  tasks: BackgroundTask[];
-  models: Array<{ threadId: string; model: string | null }>;
-  workflows: ActiveWorkflow[];
-  plan: ActivePlan | null;
-  goal: ActiveGoal | null;
-  todos: PendingTodos | null;
-  modelFallback: ModelFallback | null;
-  queue: QueuedMessage[];
-  thread: ThreadState;
-  machine: MachineState | null;
-}
-
-const EMPTY_RESPONSE: ActivityResponse = {
-  tasks: [],
-  models: [],
   workflows: [],
   plan: null,
   goal: null,
@@ -196,29 +175,35 @@ export function useActivity(threadId: string): ActivityState {
   const childKey = childIds.join("|");
 
   const rpc = useRpc<typeof agentPillsRpcContract>();
-  const [response, setResponse] = useState<ActivityResponse | null>(null);
-  const request = useRef(0);
+  const key = `${threadId}::${childKey}`;
+
+  const fetchActivity = useCallback(
+    () =>
+      rpc.call("threadActivity", {
+        threadId,
+        childThreadIds: childKey === "" ? [] : childKey.split("|"),
+      }),
+    [childKey, rpc, threadId],
+  );
+
+  const latestFetch = useRef(fetchActivity);
+  useEffect(() => {
+    latestFetch.current = fetchActivity;
+  }, [fetchActivity]);
+
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      subscribeActivity(key, () => latestFetch.current(), listener),
+    [key],
+  );
+
+  const getSnapshot = useCallback(() => readActivity(key), [key]);
+
+  const response = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const refresh = useCallback(() => {
-    const id = ++request.current;
-    void rpc
-      .call("threadActivity", {
-        threadId,
-        childThreadIds: childIds,
-      })
-      .then((result) => {
-        if (id === request.current) setResponse(result);
-      })
-      .catch(() => {
-        if (id === request.current) setResponse(EMPTY_RESPONSE);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childKey, rpc, threadId]);
-
-  useEffect(() => {
-    setResponse(null);
-    refresh();
-  }, [refresh]);
+    refreshActivity(key);
+  }, [key]);
 
   useRealtime(AGENT_PILLS_CHANNEL, (payload) => {
     const updated = (payload as { threadId?: unknown } | null)?.threadId;
