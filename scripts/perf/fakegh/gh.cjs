@@ -18,13 +18,14 @@ const LOCAL = { "acme/web": "acme-web", "acme/api": "acme-api", "acme/orbit": "a
 const localRepo = (p) => require("path").join(process.env.FAKEGH_REPOS || "", LOCAL[p.repo] || "x");
 const gitOut = (p, a) => { try { return execFileSync("git", ["-C", localRepo(p), ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }); } catch { return null; } };
 const realBranch = (p) => gitOut(p, ["rev-parse", "--verify", "-q", "refs/heads/" + p.head]) !== null;
-const realFiles = (p) => {
-  if (!realBranch(p)) return null;
-  const out = gitOut(p, ["diff", "--numstat", "main..." + p.head]);
-  if (!out) return null;
-  return out.trim().split("\n").filter(Boolean).map((l) => { const [a, d, path] = l.split("\t"); return [path, Number(a) || 0, Number(d) || 0]; });
-};
-for (const p of prs) { const sha = realBranch(p) ? (gitOut(p, ["rev-parse", "refs/heads/" + p.head]) || "").trim() : ""; if (sha) p.oid = sha; const f = realFiles(p); if (f && f.length) { p.files = f; p.add = f.reduce((n, x) => n + x[1], 0); p.del = f.reduce((n, x) => n + x[2], 0); } }
+let cache = {};
+if (process.env.FAKEGH_CACHE && fs.existsSync(process.env.FAKEGH_CACHE)) { try { cache = JSON.parse(fs.readFileSync(process.env.FAKEGH_CACHE, "utf8")); } catch {} }
+for (const p of prs) {
+  const cached = cache[`${p.repo}#${p.number}`];
+  if (!cached) continue;
+  if (cached.oid) p.oid = cached.oid;
+  if (cached.files && cached.files.length) { p.files = cached.files; p.add = cached.add; p.del = cached.del; }
+}
 const field = (p, f) => {
   switch (f) {
     case "number": return p.number;

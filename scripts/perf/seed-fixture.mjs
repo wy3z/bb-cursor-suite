@@ -48,6 +48,10 @@ rmSync(snapshot, { recursive: true, force: true });
 mkdirSync(dirname(snapshot), { recursive: true });
 
 seedRepos();
+execFileSync(process.execPath, [join(import.meta.dirname, "fakegh/build-cache.cjs")], {
+  stdio: "inherit",
+  env: { ...process.env, FAKEGH_REPOS: reposRoot, FAKEGH_CACHE: join(fixtureRoot, "fakegh-cache.json") },
+});
 
 const logPath = join(dirname(snapshot), "seed-bb.log");
 const child = startBbApp(bbApp, staging, logPath);

@@ -116,6 +116,7 @@ export function startBbApp(bbApp, dataDir, logPath) {
         FAKEGH_DIR,
         FAKEGH_REPOS: join(PERF_ROOT, "fixture", "repos"),
         FAKEGH_LOG: join(dataDir, "fakegh-calls.log"),
+        FAKEGH_CACHE: join(PERF_ROOT, "fixture", "fakegh-cache.json"),
         GIT_CONFIG_GLOBAL: join(PERF_ROOT, "fixture", "gitconfig"),
         GH_CONFIG_DIR: ghConfigDir,
         GIT_TERMINAL_PROMPT: "0",
