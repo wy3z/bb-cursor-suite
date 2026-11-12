@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   DEFAULT_BB_APP,
   DEFAULT_BB_CLI,
-  DEFAULT_SNAPSHOT,
   HOME,
   SERVER_PORT,
   SERVER_URL,
   bb,
-  cliEnv,
   sleep,
   startBbApp,
   stopBbApp,
@@ -19,16 +18,28 @@ import {
   waitForPortFree,
 } from "./lib.mjs";
 
+const require = createRequire(import.meta.url);
+const { prs } = require("./fakegh/data.cjs");
+
 const args = parseArgs(process.argv.slice(2));
 const bbApp = resolve(args.app ?? DEFAULT_BB_APP);
 const bbCli = resolve(args.cli ?? DEFAULT_BB_CLI);
-const snapshot = resolve(args.snapshot ?? DEFAULT_SNAPSHOT);
-const staging = resolve(args.staging ?? join(HOME, "perf/fixture/staging"));
-const fixtureRepo = resolve(args.repo ?? join(HOME, "perf/fixture/repo"));
-const projectName = "Perf Fixture";
+const perfRoot = resolve(process.env.PERF_ROOT ?? join(HOME, "perf"));
+const fixtureRoot = resolve(args.fixture ?? join(perfRoot, "fixture"));
+const snapshot = resolve(args.snapshot ?? join(fixtureRoot, "snapshot"));
+const staging = resolve(args.staging ?? join(fixtureRoot, "staging"));
+const reposRoot = join(fixtureRoot, "repos");
+const worktreesRoot = join(fixtureRoot, "worktrees");
+const gitconfigPath = join(fixtureRoot, "gitconfig");
+const projectDefs = [
+  { projectName: "acme/web", repoName: "acme-web", gitSlug: "acme/web" },
+  { projectName: "acme/api", repoName: "acme-api", gitSlug: "acme/api" },
+  { projectName: "acme/orbit", repoName: "acme-orbit", gitSlug: "acme/orbit" },
+];
 const boardPrefix = "FIX";
 const longTitles = Array.from({ length: 5 }, (_, i) => `Fixture long thread ${String(i + 1).padStart(2, "0")}`);
 const shortTitles = Array.from({ length: 25 }, (_, i) => `Fixture short thread ${String(i + 1).padStart(2, "0")}`);
+const fillerTitles = Array.from({ length: 270 }, (_, i) => `Fixture filler thread ${String(i + 1).padStart(3, "0")}`);
 
 await waitForPortFree(SERVER_PORT);
 rmSync(staging, { recursive: true, force: true });
@@ -36,42 +47,56 @@ mkdirSync(staging, { recursive: true });
 rmSync(snapshot, { recursive: true, force: true });
 mkdirSync(dirname(snapshot), { recursive: true });
 
-seedRepo(fixtureRepo);
+seedRepos();
 
 const logPath = join(dirname(snapshot), "seed-bb.log");
 const child = startBbApp(bbApp, staging, logPath);
-let serverPid;
+let projectIds = {};
 try {
   await waitForHttp(SERVER_URL, 120000);
   await sleep(1000);
   bb(bbCli, ["plugin", "install", "builtin:tasks", "--yes"]);
-  const project = createProject(bbCli);
-  const board = createBoard(bbCli, project.id);
+  projectIds = createProjects(bbCli);
+  const board = createBoard(bbCli, projectIds["acme/web"]);
   createTasks(bbCli, board);
 } finally {
   await stopBbApp(child, staging);
 }
 
-insertThreads(join(staging, "bb.db"));
+const seeder = prepareEnvironments(join(staging, "bb.db"));
+insertThreads(join(staging, "bb.db"), seeder);
 
 const warm = startBbApp(bbApp, staging, logPath);
 try {
   await waitForHttp(SERVER_URL, 120000);
-  await sleep(45000);
+  await sleep(60000);
 } finally {
   await stopBbApp(warm, staging);
 }
 
 rmSync(snapshot, { recursive: true, force: true });
 execFileSync("cp", ["-a", staging, snapshot]);
+writeFileSync(join(snapshot, "fixture.json"), `${JSON.stringify({ fixtureVersion: 2 }, null, 2)}\n`);
+const db = new DatabaseSync(join(snapshot, "bb.db"));
+const counts = {
+  projects: db.prepare("select count(*) c from projects where kind = 'standard'").get().c,
+  threads: db.prepare("select count(*) c from threads").get().c,
+  environments: db.prepare("select count(*) c from environments").get().c,
+  remoteUrls: db.prepare("select name, git_remote_url from projects where kind = 'standard'").all(),
+};
+db.close();
 console.log(
   JSON.stringify(
     {
       snapshot,
-      fixtureRepo,
+      fixtureRoot,
+      fixtureVersion: 2,
+      projects: projectDefs.map((project) => project.projectName),
       longThreads: longTitles.length,
       shortThreads: shortTitles.length,
+      fillerThreads: fillerTitles.length,
       tasks: 100,
+      counts,
     },
     null,
     2,
@@ -88,26 +113,86 @@ function parseArgs(argv) {
   return out;
 }
 
-function seedRepo(path) {
-  rmSync(path, { recursive: true, force: true });
-  mkdirSync(path, { recursive: true });
-  const git = (gitArgs) => execFileSync("git", gitArgs, { cwd: path, stdio: "ignore" });
-  git(["init", "-q"]);
-  git(["config", "user.email", "fixture@example.invalid"]);
-  git(["config", "user.name", "Perf Fixture"]);
-  for (let i = 1; i <= 20; i++) {
-    writeFileSync(join(path, `module-${String(i).padStart(2, "0")}.ts`), `export const value = ${i};\n`);
-  }
-  writeFileSync(join(path, "README.md"), "# Perf fixture\n\nFake repository for BB performance runs.\n");
-  git(["add", "."]);
-  git(["commit", "-qm", "fixture"]);
+function git(cwd, gitArgs, env) {
+  return execFileSync("git", gitArgs, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, GIT_CONFIG_GLOBAL: gitconfigPath, ...env },
+  });
 }
 
-function createProject(cli) {
+function seedRepos() {
+  rmSync(reposRoot, { recursive: true, force: true });
+  rmSync(worktreesRoot, { recursive: true, force: true });
+  mkdirSync(reposRoot, { recursive: true });
+  const config = [];
+  for (const definition of projectDefs) {
+    const repo = join(reposRoot, definition.repoName);
+    const bare = `${repo}.origin.git`;
+    config.push(`[url "${bare}"]\n\tinsteadOf = https://github.com/${definition.gitSlug}.git`);
+  }
+  writeFileSync(gitconfigPath, `${config.join("\n")}\n`);
+  for (const definition of projectDefs) {
+    seedRepo(definition);
+  }
+}
+
+function seedRepo(definition) {
+  const repo = join(reposRoot, definition.repoName);
+  const bare = `${repo}.origin.git`;
+  rmSync(repo, { recursive: true, force: true });
+  rmSync(bare, { recursive: true, force: true });
+  mkdirSync(repo, { recursive: true });
+  git(repo, ["init", "-q", "-b", "main"]);
+  git(repo, ["config", "user.email", "fixture@example.invalid"]);
+  git(repo, ["config", "user.name", "Perf Fixture"]);
+  writeRepoFiles(repo, definition.repoName);
+  git(repo, ["add", "."]);
+  git(repo, ["commit", "-qm", "fixture"]);
+  git(repo, ["init", "--bare", "-q", bare]);
+  git(repo, ["remote", "add", "origin", `https://github.com/${definition.gitSlug}.git`]);
+  const repoPrs = prs.filter((pr) => pr.repo === definition.gitSlug);
+  for (const pr of repoPrs) {
+    createPrBranch(repo, pr);
+  }
+  git(repo, ["push", "-q", bare, "main", ...repoPrs.map((pr) => pr.head)]);
+  git(repo, ["fetch", "-q", "origin"]);
+}
+
+function writeRepoFiles(repo, repoName) {
+  const prefix = repoName.split("-")[1] ?? "app";
+  for (let i = 1; i <= 12; i++) {
+    const fileName = `module-${String(i).padStart(2, "0")}.ts`;
+    writeFileSync(join(repo, fileName), `export const ${prefix}Value = ${i};\n`);
+  }
+  mkdirSync(join(repo, "src"), { recursive: true });
+  writeFileSync(join(repo, "src", "index.ts"), `export * from "../module-01.ts";\n`);
+  writeFileSync(join(repo, "README.md"), `# ${repoName}\n\nFake repository for BB performance runs.\n`);
+}
+
+function createPrBranch(repo, pr) {
+  git(repo, ["branch", "-f", pr.head, "main"]);
+  const worktree = join(reposRoot, `.pr-${pr.number}-${pr.head}`);
+  rmSync(worktree, { recursive: true, force: true });
+  git(repo, ["worktree", "add", "-q", worktree, pr.head]);
+  const target = join(worktree, `pr-${pr.number}.txt`);
+  writeFileSync(target, `${pr.title}\n`);
+  git(worktree, ["add", "."]);
+  git(worktree, ["commit", "-qm", `PR ${pr.number}: ${pr.title}`]);
+  git(repo, ["worktree", "remove", "--force", worktree]);
+}
+
+function createProjects(cli) {
   const listed = JSON.parse(bb(cli, ["project", "list", "--json"]));
-  const existing = listed.find((project) => project.name === projectName);
-  if (existing) return existing;
-  return JSON.parse(bb(cli, ["project", "create", "--name", projectName, "--root", fixtureRepo, "--json"]));
+  const ids = {};
+  for (const definition of projectDefs) {
+    const repo = join(reposRoot, definition.repoName);
+    const existing = listed.find((project) => project.name === definition.projectName);
+    const project = existing ?? JSON.parse(bb(cli, ["project", "create", "--name", definition.projectName, "--root", repo, "--json"]));
+    ids[definition.projectName] = project.id;
+  }
+  return ids;
 }
 
 function createBoard(cli, projectId) {
@@ -156,39 +241,177 @@ function createTasks(cli, board) {
   }
 }
 
-function insertThreads(dbPath) {
+function prepareEnvironments(dbPath) {
   const db = new DatabaseSync(dbPath);
-  const projectRow = db.prepare("select id from projects where name = ?").get(projectName);
-  if (!projectRow) throw new Error("Fixture project missing from database");
+  const host = db.prepare("select id from hosts order by created_at limit 1").get();
+  if (!host) throw new Error("Fixture host missing from database");
+  const byName = new Map(projectDefs.map((definition) => [definition.projectName, definition]));
+  const measured = [];
+  for (let i = 0; i < 5; i++) {
+    measured.push({ title: longTitles[i], pr: prs[i], index: i + 1 });
+  }
+  for (let i = 0; i < 5; i++) {
+    measured.push({ title: shortTitles[i], pr: prs[5 + i], index: 6 + i });
+  }
+  const environments = [];
+  for (const item of measured) {
+    const definition = byName.get(item.pr.repo);
+    const threadId = threadIdForTitle(item.title);
+    const path = join(worktreesRoot, `${threadId}-1`, definition.repoName);
+    const repo = join(reposRoot, definition.repoName);
+    rmSync(path, { recursive: true, force: true });
+    mkdirSync(dirname(path), { recursive: true });
+    git(repo, ["worktree", "add", "-q", path, item.pr.head]);
+    environments.push(environmentRow(db, host.id, definition, threadId, path, item.pr.head));
+  }
+  for (let filler = 1; filler <= 40; filler++) {
+    const title = fillerTitles[filler - 1];
+    const definition = projectDefs[(filler - 1) % projectDefs.length];
+    const threadId = threadIdForTitle(title);
+    const path = join(worktreesRoot, `${threadId}-1`, definition.repoName);
+    const repo = join(reposRoot, definition.repoName);
+    const branch = `filler-${String(filler).padStart(3, "0")}`;
+    rmSync(path, { recursive: true, force: true });
+    mkdirSync(dirname(path), { recursive: true });
+    git(repo, ["worktree", "add", "-q", "-b", branch, path, "main"]);
+    environments.push(environmentRow(db, host.id, definition, threadId, path, branch));
+  }
+  db.exec("begin");
+  const insert = db.prepare(
+    "insert into environments(id, project_id, host_id, path, is_git_repo, is_worktree, branch_name, default_branch, merge_base_branch, status, created_at, updated_at, environment_provider_id, environment_provider_plugin_id, provider_owns_path, environment_provider_instance_key, environment_provider_selection) values(?, ?, ?, ?, 1, 1, ?, 'main', 'origin/main', 'ready', ?, ?, 'git-worktree', 'environment-git-worktree', 1, ?, ?)",
+  );
   const now = Date.now();
+  const mapping = new Map();
+  for (const environment of environments) {
+    insert.run(
+      environment.id,
+      environment.projectId,
+      environment.hostId,
+      environment.path,
+      environment.branch,
+      now,
+      now,
+      environment.instanceKey,
+      environment.selection,
+    );
+    mapping.set(environment.threadId, environment);
+  }
+  db.exec("commit");
+  db.close();
+  return { host, mapping };
+}
+
+function environmentRow(db, hostId, definition, threadId, path, branch) {
+  const project = db.prepare("select id from projects where name = ?").get(definition.projectName);
+  if (!project) throw new Error(`Missing project ${definition.projectName}`);
+  return {
+    id: `env_${threadId}`,
+    projectId: project.id,
+    hostId,
+    threadId,
+    path,
+    branch,
+    instanceKey: `${threadId}-1`,
+    selection: JSON.stringify({
+      machine: { type: "existing", hostId },
+      inputs: { branch: { kind: "named", name: "main" } },
+    }),
+  };
+}
+
+function threadIdForTitle(title) {
+  const all = [...longTitles, ...shortTitles, ...fillerTitles];
+  return `thr_perf${String(all.indexOf(title) + 1).padStart(8, "0")}`;
+}
+
+function insertThreads(dbPath, seeder) {
+  const db = new DatabaseSync(dbPath);
+  const projects = new Map(
+    db.prepare("select id, name from projects where kind = 'standard'").all().map((row) => [row.name, row.id]),
+  );
+  const webProject = projects.get("acme/web");
+  if (!webProject) throw new Error("Fixture project missing from database");
+  const now = Date.now();
+  const day = 86400000;
   const insertThread = db.prepare(
-    "insert into threads(id, project_id, environment_id, provider_id, title, title_fallback, status, pinned_at, pin_sort_key, latest_attention_at, created_at, updated_at, visibility, parent_notifications, status_changed_at) values(?, ?, null, 'codex', ?, ?, 'idle', ?, ?, ?, ?, ?, 'visible', 'auto', ?)",
+    "insert into threads(id, project_id, environment_id, provider_id, title, title_fallback, status, parent_thread_id, pinned_at, pin_sort_key, latest_attention_at, created_at, updated_at, visibility, parent_notifications, status_changed_at) values(?, ?, ?, 'codex', ?, ?, 'idle', ?, ?, ?, ?, ?, ?, 'visible', 'auto', ?)",
   );
   const insertEvent = db.prepare(
-    "insert into events(id, thread_id, scope_kind, turn_id, sequence, type, item_kind, data, created_at) values(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "insert into events(id, thread_id, environment_id, scope_kind, turn_id, sequence, type, item_kind, data, created_at) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
+
+  const definitions = [];
+  const measuredPrForTitle = new Map();
+  for (let i = 0; i < 5; i++) measuredPrForTitle.set(longTitles[i], prs[i]);
+  for (let i = 0; i < 5; i++) measuredPrForTitle.set(shortTitles[i], prs[5 + i]);
+  for (const title of longTitles) {
+    const pr = measuredPrForTitle.get(title);
+    definitions.push({
+      title,
+      kind: "long",
+      turns: 100,
+      projectId: projects.get(pr.repo),
+      environmentId: `env_${threadIdForTitle(title)}`,
+      pinned: true,
+      createdAt: now - (definitions.length + 1) * 60000,
+    });
+  }
+  for (let i = 0; i < shortTitles.length; i++) {
+    const title = shortTitles[i];
+    const pr = measuredPrForTitle.get(title);
+    definitions.push({
+      title,
+      kind: "short",
+      turns: 4,
+      projectId: pr ? projects.get(pr.repo) : webProject,
+      environmentId: pr ? `env_${threadIdForTitle(title)}` : null,
+      pinned: i < 5,
+      createdAt: now - (definitions.length + 1) * 60000,
+    });
+  }
+  for (let i = 0; i < fillerTitles.length; i++) {
+    const title = fillerTitles[i];
+    const definition = projectDefs[i % projectDefs.length];
+    const created = now - Math.round(((i + 1) / (fillerTitles.length + 1)) * 30 * day);
+    definitions.push({
+      title,
+      kind: "filler",
+      turns: 2,
+      projectId: projects.get(definition.projectName),
+      environmentId: i < 40 ? `env_${threadIdForTitle(title)}` : null,
+      parentTitle: (i + 1) % 3 === 0 ? fillerTitles[i - 1] : null,
+      pinned: false,
+      createdAt: created,
+      updatedAt: Math.min(now, created + 3600000),
+    });
+  }
+
+  const threadIds = new Map();
+  for (const definition of definitions) {
+    threadIds.set(definition.title, threadIdForTitle(definition.title));
+  }
+
   db.exec("begin");
-  const definitions = [
-    ...longTitles.map((title, i) => ({ title, kind: "long", turns: 100, index: i + 1, pinned: true })),
-    ...shortTitles.map((title, i) => ({ title, kind: "short", turns: 4, index: i + 1, pinned: i < 5 })),
-  ];
   let global = 0;
   for (const definition of definitions) {
     global++;
-    const threadId = `thr_perf${String(global).padStart(8, "0")}`;
-    const created = now - global * 60000;
+    const threadId = threadIds.get(definition.title);
+    const created = definition.createdAt ?? now - global * 60000;
+    const updated = definition.updatedAt ?? created;
     const pinned = definition.pinned ? now - global * 1000 : null;
     const pinSort = definition.pinned ? String(global).padStart(6, "0") : null;
     insertThread.run(
       threadId,
-      projectRow.id,
+      definition.projectId,
+      definition.environmentId,
       definition.title,
       definition.title,
+      definition.parentTitle ? threadIds.get(definition.parentTitle) : null,
       pinned,
       pinSort,
+      updated,
       created,
-      created,
-      created,
+      updated,
       created,
     );
     let sequence = 1;
@@ -196,6 +419,7 @@ function insertThreads(dbPath) {
       insertEvent.run(
         `ev_${threadId}_${sequence}`,
         threadId,
+        definition.environmentId,
         turnId ? "turn" : "thread",
         turnId,
         sequence,
@@ -246,7 +470,7 @@ function insertThreads(dbPath) {
             type: "commandExecution",
             id: `command_${itemPrefix}`,
             command: `rg "value = ${turn}" src`,
-            cwd: fixtureRepo,
+            cwd: seeder.mapping.get(threadId)?.path ?? join(reposRoot, "acme-web"),
             status: "completed",
             approvalStatus: null,
             aggregatedOutput: `src/module-${String(turn % 20).padStart(2, "0")}.ts:1:export const value = ${turn};`,

@@ -101,7 +101,11 @@
         "openJsBytesMedian",
         "sessionJsBytes",
         "unattributedJsBytes",
-        "pluginAppUrls"
+        "pluginAppUrls",
+        "fixtureVersion",
+        "fakeGhCalls",
+        "sidebarThreadRows",
+        "prTextVisible"
       ],
       "additionalProperties": false,
       "properties": {
@@ -302,6 +306,21 @@
               }
             }
           }
+        },
+        "fixtureVersion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fakeGhCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sidebarThreadRows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prTextVisible": {
+          "type": "boolean"
         }
       }
     },

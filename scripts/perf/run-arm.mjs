@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
   DEFAULT_BB_APP,
@@ -43,6 +43,7 @@ const playwrightPath = args.playwright ?? DEFAULT_PLAYWRIGHT;
 const idleSeconds = Number(args["idle-seconds"] ?? 60);
 const openCount = Number(args.opens ?? 20);
 const runDir = resolve(args["run-dir"] ?? join(suiteRoot, "runs", `${arm}-${runIndex}`));
+const screenshotPath = args.screenshot ? resolve(args.screenshot) : null;
 const resultPath = join(outRoot, arm, `${runIndex}.json`);
 const errors = [];
 const invalidReasons = [];
@@ -63,6 +64,14 @@ rmSync(runDir, { recursive: true, force: true });
 mkdirSync(outRoot, { recursive: true });
 mkdirSync(runDir, { recursive: true });
 execFileSync("cp", ["-a", `${snapshot}/.`, runDir]);
+let fixtureVersion = 0;
+try {
+  fixtureVersion = Number(JSON.parse(readFileSync(join(runDir, "fixture.json"), "utf8")).fixtureVersion ?? 0);
+} catch {}
+if (fixtureVersion !== 2) {
+  errors.push({ kind: "harness", message: `fixture.json missing fixtureVersion 2 (got ${fixtureVersion})` });
+  invalidReasons.push("fixture-version");
+}
 
 const record = {
   arm,
@@ -194,6 +203,7 @@ try {
     errors.push({ kind: "plugin-load", message: `${id}: app.js not fetched during boot` });
     invalidReasons.push(`plugin-load ${id}`);
   }
+  const sidebarThreadRows = await countSidebarThreadRows(page);
   const domContentLoadedMs = await page.evaluate(
     () => performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ?? 0,
   );
@@ -238,6 +248,23 @@ try {
     });
   }
 
+  let prTextVisible = false;
+  try {
+    await openThread(page, longTitles[0]);
+    await waitForThreadReady(page, `END-OF-TRANSCRIPT ${longTitles[0]}`);
+    prTextVisible = await page.evaluate(() => {
+      const text = document.body.innerText;
+      return text.includes("#142") || text.includes("142");
+    });
+    if (screenshotPath) {
+      mkdirSync(dirname(screenshotPath), { recursive: true });
+      await page.screenshot({ path: screenshotPath });
+    }
+  } catch (error) {
+    errors.push({ kind: "harness", message: `post-run open ${longTitles[0]}: ${error.message}`.slice(0, 500) });
+    invalidReasons.push(`post-run open ${longTitles[0]}`);
+  }
+
   const openTimes = samples.map((sample) => sample.ms);
   const allLongTasks = await readLongTasks(page);
   const firstCold = samples.find((sample) => sample.cold) ?? samples[0];
@@ -266,6 +293,7 @@ try {
     };
   });
   record.metrics = {
+    fixtureVersion,
     navToSidebarMs,
     domContentLoadedMs,
     jsBytes: bootNetwork.jsBytes,
@@ -293,6 +321,9 @@ try {
     },
     serverRssMB: round(serverRssMB),
     serverIdleCpuPct60s: round(idleCpu),
+    fakeGhCalls: countLines(join(runDir, "fakegh-calls.log")),
+    sidebarThreadRows,
+    prTextVisible,
   };
   record.valid = invalidReasons.length === 0;
 } catch (error) {
@@ -308,6 +339,7 @@ try {
   }
   if (chrome) stopChrome(chrome);
   await stopBbApp(bbProcess, runDir);
+  if (record.metrics) record.metrics.fakeGhCalls = countLines(join(runDir, "fakegh-calls.log"));
 }
 
 mkdirSync(dirname(resultPath), { recursive: true });
@@ -344,6 +376,7 @@ function round(value) {
 
 function emptyMetrics() {
   return {
+    fixtureVersion: 0,
     navToSidebarMs: 0,
     domContentLoadedMs: 0,
     jsBytes: 0,
@@ -362,7 +395,34 @@ function emptyMetrics() {
     threadOpenRequests: { requests: 0, bytes: 0, threadId: "", cold: true },
     serverRssMB: 0,
     serverIdleCpuPct60s: 0,
+    fakeGhCalls: 0,
+    sidebarThreadRows: 0,
+    prTextVisible: false,
   };
+}
+
+function countLines(path) {
+  try {
+    return readFileSync(path, "utf8").split("\n").filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
+async function countSidebarThreadRows(page) {
+  return page.evaluate(() => {
+    const root =
+      document.querySelector('[data-testid="app-sidebar-body"]') ??
+      document.querySelector('[data-testid="nav-rail-sidebar-body"]') ??
+      document.body;
+    const seen = new Set();
+    for (const element of root.querySelectorAll("*")) {
+      if (element.children.length) continue;
+      const text = (element.textContent ?? "").trim();
+      if (text.startsWith("Fixture ")) seen.add(text);
+    }
+    return seen.size;
+  });
 }
 
 async function waitForServerPid(rootPid) {
