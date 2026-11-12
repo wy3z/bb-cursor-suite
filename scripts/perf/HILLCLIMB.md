@@ -62,3 +62,29 @@ James has about 300 live threads with environments and PRs. Fixture v1 has 30 th
 
 R2 on fixture v2, main, 6 interleaved pairs, 12/12 valid: stock 1071.5 ms (719.5 to 1306) vs suite 2796.5 ms (1641.5 to 4094), paired +1640.5 ms (839.5 to 3105), 6/6. Style recalc per open 128 ms vs 1240 ms. Script per open 454 ms vs 865 ms. The VM ran at load 4 to 8 on 2 cores, so the spread is wide. Raw data `bcs-117-r2.tar.gz`.
 
+### H1 on fixture v2
+
+| run | harness | stock ms (range) | suite ms (range) | H1 ms (range) | H1 minus suite, paired | H1 minus stock, paired |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| R4, VM 1 | d68329f plus fake-gh fix, fixture under `/home/user` | 925.8 (669.5 to 1276) | 2355 (1571.5 to 3849.5) | 1451.5 (1103 to 3475) | -499.8 (-1481.5 to +164.5), faster 5/6 | +528.5 (126.5 to 2319.5), 6/6 |
+| R5, VM 2 | 6b245e7, fixture under `/var/tmp`, settle wait | 633 (585 to 851.5) | 1573 (1285.5 to 1933) | 986.75 (843.5 to 1323) | -526.8 (-745 to -312), faster 6/6 | +387.5 (166.5 to 560.5), 6/6 |
+
+- R4 ran at load 5 to 7 on 2 cores. Boat's own tooling sweeps `/home/user` with `find` and `git status`, and fixture v2 put 50 worktrees there. R5 moved the fixture to `/var/tmp` and waits for the BB process tree to go quiet before navigating, which is closer to a long-running BB. R5 is the number to quote.
+- R5 per open, H1 minus stock: script +197 ms (81 to 292), style +95 ms (45 to 136), layout +9 ms, all 6/6. Requests per open 34.5 vs 17.
+- The predicate is not met on fixture v2. On fixture v1 the gap after H1 (+73 ms, -157 to +125.5) sits inside the stock range.
+
+## Harness changes after R1
+
+- a55cfe7: per-open CPU and layout counters, arms from other checkouts, paired deltas, native-to-caller profile attribution.
+- 77d05ff to f44e96a: fixture v2 and the fake `gh`.
+- 6b245e7: every path under `PERF_ROOT`, settle wait, server CPU per open. Frozen here for fixture v2.
+
+## Diagnostics that did not become a change
+
+| what | evidence (local rig on H1 unless noted) | decision |
+| --- | --- | --- |
+| The 38 remaining `:has()` rules in the suite | Each deleted alone: long tasks per switch 78.5 to 95 ms against controls of 78.5 to 88.5. All deleted together: 94 to 69 ms | Not pursued. No rule has a cost of its own |
+| Selector matching per stylesheet | Blink selector stats, 4 switches: every plugin stylesheet costs 13 to 38 ms, built-in ones included. BB scopes plugin CSS with `:where([data-bb-plugin="x"], [data-bb-plugin-root]:not([data-bb-plugin])) .util`, and about two thirds of match attempts miss the fast reject | BB core design. Upstream issue material |
+| Duplicate RPCs per open | agent-pills `threadActivity` x3 to 4, pull-requests `subscriptions_list` x3 to 4 and `linked_list` x2 for the same thread. Each hook is mounted by the slot's `useVisible` and by two renderers. pull-requests also calls both once per descendant thread | Candidate, sized by R6 |
+| `ThreadRow` re-render on every switch | No `memo` in `ThreadTree.tsx`, `activeThreadId` sits in the row context. Sidebar DOM changes 6 attributes per switch. v2 profile bills cursor-sidebar about 43 ms per open after H1 | Candidate, sized by R6 |
+
