@@ -1048,7 +1048,7 @@ function ThreadRow({
             <span
               className={cn(
                 "pointer-events-none flex",
-                hasChildren && "group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0",
+                hasChildren && "group-hover/row:opacity-0 group-data-[focus-visible-within]/row:opacity-0",
               )}
             >
               {showProjectIcon && depth === 0 ? (
@@ -1077,7 +1077,7 @@ function ThreadRow({
                   event.stopPropagation();
                   ctx.onToggleChildren(thread.id);
                 }}
-                className="cs-child-toggle pointer-events-auto absolute inset-0 z-10 flex items-center justify-center text-[color:var(--bbs-text-secondary)] opacity-0 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:opacity-100 pointer-coarse:opacity-100"
+                className="cs-child-toggle pointer-events-auto absolute inset-0 z-10 flex items-center justify-center text-[color:var(--bbs-text-secondary)] opacity-0 group-hover/row:opacity-100 group-data-[focus-visible-within]/row:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring max-md:opacity-100 pointer-coarse:opacity-100"
               >
                 <Icon
                   name="ChevronRight"
@@ -1129,7 +1129,7 @@ function ThreadRow({
             </span>
             <span
               data-thread-actions=""
-              className="cs-row-actions pointer-events-none relative z-20 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-has-[:focus-visible]/row:opacity-100 focus-within:opacity-100"
+              className="cs-row-actions pointer-events-none relative z-20 flex items-center gap-0.5 opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-data-[focus-visible-within]/row:opacity-100 focus-within:opacity-100"
             >
               {pinnedCapable ? (
                 <button
