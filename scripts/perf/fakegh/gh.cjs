@@ -88,6 +88,14 @@ const searchNode = (p) => ({
   mergeable: p.mergeable, reviewDecision: p.review, createdAt: ago(p.created), updatedAt: ago(p.updated),
   additions: p.add, deletions: p.del, repository: { nameWithOwner: p.repo },
 });
+const richCheckNodes = (p) => p.checks.map((c) => ({ name: c.name, status: c.status, conclusion: c.conclusion || null, detailsUrl: c.detailsUrl || null, startedAt: ago(p.updated + 3), checkSuite: { workflowRun: { runNumber: 41, event: "pull_request", workflow: { databaseId: 1 } } } }));
+const resourceNode = (p) => ({
+  ...searchNode(p), autoMergeRequest: null, isInMergeQueue: false,
+  reviewRequests: { totalCount: p.requested ? 1 : 0 },
+  mergeStateStatus: field(p, "mergeStateStatus"), isCrossRepository: false,
+  headRepositoryOwner: { login: p.repo.split("/")[0] },
+  commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: richCheckNodes(p), pageInfo: { hasNextPage: false, endCursor: null } } } } }] },
+});
 
 if (args[0] === "--version" || args[0] === "version") out("gh version 2.83.0 (2026-10-20)\n");
 if (args[0] === "auth") {
@@ -100,6 +108,17 @@ if (args[0] === "api" && args[1] === "graphql") {
   const fIdx = args.indexOf("-f");
   const q = body.query || (args.find((a) => a.startsWith("query=")) || "").slice(6);
   const v = body.variables || {};
+  if (/resource\(url:/.test(q)) {
+    const data = {};
+    const re = /(\w+):\s*resource\(url:\s*"([^"]+)"\)/g;
+    let m;
+    while ((m = re.exec(q))) {
+      const p = byUrl(m[2]);
+      data[m[1]] = p ? resourceNode(p) : null;
+    }
+    log({ ok: "resource" });
+    out({ data });
+  }
   if (/search\(/.test(q)) {
     const s = String(v.search || "");
     const repo = (s.match(/repo:(\S+)/) || [])[1] || `${v.owner}/${v.name}`;
