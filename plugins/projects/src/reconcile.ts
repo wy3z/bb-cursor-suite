@@ -1,9 +1,9 @@
 import type { Status, Task } from "./contracts";
 import { canApply, deriveStatus, isWorking, type Landing, type PullRequestSignal, type Rule, type ThreadSignal } from "./derive";
-import { COLUMN_LABEL, columnOf, isComplete, type Column } from "./status";
+import { COLUMN_LABEL, NEEDS_RE, columnOf, isComplete, type Column } from "./status";
+import { mapLimited } from "./completion";
 
 export const REVIEW_STALE_MS = 48 * 60 * 60_000;
-const ASK_RE = /^[\s*_>#-]*needs\s+[\p{L}][\p{L}\p{N}_.-]*\s*[:：]/iu;
 const STATUS_CHANGE_RE = /^status changed/i;
 const HOLDING_RE = /^[\s*_>]*holding\s*[:：][\s*_]*\S/i;
 const AGENT_AUTHOR_RE = /^agent \((thr_[A-Za-z0-9_-]+)\)$/;
@@ -131,7 +131,7 @@ export function landingFor(key: string, sinceIso: string, commits: readonly Comm
 
 export function hasAsk(comments: readonly CommentSignal[], sinceIso: string): boolean {
   const since = Date.parse(sinceIso) - 10 * 60_000;
-  return comments.some((comment) => comment.kind !== "system" && Date.parse(comment.createdAt) >= since && ASK_RE.test(comment.body));
+  return comments.some((comment) => comment.kind !== "system" && Date.parse(comment.createdAt) >= since && NEEDS_RE.test(comment.body));
 }
 
 function keyNumber(key: string): number {
@@ -154,13 +154,11 @@ export async function reconcileProject(source: ReconcileSource, now: number, con
     if (task.parentTaskId) children.set(task.parentTaskId, [...(children.get(task.parentTaskId) ?? []), task.status]);
   }
   const open = tasks.filter((task) => !isComplete(task.status));
-  const gathered = await Promise.all(
-    open.map(async (task) => {
-      const [threads, comments] = await Promise.all([source.threads(task.id), source.comments(task.id)]);
-      const pullRequests = threads.length > 0 ? await source.pullRequests(task.id) : [];
-      return { task, threads, comments, pullRequests, changedAt: lastStatusChange(task, comments) };
-    }),
-  );
+  const gathered = await mapLimited(open, 8, async (task) => {
+    const [threads, comments] = await Promise.all([source.threads(task.id), source.comments(task.id)]);
+    const pullRequests = threads.length > 0 ? await source.pullRequests(task.id) : [];
+    return { task, threads, comments, pullRequests, changedAt: lastStatusChange(task, comments) };
+  });
   const oldest = gathered.reduce((min, item) => (Date.parse(item.changedAt) < Date.parse(min) ? item.changedAt : min), new Date(now).toISOString());
   const commits = gathered.length > 0 ? await source.commits(oldest).catch(() => [] as Commit[]) : [];
 

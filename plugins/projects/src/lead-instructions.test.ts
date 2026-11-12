@@ -54,7 +54,7 @@ describe("leadInstructions", () => {
 
   it("tells the lead that workers are muted and it must escalate", () => {
     const text = leadInstructions("BCS");
-    expect(text).toContain("Workers attached to your cards are muted");
+    expect(text).toContain("Workers you spawned are muted once attached to your cards");
     expect(text).toContain("Escalate anything a worker can't resolve");
     expect(text).toContain("moving the card to For Review with its Needs comment");
     expect(text).toContain("don't send your own notification for a card move");

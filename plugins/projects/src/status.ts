@@ -11,6 +11,8 @@ export const COLUMN_LABEL: Record<Column, string> = {
   canceled: "Canceled",
 };
 
+export const NEEDS_RE = /^[\s*_>#-]*needs\s+[^:：\n]{1,60}[:：]/i;
+
 export function columnOf(status: Status): Column {
   return status === "backlog" ? "todo" : status;
 }
