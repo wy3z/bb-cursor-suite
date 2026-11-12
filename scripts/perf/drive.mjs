@@ -23,9 +23,24 @@ const opens = Number(args.opens ?? 20);
 const chrome = args.chrome ?? DEFAULT_CHROME;
 const playwright = args.playwright ?? DEFAULT_PLAYWRIGHT;
 const arms = (args.arms ?? "stock,suite").split(",").filter(Boolean);
-const suitePlugins = (args["suite-plugins"] ?? defaultPlugins(suiteRoot)).split(",").filter(Boolean);
+const armRoots = parseArmRoots(args["arm-roots"]);
+const baselineArm = args["baseline-arm"] ?? "stock";
 const runArm = join(import.meta.dirname, "run-arm.mjs");
 const seedFixture = join(import.meta.dirname, "seed-fixture.mjs");
+const tableKeys = [
+  "threadOpenMedianMs",
+  "threadOpenShortWarmMs",
+  "threadOpenLongWarmMs",
+  "threadOpenShortColdMs",
+  "threadOpenLongColdMs",
+  "threadOpenP90Ms",
+  "firstColdOpenMs",
+  "openTaskMsMedian",
+  "openLayoutCountMedian",
+  "openLongTaskMsMedian",
+  "longTaskMs",
+  "bootJsBytes",
+];
 
 if (!existsSync(`${snapshot}/bb.db`)) {
   console.error(`Seeding fixture snapshot at ${snapshot}`);
@@ -42,7 +57,8 @@ for (let runIndex = 1; runIndex <= runs; runIndex++) {
   const sequence = runIndex % 2 === 1 ? arms : [...arms].reverse();
   for (const arm of sequence) {
     order++;
-    const plugins = arm === "stock" ? [] : arm === "suite" ? suitePlugins : (args[`${arm}-plugins`] ?? "").split(",").filter(Boolean);
+    const armRoot = rootFor(arm);
+    const plugins = pluginsFor(arm);
     console.error(`run ${runIndex} order ${order} arm ${arm}${plugins.length ? ` (${plugins.length} plugins)` : ""}`);
     execFileSync(
       process.execPath,
@@ -55,7 +71,7 @@ for (let runIndex = 1; runIndex <= runs; runIndex++) {
         "--order",
         String(order),
         "--suite",
-        suiteRoot,
+        armRoot,
         "--bbapp",
         bbApp,
         "--cli",
@@ -97,7 +113,30 @@ function parseArgs(argv) {
 
 function defaultPlugins(root) {
   const manifest = JSON.parse(readFileSync(join(root, ".bb/plugins.json"), "utf8"));
-  return manifest.plugins.map((plugin) => plugin.name).join(",");
+  return manifest.plugins.map((plugin) => plugin.name);
+}
+
+function parseArmRoots(value) {
+  const out = {};
+  if (!value) return out;
+  for (const part of value.split(",")) {
+    if (!part.trim()) continue;
+    const eq = part.indexOf("=");
+    if (eq < 0) throw new Error(`--arm-roots entry needs name=/abs/path: ${part}`);
+    out[part.slice(0, eq).trim()] = resolve(part.slice(eq + 1).trim());
+  }
+  return out;
+}
+
+function rootFor(arm) {
+  return armRoots[arm] ?? suiteRoot;
+}
+
+function pluginsFor(arm) {
+  if (arm === "stock") return [];
+  const explicit = args[`${arm}-plugins`];
+  if (explicit !== undefined) return explicit.split(",").filter(Boolean);
+  return defaultPlugins(rootFor(arm));
 }
 
 function buildSummary(root, armNames) {
@@ -116,7 +155,9 @@ function buildSummary(root, armNames) {
     generatedAt: new Date().toISOString(),
     suiteSha: Object.values(results)[0]?.[0]?.suiteSha ?? "",
     runs: runs,
+    baselineArm: baselineArm,
     arms: {},
+    paired: {},
     comparison: {},
   };
   const metricsOf = (record) => {
@@ -136,6 +177,17 @@ function buildSummary(root, armNames) {
       longTaskMs: m.longTaskMs,
       threadOpenMedianMs: m.threadOpenMs.median,
       threadOpenP90Ms: m.threadOpenMs.p90,
+      threadOpenLongColdMs: m.threadOpenByKind.longCold,
+      threadOpenLongWarmMs: m.threadOpenByKind.longWarm,
+      threadOpenShortColdMs: m.threadOpenByKind.shortCold,
+      threadOpenShortWarmMs: m.threadOpenByKind.shortWarm,
+      openTaskMsMedian: m.openTaskMsMedian,
+      openScriptMsMedian: m.openScriptMsMedian,
+      openLayoutMsMedian: m.openLayoutMsMedian,
+      openStyleMsMedian: m.openStyleMsMedian,
+      openLayoutCountMedian: m.openLayoutCountMedian,
+      openStyleCountMedian: m.openStyleCountMedian,
+      openLongTaskMsMedian: m.openLongTaskMsMedian,
       firstColdOpenMs: m.threadOpenMs.samples.find((sample) => sample.cold)?.ms ?? 0,
       threadOpenRequests: m.threadOpenRequests.requests,
       threadOpenBytes: m.threadOpenRequests.bytes,
@@ -162,8 +214,36 @@ function buildSummary(root, armNames) {
       runs: records.length,
       valid: valid.length,
       invalid: records.length - valid.length,
+      errors: records.reduce((sum, record) => sum + (record.errors?.length ?? 0), 0),
+      opensCompleted: records.reduce((sum, record) => sum + (record.metrics?.opensCompleted ?? 0), 0),
+      opensExpected: records.reduce((sum, record) => sum + (record.metrics?.opensExpected ?? 0), 0),
       metrics: values,
     };
+  }
+  const baseline = (results[baselineArm] ?? []).filter((record) => record.valid);
+  const baselineByIndex = new Map(baseline.map((record) => [record.runIndex, metricsOf(record)]));
+  for (const [arm, records] of Object.entries(results)) {
+    if (arm === baselineArm) continue;
+    const paired = {};
+    for (const key of ["threadOpenMedianMs", "threadOpenShortWarmMs", "openTaskMsMedian"]) {
+      const deltas = [];
+      for (const record of records.filter((item) => item.valid)) {
+        const base = baselineByIndex.get(record.runIndex);
+        if (!base) continue;
+        const armValue = metricsOf(record)[key];
+        const baseValue = base[key];
+        if (!Number.isFinite(armValue) || !Number.isFinite(baseValue)) continue;
+        deltas.push(armValue - baseValue);
+      }
+      paired[key] = {
+        n: deltas.length,
+        medianDelta: round(median(deltas)),
+        minDelta: round(deltas.length ? Math.min(...deltas) : 0),
+        maxDelta: round(deltas.length ? Math.max(...deltas) : 0),
+        armSlowerCount: deltas.filter((delta) => delta > 0).length,
+      };
+    }
+    summary.paired[arm] = paired;
   }
   const stock = summary.arms.stock;
   const suite = summary.arms.suite;
@@ -185,10 +265,34 @@ function round(value) {
   return Math.round(value * 100) / 100;
 }
 
+function cell(stats) {
+  return `${stats.median} (${stats.min} to ${stats.max})`;
+}
+
 function renderText(summary) {
   const lines = [`suiteSha ${summary.suiteSha}`, `runs per arm ${summary.runs}`];
   for (const [arm, value] of Object.entries(summary.arms)) {
-    lines.push(`${arm}: ${value.valid}/${value.runs} valid`);
+    lines.push(
+      `${arm}: ${value.valid}/${value.runs} valid, ${value.opensCompleted}/${value.opensExpected} opens, errors ${value.errors}`,
+    );
+  }
+  const arms = Object.keys(summary.arms);
+  lines.push("");
+  lines.push(["arm", ...tableKeys].join("\t"));
+  for (const arm of arms) {
+    lines.push([arm, ...tableKeys.map((key) => cell(summary.arms[arm].metrics[key]))].join("\t"));
+  }
+  if (Object.keys(summary.paired).length) {
+    lines.push("");
+    lines.push(`paired vs ${summary.baselineArm ?? "stock"}`);
+    lines.push(["arm", "metric", "n", "medianDelta", "minDelta", "maxDelta", "armSlowerCount"].join("\t"));
+    for (const [arm, paired] of Object.entries(summary.paired)) {
+      for (const [key, value] of Object.entries(paired)) {
+        lines.push(
+          [arm, key, value.n, value.medianDelta, value.minDelta, value.maxDelta, value.armSlowerCount].join("\t"),
+        );
+      }
+    }
   }
   if (Object.keys(summary.comparison).length) {
     lines.push("");
@@ -203,6 +307,32 @@ function renderText(summary) {
 
 function renderMarkdown(summary) {
   const lines = [`# BB performance summary`, "", `suiteSha: ${summary.suiteSha}`, ""];
+  for (const [arm, value] of Object.entries(summary.arms)) {
+    lines.push(
+      `${arm}: ${value.valid}/${value.runs} valid, ${value.opensCompleted}/${value.opensExpected} opens, errors ${value.errors}`,
+    );
+  }
+  lines.push("");
+  lines.push(`| arm | ${tableKeys.join(" | ")} |`);
+  lines.push(`| --- | ${tableKeys.map(() => "---:").join(" | ")} |`);
+  for (const [arm, value] of Object.entries(summary.arms)) {
+    lines.push(`| ${arm} | ${tableKeys.map((key) => cell(value.metrics[key])).join(" | ")} |`);
+  }
+  lines.push("");
+  if (Object.keys(summary.paired).length) {
+    lines.push(`## Paired vs ${summary.baselineArm ?? "stock"}`, "");
+    lines.push("| arm | metric | n | medianDelta | minDelta | maxDelta | armSlowerCount |");
+    lines.push("| --- | --- | ---: | ---: | ---: | ---: | ---: |");
+    for (const [arm, paired] of Object.entries(summary.paired)) {
+      for (const [key, value] of Object.entries(paired)) {
+        lines.push(
+          `| ${arm} | ${key} | ${value.n} | ${value.medianDelta} | ${value.minDelta} | ${value.maxDelta} | ${value.armSlowerCount} |`,
+        );
+      }
+    }
+    lines.push("");
+  }
+  lines.push("## Stock versus suite", "");
   lines.push("| metric | stock | suite | delta |");
   lines.push("| --- | ---: | ---: | ---: |");
   for (const [key, value] of Object.entries(summary.comparison)) {
