@@ -34,6 +34,7 @@ const outRoot = resolve(args.out ?? join(suiteRoot, "results", "profile"));
 const chromePath = args.chrome ?? DEFAULT_CHROME;
 const playwrightPath = args.playwright ?? DEFAULT_PLAYWRIGHT;
 const title = args.title ?? "Fixture long thread 01";
+const warmupTitle = args.warmup ?? "Fixture short thread 25";
 const runDir = resolve(args["run-dir"] ?? join(suiteRoot, "runs", `profile-${arm}`));
 
 rmSync(runDir, { recursive: true, force: true });
@@ -109,6 +110,14 @@ try {
   const deadline = Date.now() + 45000;
   while (Date.now() < deadline && expected.some((path) => !loaded.has(path))) {
     await sleep(100);
+  }
+
+  if (warmupTitle && warmupTitle !== title) {
+    const warmLocator = await threadLocator(page, warmupTitle);
+    await warmLocator.waitFor({ state: "visible", timeout: 30000 });
+    await warmLocator.click({ timeout: 60000 }).catch(() => warmLocator.click({ timeout: 60000, force: true }));
+    await waitForThreadReady(page, `END-OF-TRANSCRIPT ${warmupTitle}`);
+    await sleep(1000);
   }
 
   const locator = await threadLocator(page, title);
@@ -191,6 +200,7 @@ try {
     plugins,
     threadId,
     title,
+    warmupTitle,
     wallMs: round(wallMs),
     profileSampledMs: round(totalMs),
     scriptSelfMs: round(scriptMs),
