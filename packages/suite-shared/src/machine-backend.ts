@@ -169,9 +169,12 @@ export const DEFAULT_CLOUD_LOGIN_RULES: CloudLoginRules = {
     },
     {
       providerIds: ["acp-opencode", "pi"],
-      anyOf: [{ kind: "machine-env", name: "OPENCODE_API_KEY" }],
-      problem: "{provider} has no OpenCode Go key for cloud machines",
-      fix: "`bb machine env set OPENCODE_API_KEY` (value on stdin)",
+      anyOf: [
+        { kind: "machine-env", name: "OPENCODE_API_KEY" },
+        { kind: "machine-login", login: "opencode" },
+      ],
+      problem: "{provider} has no OpenCode Go login for cloud machines",
+      fix: "let the cloud machine supply one (Boat Sandbox: connect OpenCode Go on boat.dev and name a boat environment that passes Agents credentials), or set `bb machine env set OPENCODE_API_KEY` (value on stdin)",
     },
   ],
   always: [
