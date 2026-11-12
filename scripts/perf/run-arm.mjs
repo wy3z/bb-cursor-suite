@@ -114,15 +114,17 @@ try {
   serverPid = await waitForServerPid(bbProcess.pid);
   await sleep(1500);
 
-  if (plugins.length) {
+  let installedPlugins = [];
+  {
     const deadline = Date.now() + 90000;
-    let byId = new Map();
     while (Date.now() < deadline) {
       const installed = await getPlugins();
-      byId = new Map(installed.plugins.map((plugin) => [plugin.id, plugin]));
+      installedPlugins = installed.plugins;
+      const byId = new Map(installedPlugins.map((plugin) => [plugin.id, plugin]));
       if (plugins.every((id) => byId.get(id)?.status === "running")) break;
       await sleep(1000);
     }
+    const byId = new Map(installedPlugins.map((plugin) => [plugin.id, plugin]));
     for (const id of plugins) {
       const plugin = byId.get(id);
       if (!plugin || plugin.status !== "running") {
@@ -131,6 +133,13 @@ try {
       }
     }
   }
+  const expectedAppBundles = installedPlugins
+    .filter((plugin) => plugin.enabled && plugin.app?.hasApp && plugin.app.bundle?.jsUrl)
+    .map((plugin) => ({
+      id: plugin.id,
+      url: plugin.app.bundle.jsUrl,
+      declaredBytes: plugin.app.bundle.jsBytes ?? 0,
+    }));
 
   const chromium = await loadPlaywright(playwrightPath);
   const chromePort = 9300 + ((process.pid + runIndex) % 500);
@@ -175,10 +184,20 @@ try {
   await waitForSidebar(page, 120000);
   const navToSidebarMs = Date.now() - navStart;
   await dismissOverlays(page);
+  const bootWait = await tracker.waitForScripts(
+    expectedAppBundles.map((bundle) => bundle.url),
+    45000,
+  );
+  for (const missing of bootWait.missing) {
+    const bundle = expectedAppBundles.find((item) => pathMatches(item.url, missing));
+    const id = bundle?.id ?? missing;
+    errors.push({ kind: "plugin-load", message: `${id}: app.js not fetched during boot` });
+    invalidReasons.push(`plugin-load ${id}`);
+  }
   const domContentLoadedMs = await page.evaluate(
     () => performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ?? 0,
   );
-  const coldNetwork = tracker.snapshot();
+  const bootNetwork = tracker.markBootEnd();
 
   const samples = [];
   const seen = new Set();
@@ -190,7 +209,7 @@ try {
     tracker.startWindow();
     const started = Date.now();
     let ms = 0;
-    let windowStats = { requests: 0, bytes: 0 };
+    let windowStats = { requests: 0, bytes: 0, jsBytes: 0 };
     try {
       await openThread(page, item.title);
       await waitForThreadReady(page, `END-OF-TRANSCRIPT ${item.title}`);
@@ -213,6 +232,7 @@ try {
       ms,
       requests: windowStats.requests,
       bytes: windowStats.bytes,
+      jsBytes: windowStats.jsBytes,
       longTaskCount: longTasks.length,
       longTaskMs: longTasks.reduce((sum, entry) => sum + entry.duration, 0),
     });
@@ -232,11 +252,32 @@ try {
   const serverRssMB = readRssMB(serverPid);
   const idleCpu = await idleCpuPercent(serverPid, idleSeconds, clockTicks());
 
+  const openJsSamples = samples.map((sample) => sample.jsBytes);
+  const openJsBytes = openJsSamples.reduce((sum, value) => sum + value, 0);
+  const sessionJsBytes = tracker.sessionScriptBytes();
+  const pluginAppUrls = tracker.pluginAppAssetList().map((asset) => {
+    const bundle = expectedAppBundles.find((item) => pathMatches(item.url, asset.path));
+    return {
+      id: bundle?.id ?? "unknown",
+      url: asset.path,
+      bytes: asset.bytes,
+      expected: Boolean(bundle),
+      boot: asset.boot,
+    };
+  });
   record.metrics = {
     navToSidebarMs,
     domContentLoadedMs,
-    jsBytes: coldNetwork.jsBytes,
-    requestCount: coldNetwork.requests,
+    jsBytes: bootNetwork.jsBytes,
+    bootJsBytes: bootNetwork.jsBytes,
+    bootRequestCount: bootNetwork.requests,
+    bootEndMs: bootNetwork.bootEndMs,
+    openJsBytes,
+    openJsBytesMedian: round(median(openJsSamples)),
+    sessionJsBytes,
+    unattributedJsBytes: Math.max(0, sessionJsBytes - bootNetwork.jsBytes - openJsBytes),
+    pluginAppUrls,
+    requestCount: bootNetwork.requests,
     longTaskCount: allLongTasks.entries.length,
     longTaskMs: allLongTasks.entries.reduce((sum, entry) => sum + entry.duration, 0),
     threadOpenMs: {
@@ -306,6 +347,14 @@ function emptyMetrics() {
     navToSidebarMs: 0,
     domContentLoadedMs: 0,
     jsBytes: 0,
+    bootJsBytes: 0,
+    bootRequestCount: 0,
+    bootEndMs: 0,
+    openJsBytes: 0,
+    openJsBytesMedian: 0,
+    sessionJsBytes: 0,
+    unattributedJsBytes: 0,
+    pluginAppUrls: [],
     requestCount: 0,
     longTaskCount: 0,
     longTaskMs: 0,
@@ -423,17 +472,43 @@ async function idleCpuPercent(pid, seconds, ticksPerSecond) {
   return ((after - before) / ticksPerSecond / elapsed) * 100;
 }
 
+function normalizePath(url) {
+  try {
+    return new URL(url, SERVER_URL).pathname;
+  } catch {
+    return url;
+  }
+}
+
+function pathMatches(a, b) {
+  return normalizePath(a) === normalizePath(b);
+}
+
+function isPluginAppAsset(path) {
+  return /^\/api\/v1\/(?:plugins\/[^/]+\/assets|plugin-app-assets\/[a-f0-9]{16})\/app\.js$/.test(path);
+}
+
 async function createTracker(context, page) {
   const session = await context.newCDPSession(page);
   await session.send("Network.enable");
   const requests = new Map();
+  const loadedScripts = new Set();
+  const pluginAssets = new Map();
   let totalRequests = 0;
   let totalBytes = 0;
-  let totalJsBytes = 0;
+  let sessionJsBytes = 0;
+  let bootJsBytes = 0;
+  let bootRequests = 0;
+  let bootEndMs = 0;
+  let bootOpen = false;
   let window = null;
+  let sessionStart = 0;
   session.on("Network.requestWillBeSent", (event) => {
+    const path = normalizePath(event.request.url);
     totalRequests++;
-    requests.set(event.requestId, { type: event.type, url: event.request.url });
+    if (bootOpen) bootRequests++;
+    const request = { type: event.type, url: event.request.url, path, boot: bootOpen, window, bytes: 0 };
+    requests.set(event.requestId, request);
     if (window) {
       window.requests++;
       window.ids.add(event.requestId);
@@ -443,24 +518,71 @@ async function createTracker(context, page) {
     const bytes = event.encodedDataLength ?? 0;
     totalBytes += bytes;
     const request = requests.get(event.requestId);
-    if (request?.type === "Script") totalJsBytes += bytes;
-    if (window && window.ids.has(event.requestId)) window.bytes += bytes;
+    if (!request) return;
+    request.bytes += bytes;
+    if (request.type === "Script") {
+      sessionJsBytes += bytes;
+      loadedScripts.add(request.path);
+      if (request.boot) bootJsBytes += bytes;
+    }
+    if (request.window) {
+      request.window.bytes += bytes;
+      if (request.type === "Script") request.window.jsBytes += bytes;
+    }
+    if (isPluginAppAsset(request.path)) {
+      pluginAssets.set(request.path, {
+        path: request.path,
+        bytes: (pluginAssets.get(request.path)?.bytes ?? 0) + bytes,
+        boot: request.boot,
+      });
+    }
   });
   return {
     reset() {
       totalRequests = 0;
       totalBytes = 0;
-      totalJsBytes = 0;
+      sessionJsBytes = 0;
+      bootJsBytes = 0;
+      bootRequests = 0;
+      bootEndMs = 0;
+      bootOpen = true;
+      sessionStart = Date.now();
       requests.clear();
+      loadedScripts.clear();
+      pluginAssets.clear();
     },
-    snapshot() {
-      return { requests: totalRequests, bytes: totalBytes, jsBytes: totalJsBytes };
+    sessionScriptBytes() {
+      return sessionJsBytes;
+    },
+    pluginAppAssetList() {
+      return [...pluginAssets.values()];
+    },
+    markBootEnd() {
+      bootOpen = false;
+      bootEndMs = Date.now() - sessionStart;
+      return {
+        requests: bootRequests,
+        bytes: totalBytes,
+        jsBytes: bootJsBytes,
+        bootEndMs,
+        pluginAssets: [...pluginAssets.values()],
+      };
+    },
+    async waitForScripts(urls, timeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      const pending = () => urls.filter((url) => !loadedScripts.has(normalizePath(url)));
+      while (Date.now() < deadline && pending().length) {
+        await sleep(100);
+      }
+      return { missing: pending() };
     },
     startWindow() {
-      window = { requests: 0, bytes: 0, ids: new Set() };
+      window = { requests: 0, bytes: 0, jsBytes: 0, ids: new Set() };
     },
     endWindow() {
-      const result = window ? { requests: window.requests, bytes: window.bytes } : { requests: 0, bytes: 0 };
+      const result = window
+        ? { requests: window.requests, bytes: window.bytes, jsBytes: window.jsBytes }
+        : { requests: 0, bytes: 0, jsBytes: 0 };
       window = null;
       return result;
     },
