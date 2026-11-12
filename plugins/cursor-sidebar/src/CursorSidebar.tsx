@@ -128,6 +128,8 @@ import { openHostAddProject } from "./open-host-add-project";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { ShowMoreButton } from "./ShowMoreButton";
 import { useSidebarFooterHeight } from "./sidebar-footer-height";
+import { useSidebarRootMarker } from "./root-marker";
+import { useFocusVisibleWithin } from "./focus-visible-within";
 
 
 /**
@@ -143,6 +145,9 @@ const COLLAPSED_ROW_EXIT_MS = 220;
  * collapsed section under the thread list rather than a shelf per project.
  */
 export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: PluginThreadListProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useSidebarRootMarker();
+  useFocusVisibleWithin(rootRef);
   const { status, threads: rawThreads, projects: nativeProjects } = useSidebarThreads();
   const nativeProjectSections = useMemo(
     () => nativeProjects.filter((project) => !project.isPersonal).map((project) => ({ id: nativeProjectSectionId(project.id), name: project.name, isPersonal: false })),
@@ -1484,7 +1489,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         void archiveMany(sdk as never, listed, "in this list");
       }}
     >
-    <div data-cursor-sidebar-root="" className="flex min-h-0 flex-1 flex-col">
+    <div ref={rootRef} data-cursor-sidebar-root="" className="flex min-h-0 flex-1 flex-col">
       <ComposerProjectIcons
         enabled={view.show.projectIcons}
         projects={nativeProjects}
@@ -2257,7 +2262,7 @@ function ProjectSection({
         )}
       >
         <span className="cs-status-slot relative flex shrink-0 items-center justify-center">
-          <span className="flex pointer-events-none group-hover/heading:opacity-0 group-has-[:focus-visible]/heading:opacity-0">
+          <span className="flex pointer-events-none group-hover/heading:opacity-0 group-data-[focus-visible-within]/heading:opacity-0">
             {section.personal ? (
               <Icon name="Home" aria-hidden="true" className="size-3.5 text-[color:var(--bbs-text-secondary)]" />
             ) : (
@@ -2282,7 +2287,7 @@ function ProjectSection({
             }}
             className={cn(
               "cs-project-disclosure pointer-events-auto absolute inset-0 z-10 flex items-center justify-center rounded text-[color:var(--bbs-text-secondary)] hover:text-sidebar-foreground/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
-              "opacity-0 group-hover/heading:opacity-100 group-has-[:focus-visible]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100",
+              "opacity-0 group-hover/heading:opacity-100 group-data-[focus-visible-within]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100",
             )}
           >
             <Icon
@@ -2319,7 +2324,7 @@ function ProjectSection({
               event.stopPropagation();
               onNewThread();
             }}
-            className="cs-row-action flex size-4 shrink-0 items-center justify-center rounded text-[color:var(--bbs-text-tertiary)] opacity-0 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-hover/heading:opacity-100 group-has-[:focus-visible]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100"
+            className="cs-row-action flex size-4 shrink-0 items-center justify-center rounded text-[color:var(--bbs-text-tertiary)] opacity-0 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-hover/heading:opacity-100 group-data-[focus-visible-within]/heading:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:opacity-100"
           >
             <Icon name="Plus" className="size-4" aria-hidden="true" />
           </button>

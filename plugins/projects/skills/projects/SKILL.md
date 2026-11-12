@@ -116,6 +116,10 @@ ask them and leave the question open. Approvals have their own calls:
 
 ## Landing work
 
+Whenever you mention a pull request, to the user or in a card comment, write
+its full URL, never a bare `#59`, and link the ones you review or merge to your
+thread with `bb pull-requests link <url>`.
+
 How work lands is project policy: read it in `bb projects notes <PREFIX>` and
 follow it. Without a rule there, workers open PRs and you merge them. When a
 worker finishes:

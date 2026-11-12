@@ -7,6 +7,7 @@ import { createBoatApi } from "../lib/api.ts";
 import { createBoatBackend } from "../lib/backend.ts";
 import {
   BUSY_AWK,
+  LOGIN_FOR_PROVIDER,
   LOGIN_PROBE,
   LOGIN_VARIABLES,
   STALE_FN,
@@ -126,8 +127,27 @@ describe("boat login check on a running VM", () => {
     expect((await t.check(context(ACTIVE), signal())).note).toContain("it was created without a boat environment. Delete it");
   });
 
+  test("lets an OpenCode Go login on the VM satisfy acp-opencode and pi, and refuses them without it", async () => {
+    const t = setup();
+    t.boat.commandScript = answer("login:opencode\n");
+    expect(await t.check(context(ACTIVE, "acp-opencode"), signal())).toEqual({ logins: ["opencode"], note: null });
+    expect(await t.check(context(ACTIVE, "pi"), signal())).toEqual({ logins: ["opencode"], note: null });
+    expect(LOGIN_FOR_PROVIDER["acp-opencode"]).toBe("opencode");
+    expect(LOGIN_FOR_PROVIDER.pi).toBe("opencode");
+    const claudeOnly = setup();
+    claudeOnly.boat.commandScript = answer("login:claude\n");
+    const wrong = await claudeOnly.check(context(ACTIVE, "pi"), signal());
+    expect(wrong.logins).toEqual(["claude"]);
+    expect(wrong.note).toContain("bb-boat-k has only a claude login from boat");
+    const none = setup();
+    none.boat.commandScript = answer("");
+    const missing = await none.check(context(ACTIVE, "acp-opencode"), signal());
+    expect(missing.logins).toEqual([]);
+    expect(missing.note).toContain("bb-boat-k has no agent login from boat");
+  });
+
   test("ignores anything but known login lines", () => {
-    expect(parseLogins(`login:claude\nlogin:gemini\n${SECRET}\nlogin:codex extra\n login:codex \n`)).toEqual(["claude", "codex"]);
+    expect(parseLogins(`login:claude\nlogin:gemini\n${SECRET}\nlogin:opencode extra\n login:codex \nlogin:opencode\n`)).toEqual(["claude", "codex", "opencode"]);
   });
 
   test("fails loudly when the probe can't run", async () => {
@@ -141,7 +161,7 @@ describe("boat login check on a suspended VM", () => {
   test("goes by the environment the VM itself was created in, not the setting", async () => {
     const t = setup("");
     t.boat.environmentList = [env()];
-    expect(await t.check(context(SUSPENDED), signal())).toEqual({ logins: ["claude", "codex"], note: null });
+    expect(await t.check(context(SUSPENDED), signal())).toEqual({ logins: ["claude", "codex", "opencode"], note: null });
     expect(t.boat.commands).toHaveLength(0);
   });
 
@@ -174,8 +194,8 @@ describe("boat login check before the VM exists", () => {
   test("trusts a just-me environment that passes Agents credentials, reading flags only", async () => {
     const t = setup();
     t.boat.environmentList = [env({ name: "base", isDefault: true, passAgentsCredentials: false }), env()];
-    expect(await t.check(context(null), signal())).toEqual({ logins: ["claude", "codex"], note: null });
-    expect(await t.check(context(null), signal())).toEqual({ logins: ["claude", "codex"], note: null });
+    expect(await t.check(context(null), signal())).toEqual({ logins: ["claude", "codex", "opencode"], note: null });
+    expect(await t.check(context(null), signal())).toEqual({ logins: ["claude", "codex", "opencode"], note: null });
     expect(t.boat.calls("GET", "/environments")).toHaveLength(1);
     expect(t.boat.commands).toHaveLength(0);
   });
@@ -219,11 +239,15 @@ describe("the probe script", () => {
       expect(run(home)).toEqual({ status: 0, stdout: "" });
       mkdirSync(join(home, ".claude"));
       mkdirSync(join(home, ".codex"));
+      mkdirSync(join(home, ".local", "share", "opencode"), { recursive: true });
       writeFileSync(join(home, ".claude", ".credentials.json"), `{"token":"${SECRET}"}`);
       writeFileSync(join(home, ".codex", "auth.json"), "");
+      writeFileSync(join(home, ".local", "share", "opencode", "auth.json"), "");
       expect(run(home)).toEqual({ status: 0, stdout: "login:claude\n" });
       writeFileSync(join(home, ".codex", "auth.json"), `{"token":"${SECRET}"}`);
       expect(run(home)).toEqual({ status: 0, stdout: "login:claude\nlogin:codex\n" });
+      writeFileSync(join(home, ".local", "share", "opencode", "auth.json"), `{"opencode-go":{"type":"oauth","refresh":"${SECRET}"}}`);
+      expect(run(home)).toEqual({ status: 0, stdout: "login:claude\nlogin:codex\nlogin:opencode\n" });
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
@@ -250,6 +274,22 @@ describe("the probe script", () => {
         encoding: "utf8",
       });
       expect(alone.stdout).toBe("");
+      const opencode = spawn("bash", ["-c", `exec -a ${home}/.bb-machines/srv/daemon sleep 30`], {
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", OPENCODE_API_KEY: SECRET },
+        stdio: "ignore",
+      });
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const probe = spawnSync("sh", ["-c", LOGIN_PROBE], {
+          env: { HOME: home, PATH: process.env.PATH ?? "/usr/bin:/bin" },
+          encoding: "utf8",
+        });
+        expect(probe.stdout).toBe("login:opencode\n");
+        expect(probe.stdout + probe.stderr).not.toContain(SECRET);
+      } finally {
+        opencode.kill();
+        await new Promise((resolve) => opencode.once("exit", resolve));
+      }
     } finally {
       daemon.kill();
       rmSync(home, { recursive: true, force: true });
@@ -272,9 +312,9 @@ describe("handing boat's logins to BB's daemon", () => {
   test("the script moves a fixed list of variables by name and restarts only an idle, stale daemon on a fresh boot", () => {
     const fresh = shareLoginsScript(true);
     const live = shareLoginsScript(false);
-    expect(LOGIN_VARIABLES).toEqual(["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CHATGPT_ACCOUNT_ID"]);
+    expect(LOGIN_VARIABLES).toEqual(["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CHATGPT_ACCOUNT_ID", "OPENCODE_API_KEY"]);
     for (const script of [fresh, live]) {
-      expect(script).toContain("for n in CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY OPENAI_API_KEY CHATGPT_ACCOUNT_ID; do");
+      expect(script).toContain("for n in CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY OPENAI_API_KEY CHATGPT_ACCOUNT_ID OPENCODE_API_KEY; do");
       expect(script).toContain("systemctl --user import-environment $have");
       expect(script).toContain("systemctl --user unset-environment $gone");
       expect(script).toContain("--state=active 'bb-host-daemon-*.service'");

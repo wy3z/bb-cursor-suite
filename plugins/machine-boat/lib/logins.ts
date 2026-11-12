@@ -6,11 +6,16 @@ import { SYSTEMCTL_ENV } from "./desktop.ts";
 import { execInSandbox } from "./exec.ts";
 import type { BoatSettings } from "./settings.ts";
 
-export const AGENT_LOGINS = ["claude", "codex"] as const;
-export const LOGIN_VARIABLES = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CHATGPT_ACCOUNT_ID"] as const;
+export const AGENT_LOGINS = ["claude", "codex", "opencode"] as const;
+export const LOGIN_VARIABLES = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CHATGPT_ACCOUNT_ID", "OPENCODE_API_KEY"] as const;
 export const DAEMON_UNITS = "bb-host-daemon-*.service";
 export const AGENT_PROCESSES = ["claude", "codex", "pi", "opencode", "cursor-agent"] as const;
-export const LOGIN_FOR_PROVIDER: Readonly<Record<string, (typeof AGENT_LOGINS)[number]>> = { "claude-code": "claude", codex: "codex" };
+export const LOGIN_FOR_PROVIDER: Readonly<Record<string, (typeof AGENT_LOGINS)[number]>> = {
+  "claude-code": "claude",
+  codex: "codex",
+  "acp-opencode": "opencode",
+  pi: "opencode",
+};
 export const BUSY_AWK = `{ parent[$1] = $2; name[$1] = $3 } END { for (p in parent) { if (name[p] !~ /^(${AGENT_PROCESSES.join("|")})$/) continue; q = parent[p]; n = 0; while ((q in parent) && q != root && q > 1 && n++ < 64) q = parent[q]; if (q == root) { print "busy"; exit } } }`;
 const FOUND_MS = 5 * 60_000;
 const ENVIRONMENTS_MS = 60_000;
@@ -82,16 +87,20 @@ export const LOGIN_PROBE = [
   ...DAEMON_PIDS,
   'c=""',
   'x=""',
+  'o=""',
   '[ -s "$HOME/.claude/.credentials.json" ] && c=1',
   '[ -s "$HOME/.codex/auth.json" ] && x=1',
+  '[ -s "$HOME/.local/share/opencode/auth.json" ] && o=1',
   "for p in $(daemon_pids | sort -u); do",
   '  [ "$p" = 0 ] && continue',
   '  [ "$p" = "$$" ] && continue',
   '  [ -r "/proc/$p/environ" ] || continue',
   "  tr '\\0' '\\n' < \"/proc/$p/environ\" 2>/dev/null | grep -Eq '^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=.' && c=1",
+  "  tr '\\0' '\\n' < \"/proc/$p/environ\" 2>/dev/null | grep -Eq '^OPENCODE_API_KEY=.' && o=1",
   "done",
   '[ -n "$c" ] && echo login:claude',
   '[ -n "$x" ] && echo login:codex',
+  '[ -n "$o" ] && echo login:opencode',
   "exit 0",
 ].join("\n");
 
