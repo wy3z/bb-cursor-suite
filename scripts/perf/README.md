@@ -9,6 +9,7 @@ Measures BB thread-open and cold-load performance for the stock app and for an a
 - `seed-fixture.mjs` — builds the fake project, 100 tasks, and 30 threads, then stores a pristine `cp -a` snapshot.
 - `run-arm.mjs` — one measured run for one arm.
 - `drive.mjs` — interleaves arms, writes `results/<arm>/<run>.json`, and writes `results/summary.json` plus `results/summary.md`.
+- `profile-open.mjs` — CPU-profiles one thread open and writes top self-time functions with their script URL and plugin or BB-core owner.
 
 ## Setup
 
