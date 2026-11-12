@@ -152,6 +152,7 @@ function seedRepo(definition) {
   git(repo, ["commit", "-qm", "fixture"]);
   git(repo, ["init", "--bare", "-q", bare]);
   git(repo, ["remote", "add", "origin", `https://github.com/${definition.gitSlug}.git`]);
+  git(repo, ["remote", "add", "github", `ssh://git@github.com/${definition.gitSlug}.git`]);
   const repoPrs = prs.filter((pr) => pr.repo === definition.gitSlug);
   for (const pr of repoPrs) {
     createPrBranch(repo, pr);
@@ -245,6 +246,9 @@ function prepareEnvironments(dbPath) {
   const db = new DatabaseSync(dbPath);
   const host = db.prepare("select id from hosts order by created_at limit 1").get();
   if (!host) throw new Error("Fixture host missing from database");
+  for (const definition of projectDefs) {
+    db.prepare("update projects set git_remote_url = ? where name = ?").run(`https://github.com/${definition.gitSlug}.git`, definition.projectName);
+  }
   const byName = new Map(projectDefs.map((definition) => [definition.projectName, definition]));
   const measured = [];
   for (let i = 0; i < 5; i++) {
