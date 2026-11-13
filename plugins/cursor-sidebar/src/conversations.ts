@@ -143,3 +143,35 @@ export function pageGroupRows(
     hiddenConversations: Math.max(0, rootOrder.length - keepRoots.size),
   };
 }
+
+/**
+ * Page a lead's descendants like any group: a child and its subtree count as
+ * one conversation, active, waiting, pinned or selected ones always show, and
+ * up to `limit` inactive ones follow in display order.
+ */
+export function pageLeadChildren<T extends { row: DisplayRow }>(
+  items: readonly T[],
+  options: ConversationPlanOptions,
+): { shown: T[]; hiddenConversations: number } {
+  if (items.length === 0) return { shown: [], hiddenConversations: 0 };
+  const topDepth = Math.min(...items.map((item) => item.row.depth));
+  const chunks: T[][] = [];
+  for (const item of items) {
+    if (item.row.depth === topDepth || chunks.length === 0) chunks.push([item]);
+    else chunks[chunks.length - 1]!.push(item);
+  }
+  const isActive = (chunk: T[]): boolean =>
+    chunk.some(({ row: { thread } }) =>
+      isWorking(thread) || needsAttention(thread) || thread.isPinned || thread.id === options.activeThreadId);
+  let inactiveShown = 0;
+  let hiddenConversations = 0;
+  const shown: T[] = [];
+  for (const chunk of chunks) {
+    if (isActive(chunk)) shown.push(...chunk);
+    else if (inactiveShown < options.limit) {
+      inactiveShown += 1;
+      shown.push(...chunk);
+    } else hiddenConversations += 1;
+  }
+  return { shown, hiddenConversations };
+}

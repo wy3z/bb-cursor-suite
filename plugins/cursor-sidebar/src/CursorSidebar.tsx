@@ -56,7 +56,7 @@ import {
   type ThreadStatusKind,
 } from "./status";
 import { pinAllowed, planPinWrites } from "./pin-scope";
-import { planConversations } from "./conversations";
+import { pageLeadChildren, planConversations } from "./conversations";
 import { useWorkspaces } from "./useWorkspaces";
 import { useWorkspaceNesting } from "./workspace-tabs";
 import { usePrimaryHost } from "./usePrimaryHost";
@@ -1610,7 +1610,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
                         {(projectBoardRows.get(board.id) ?? []).length > 0 ? (
                           <Drawer open={board.leadThreadId !== null && !topGroupCollapsed.ids.has(`manager:${board.leadThreadId}`)}>
                             <div className="cs-board-family">
-                              <PinnedList items={projectBoardRows.get(board.id) ?? []} ctx={ctx} />
+                              <LeadChildren items={projectBoardRows.get(board.id) ?? []} ctx={ctx} />
                             </div>
                           </Drawer>
                         ) : null}
@@ -1914,6 +1914,30 @@ function ProjectArchiveButton({ lead, name }: { lead: PluginSidebarThread; name:
     >
       <Icon name="Archive" className="size-3.5" aria-hidden="true" />
     </button>
+  );
+}
+
+function LeadChildren({ items, ctx }: { items: readonly LiftedPin[]; ctx: TreeContext }) {
+  const pageSize = threadsPerGroupPage(ctx.view.threadsPerGroup);
+  const [limit, setLimit] = useState(pageSize);
+  const [lastPageSize, setLastPageSize] = useState(pageSize);
+  if (lastPageSize !== pageSize) {
+    setLastPageSize(pageSize);
+    setLimit(pageSize);
+  }
+  const page = useMemo(
+    () => pageLeadChildren(items, { activeThreadId: ctx.activeThreadId, limit }),
+    [ctx.activeThreadId, items, limit],
+  );
+  return (
+    <>
+      <PinnedList items={page.shown} ctx={ctx} />
+      <ShowMoreButton
+        hiddenConversations={page.hiddenConversations}
+        pageSize={pageSize}
+        onShowMore={() => setLimit((current) => current + pageSize)}
+      />
+    </>
   );
 }
 
