@@ -245,3 +245,23 @@ test("a hostless root keeps its family Local even with a cloud child", () => {
   assert.deepEqual(result.options, ["machine:local"]);
   assert.deepEqual(result.cloudOnly, []);
 });
+
+for (const order of ["updated", "status"] as const) {
+  test(`${order} order puts a lead's active children first, then the latest activity`, () => {
+    const members = [
+      thread("lead", "p", 100),
+      thread("idle-old", "p", 10, { parentThreadId: "lead" }),
+      thread("idle-new", "p", 50, { parentThreadId: "lead" }),
+      thread("working-old", "p", 5, { parentThreadId: "lead", indicator: "runtime" }),
+      thread("waiting", "p", 20, { parentThreadId: "lead", hasPendingInteraction: true }),
+    ];
+    const parentOf = (id: string) => members.find((entry) => entry.id === id)?.parentThreadId ?? null;
+    const familyFacts = ordinaryFamilyFacts(members, { parentOf, statusOf: ordinaryThreadStatus });
+    const homes = buildSections(members, [{ id: "p", name: "P" }],
+      () => "active", () => ({ compare: familyAwareComparator(order, familyFacts) }));
+    assert.deepEqual(
+      flattenShelf(homes[0]!, "active").map((row) => row.thread.id),
+      ["lead", "waiting", "working-old", "idle-new", "idle-old"],
+    );
+  });
+}
