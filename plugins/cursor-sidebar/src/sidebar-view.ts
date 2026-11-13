@@ -338,6 +338,11 @@ function ordinaryStatusFilterKind(kind: ThreadStatusKind): ThreadStatusKind {
   }
 }
 
+function isActiveThread(thread: PluginSidebarThread): boolean {
+  const status = resolveThreadStatus(threadStatusFacts(thread));
+  return status === "working" || status === "input";
+}
+
 function ordinaryStatusRank(thread: PluginSidebarThread): number {
   return THREAD_STATUS_RANK[resolveThreadStatus(threadStatusFacts(thread))];
 }
@@ -523,16 +528,23 @@ export function familyAwareComparator(
   order: ViewConversationOrder,
   facts: OrdinaryFamilyFacts,
 ): (left: PluginSidebarThread, right: PluginSidebarThread) => number {
+  const rootOf = (thread: PluginSidebarThread): string => facts.rootOf.get(thread.id) ?? thread.id;
   const aggregateOf = (thread: PluginSidebarThread): FamilyAggregate | undefined =>
-    facts.aggregateOf.get(facts.rootOf.get(thread.id) ?? thread.id);
+    facts.aggregateOf.get(rootOf(thread));
+  const sameFamily = (left: PluginSidebarThread, right: PluginSidebarThread): number =>
+    Number(isActiveThread(right)) - Number(isActiveThread(left)) ||
+    right.updatedAt - left.updatedAt ||
+    left.id.localeCompare(right.id);
   if (order === "updated") {
     return (left, right) => {
+      if (rootOf(left) === rootOf(right)) return sameFamily(left, right);
       const leftAt = aggregateOf(left)?.latestUpdatedAt ?? left.updatedAt;
       const rightAt = aggregateOf(right)?.latestUpdatedAt ?? right.updatedAt;
       return rightAt - leftAt || left.id.localeCompare(right.id);
     };
   }
   return (left, right) => {
+    if (rootOf(left) === rootOf(right)) return sameFamily(left, right);
     const leftAggregate = aggregateOf(left);
     const rightAggregate = aggregateOf(right);
     const leftRank = leftAggregate
