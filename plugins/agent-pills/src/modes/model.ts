@@ -19,7 +19,7 @@ export type ModeTransition =
 
 export function sameMode(left: ModeRef | null, right: ModeRef | null): boolean {
   if (left === null || right === null) return left === right;
-  return left.skillId === right.skillId;
+  return left.skillId === right.skillId || left.label === right.label;
 }
 
 export function transitionOf({ committed, draft }: ModeState): ModeTransition {
@@ -27,16 +27,6 @@ export function transitionOf({ committed, draft }: ModeState): ModeTransition {
   if (committed === null) return { kind: "enter", mode: draft };
   if (sameMode(committed, draft)) return { kind: "maintain", mode: draft };
   return { kind: "switch", exited: committed, mode: draft };
-}
-
-export function committedAfter(transition: ModeTransition): ModeRef | null {
-  switch (transition.kind) {
-    case "none":
-    case "exit":
-      return null;
-    default:
-      return transition.mode;
-  }
 }
 
 export function skillPathPhrase(path: string | null): string | null {
@@ -104,18 +94,22 @@ export function cycleMode(options: readonly ModeRef[], current: ModeRef | null, 
 }
 
 export interface ModeMention {
-  transition: Exclude<ModeTransition, { kind: "none" }>;
+  dest: ModeRef | null;
+  leaving: ModeRef | null;
+  threadId: string | null;
   projectId: string;
   environmentId: string | null;
+  nonce: string;
 }
 
 interface WireMention {
-  v: 1;
-  k: ModeMention["transition"]["kind"];
-  m?: [string, string];
-  x?: [string, string];
+  v: 2;
+  d: [string, string] | null;
+  x: [string, string] | null;
+  t: string | null;
   p: string;
   e: string | null;
+  n: string;
 }
 
 function toBase64Url(text: string): string {
@@ -132,12 +126,25 @@ function fromBase64Url(text: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+function pairOf(ref: ModeRef | null): [string, string] | null {
+  return ref === null ? null : [ref.skillId, ref.label];
+}
+
 export function encodeModeMention(mention: ModeMention): string {
-  const { transition } = mention;
-  const wire: WireMention = { v: 1, k: transition.kind, p: mention.projectId, e: mention.environmentId };
-  if (transition.kind !== "exit") wire.m = [transition.mode.skillId, transition.mode.label];
-  if (transition.kind === "exit" || transition.kind === "switch") wire.x = [transition.exited.skillId, transition.exited.label];
+  const wire: WireMention = {
+    v: 2,
+    d: pairOf(mention.dest),
+    x: pairOf(mention.leaving),
+    t: mention.threadId,
+    p: mention.projectId,
+    e: mention.environmentId,
+    n: mention.nonce,
+  };
   return toBase64Url(JSON.stringify(wire));
+}
+
+export function modeItemId(tone: string, mention: ModeMention): string {
+  return `${tone}.${encodeModeMention(mention)}`;
 }
 
 function refOf(pair: unknown): ModeRef | null {
@@ -145,10 +152,6 @@ function refOf(pair: unknown): ModeRef | null {
   const [skillId, label] = pair as unknown[];
   if (typeof skillId !== "string" || typeof label !== "string" || skillId.length === 0 || label.length === 0) return null;
   return { skillId, label };
-}
-
-export function modeItemId(tone: string, mention: ModeMention): string {
-  return `${tone}.${encodeModeMention(mention)}`;
 }
 
 export function decodeModeMention(itemId: string): ModeMention | null {
@@ -159,27 +162,35 @@ export function decodeModeMention(itemId: string): ModeMention | null {
   } catch {
     return null;
   }
-  if (wire === null || typeof wire !== "object" || wire.v !== 1 || typeof wire.p !== "string") return null;
-  const environmentId = typeof wire.e === "string" ? wire.e : null;
-  const mode = refOf(wire.m);
-  const exited = refOf(wire.x);
-  const base = { projectId: wire.p, environmentId };
-  switch (wire.k) {
-    case "enter":
-      return mode ? { ...base, transition: { kind: "enter", mode } } : null;
-    case "maintain":
-      return mode ? { ...base, transition: { kind: "maintain", mode } } : null;
-    case "exit":
-      return exited ? { ...base, transition: { kind: "exit", exited } } : null;
-    case "switch":
-      return mode && exited ? { ...base, transition: { kind: "switch", exited, mode } } : null;
-    default:
+  if (wire === null || typeof wire !== "object" || wire.v !== 2) return null;
+  if (typeof wire.p !== "string" || typeof wire.n !== "string" || wire.n.length === 0) return null;
+  const dest = wire.d === null ? null : refOf(wire.d);
+  if (wire.d !== null && dest === null) return null;
+  return {
+    dest,
+    leaving: refOf(wire.x),
+    threadId: typeof wire.t === "string" ? wire.t : null,
+    projectId: wire.p,
+    environmentId: typeof wire.e === "string" ? wire.e : null,
+    nonce: wire.n,
+  };
+}
+
+export function pillLabel(transition: ModeTransition): string | null {
+  switch (transition.kind) {
+    case "none":
       return null;
+    case "exit":
+      return `Exit ${transition.exited.label}`;
+    default:
+      return transition.mode.label;
   }
 }
 
-export function mentionLabel(transition: ModeMention["transition"]): string {
-  return transition.kind === "exit" ? `Exit ${transition.exited.label}` : transition.mode.label;
+export function newNonce(): string {
+  const bytes = new Uint8Array(9);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export interface SkillFrontmatter {
@@ -187,6 +198,7 @@ export interface SkillFrontmatter {
   description: string | null;
   icon: string | null;
   color: string | null;
+  mode: boolean;
 }
 
 function unquote(value: string): string {
@@ -200,7 +212,7 @@ function unquote(value: string): string {
 }
 
 export function splitSkill(content: string): { frontmatter: SkillFrontmatter; body: string } {
-  const empty: SkillFrontmatter = { name: null, description: null, icon: null, color: null };
+  const empty: SkillFrontmatter = { name: null, description: null, icon: null, color: null, mode: false };
   const normalized = content.replace(/^﻿/, "").replace(/\r\n/g, "\n");
   const match = /^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/.exec(normalized);
   if (!match) return { frontmatter: empty, body: normalized.trim() };
@@ -212,6 +224,7 @@ export function splitSkill(content: string): { frontmatter: SkillFrontmatter; bo
     const value = unquote(pair[2]!);
     if (value.length === 0 || value === "|" || value === ">") continue;
     if (key === "name" || key === "description" || key === "icon" || key === "color") frontmatter[key] = value;
+    if (key === "mode") frontmatter.mode = /^(?:true|yes|on)$/i.test(value);
   }
   return { frontmatter, body: normalized.slice(match[0].length).trim() };
 }
@@ -223,4 +236,24 @@ export const DEFAULT_MODE_ICON = "lightning";
 export function modeColorOf(value: string | null | undefined): ModeColor {
   const wanted = value?.trim().toLowerCase() ?? "";
   return (MODE_COLORS as readonly string[]).includes(wanted) ? (wanted as ModeColor) : "default";
+}
+
+export const TITLE_MAX_LENGTH = 80;
+
+export function ownWords(text: string, label: string): string | null {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (!collapsed.startsWith(`${label} `)) return null;
+  const rest = collapsed.slice(label.length + 1).trim();
+  if (rest.length === 0) return null;
+  return rest.length > TITLE_MAX_LENGTH ? `${rest.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…` : rest;
+}
+
+export function fixedTitle(thread: { title: string | null; titleFallback: string | null }, label: string, own: string): string | null {
+  const prefix = `${label} `;
+  if (thread.title === null || thread.title.trim().length === 0) {
+    return thread.titleFallback?.startsWith(prefix) ? own : null;
+  }
+  if (!thread.title.startsWith(prefix)) return null;
+  const stripped = thread.title.slice(prefix.length).trim();
+  return stripped.length > 0 ? stripped : null;
 }

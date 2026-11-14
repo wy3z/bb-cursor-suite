@@ -16,17 +16,19 @@ const modeOptionSchema = modeRefSchema.extend({
   icon: z.string(),
   color: z.enum(MODE_COLORS),
   styled: z.boolean(),
+  mode: z.boolean(),
 });
 
 export type ModeOption = z.infer<typeof modeOptionSchema>;
 
-const storedModeStateSchema = z.object({
+const threadModeStateSchema = z.object({
   committed: modeRefSchema.nullable(),
   draft: modeRefSchema.nullable(),
+  rev: z.number().int().min(0),
   notice: z.string().nullable(),
 });
 
-export type StoredModeState = z.infer<typeof storedModeStateSchema>;
+export type ThreadModeState = z.infer<typeof threadModeStateSchema>;
 
 export const modeRpcMethods = {
   listModes: {
@@ -34,21 +36,22 @@ export const modeRpcMethods = {
       projectId: idSchema,
       environmentId: idSchema.nullable(),
       providerId: idSchema.nullable(),
+      excludeUserSkills: z.boolean().default(false),
     }),
     output: z.object({ modes: z.array(modeOptionSchema) }),
   },
   threadMode: {
     input: z.object({ threadId: idSchema }),
     output: z.object({
-      state: storedModeStateSchema,
+      state: threadModeStateSchema,
       projectId: z.string().nullable(),
       environmentId: z.string().nullable(),
       providerId: z.string().nullable(),
     }),
   },
   setThreadMode: {
-    input: z.object({ threadId: idSchema, mode: modeRefSchema.nullable() }),
-    output: z.object({ state: storedModeStateSchema }),
+    input: z.object({ threadId: idSchema, mode: modeRefSchema.nullable(), rev: z.number().int().min(0) }),
+    output: z.object({ ok: z.boolean(), state: threadModeStateSchema }),
   },
   clearModeNotice: {
     input: z.object({ threadId: idSchema }),

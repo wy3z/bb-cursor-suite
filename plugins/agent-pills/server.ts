@@ -20,10 +20,17 @@ import {
   type ThreadState,
 } from "./src/rpc";
 import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
-import { MODE_MENTION_PROVIDER, createModeService, modeDepsFrom } from "./src/modes/service";
+import { MODE_MENTION_PROVIDER, createModeService, createTitleFixer, modeDepsFrom } from "./src/modes/service";
 
 export default function plugin(bb: BbPluginApi) {
   const modes = createModeService(modeDepsFrom(bb));
+  const titles = createTitleFixer({
+    getThread: (threadId) => bb.sdk.threads.get({ threadId }),
+    setTitle: async (threadId, title) => {
+      await bb.sdk.threads.update({ threadId, title });
+    },
+    log: { info: (message) => bb.log.info(message), warn: (message) => bb.log.warn(message) },
+  });
 
   bb.rpc.register(agentPillsRpcContract, {
     async threadActivity({ threadId, childThreadIds }) {
@@ -92,7 +99,7 @@ export default function plugin(bb: BbPluginApi) {
         providerId: thread?.providerId ?? null,
       };
     },
-    setThreadMode: async ({ threadId, mode }) => ({ state: await modes.setDraft(threadId, mode) }),
+    setThreadMode: ({ threadId, mode, rev }) => modes.setDraft(threadId, mode, rev),
     clearModeNotice: async ({ threadId }) => {
       await modes.clearNotice(threadId);
       return { ok: true };
@@ -110,7 +117,9 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.experimental_hooks.on("message.dispatch", async (context) => {
     try {
-      await modes.commitDispatch(context.thread.id, context.input.blocks);
+      await modes.admit(context.thread.id, context.input.blocks);
+      const fix = modes.titleFixFor(context.thread, context.input.blocks);
+      if (fix) titles.track(fix);
     } catch (cause) {
       bb.log.warn(`Could not record the thread's mode: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
@@ -119,6 +128,7 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.events.on("experimental_thread.events", ({ thread }) => {
     publish(bb, thread.id);
+    void modes.observe(thread.id).catch(() => undefined);
   });
   // Queue rows change without a timeline event: a message can be queued,
   // cancelled or dispatched while nothing else about the thread moves.
@@ -126,6 +136,8 @@ export default function plugin(bb: BbPluginApi) {
   bb.events.on("message.cancelled", ({ entry }) => publish(bb, entry.threadId));
   bb.events.on("message.dispatched", ({ entry }) => publish(bb, entry.threadId));
   bb.events.on("thread.archived", ({ thread }) => publish(bb, thread.id));
+  bb.events.on("thread.idle", ({ thread }) => titles.apply(thread.id));
+  bb.events.on("thread.failed", ({ thread }) => titles.apply(thread.id));
   bb.events.on("thread.unarchived", ({ thread }) => publish(bb, thread.id));
 }
 

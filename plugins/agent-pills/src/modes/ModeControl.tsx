@@ -6,24 +6,26 @@ import {
   useComposer,
   useRealtime,
   useRpc,
+  useSdk,
 } from "@get-bb/plugin-sdk/app";
 import { ProjectIconGlyph } from "@wy3z/bb-suite/project-icon/picker";
 import { projectIconColorClass } from "@wy3z/bb-suite/project-icon";
 import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import { agentPillsRpcContract } from "../rpc";
-import type { ModeOption, StoredModeState } from "./rpc";
+import type { ModeOption, ThreadModeState } from "./rpc";
 import {
   DEFAULT_MODE_ICON,
   cycleMode,
-  mentionLabel,
   modeItemId,
+  newNonce,
+  pillLabel,
   sameMode,
   transitionOf,
   type ModeRef,
   type ModeTransition,
 } from "./model";
 import { syncModePill, type ModePill } from "./draft";
-import { MODE_CHANNEL, MODE_MENTION_PROVIDER } from "./channel";
+import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
 import { readNewThreadMode, writeNewThreadMode } from "./new-thread-store";
 import { modeIconName } from "./icons";
 
@@ -36,54 +38,119 @@ interface Workspace {
   projectId: string | null;
   environmentId: string | null;
   providerId: string | null;
+  excludeUserSkills: boolean;
 }
 
+const OPTIONS_STORE_PREFIX = "bb-plugin-agent-pills.modes.v1:";
 const optionsCache = new Map<string, ModeOption[]>();
 
-function useModeOptions(workspace: Workspace): ModeOption[] | null {
-  const rpc = useRpc<typeof agentPillsRpcContract>();
-  const key = workspace.projectId === null ? null : `${workspace.projectId}|${workspace.environmentId ?? ""}|${workspace.providerId ?? ""}`;
-  const [options, setOptions] = useState<ModeOption[] | null>(() => (key === null ? null : (optionsCache.get(key) ?? null)));
+function cachedOptions(key: string): ModeOption[] | null {
+  const memory = optionsCache.get(key);
+  if (memory) return memory;
+  try {
+    const raw = localStorage.getItem(OPTIONS_STORE_PREFIX + key);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(parsed)) return null;
+    const options = parsed.filter(
+      (entry): entry is ModeOption =>
+        entry !== null && typeof entry === "object" && typeof entry.skillId === "string" && typeof entry.label === "string" && typeof entry.icon === "string",
+    );
+    optionsCache.set(key, options);
+    return options;
+  } catch {
+    return null;
+  }
+}
 
-  useEffect(() => {
-    if (key === null || workspace.projectId === null) {
-      setOptions(null);
-      return;
-    }
-    setOptions(optionsCache.get(key) ?? null);
-    let live = true;
+function storeOptions(key: string, options: ModeOption[]): void {
+  optionsCache.set(key, options);
+  try {
+    localStorage.setItem(OPTIONS_STORE_PREFIX + key, JSON.stringify(options));
+  } catch {
+    return;
+  }
+}
+
+function useModeOptions(workspace: Workspace): { options: ModeOption[] | null; refresh: () => void } {
+  const rpc = useRpc<typeof agentPillsRpcContract>();
+  const key =
+    workspace.projectId === null
+      ? null
+      : `${workspace.projectId}|${workspace.environmentId ?? ""}|${workspace.providerId ?? ""}|${workspace.excludeUserSkills ? "remote" : "local"}`;
+  const [options, setOptions] = useState<ModeOption[] | null>(() => (key === null ? null : cachedOptions(key)));
+  const request = useRef(0);
+
+  const refresh = useCallback(() => {
+    if (key === null || workspace.projectId === null) return;
+    const id = ++request.current;
     rpc
       .call("listModes", {
         projectId: workspace.projectId,
         environmentId: workspace.environmentId,
         providerId: workspace.providerId,
+        excludeUserSkills: workspace.excludeUserSkills,
       })
       .then((result) => {
-        optionsCache.set(key, result.modes);
-        if (live) setOptions(result.modes);
+        storeOptions(key, result.modes);
+        if (id === request.current) setOptions(result.modes);
       })
       .catch(() => {
-        if (live) setOptions((current) => current ?? []);
+        if (id === request.current) setOptions((current) => current ?? []);
       });
-    return () => {
-      live = false;
-    };
-  }, [key, rpc, workspace.environmentId, workspace.projectId, workspace.providerId]);
+  }, [key, rpc, workspace.environmentId, workspace.excludeUserSkills, workspace.projectId, workspace.providerId]);
 
-  return options;
+  useEffect(() => {
+    setOptions(key === null ? null : cachedOptions(key));
+    refresh();
+  }, [key, refresh]);
+
+  useRealtime(MODES_CHANNEL, (payload) => {
+    if ((payload as { projectId?: unknown } | null)?.projectId === workspace.projectId) refresh();
+  });
+
+  return { options, refresh };
 }
 
 interface ThreadModeData {
-  state: StoredModeState;
-  workspace: Workspace;
+  state: ThreadModeState;
+  workspace: Omit<Workspace, "excludeUserSkills">;
 }
 
-const EMPTY_STATE: StoredModeState = { committed: null, draft: null, notice: null };
+const THREAD_STORE_PREFIX = "bb-plugin-agent-pills.thread-mode.v1:";
+const EMPTY_STATE: ThreadModeState = { committed: null, draft: null, rev: 0, notice: null };
+
+function cachedThreadMode(threadId: string): ThreadModeData | null {
+  try {
+    const raw = localStorage.getItem(THREAD_STORE_PREFIX + threadId);
+    const parsed = raw ? (JSON.parse(raw) as ThreadModeData) : null;
+    return parsed && typeof parsed.state === "object" && typeof parsed.workspace === "object" ? { ...parsed, state: { ...parsed.state, notice: null } } : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeThreadMode(threadId: string, data: ThreadModeData): void {
+  try {
+    localStorage.setItem(THREAD_STORE_PREFIX + threadId, JSON.stringify(data));
+  } catch {
+    return;
+  }
+}
 
 function useThreadMode(threadId: string | null) {
   const rpc = useRpc<typeof agentPillsRpcContract>();
-  const [data, setData] = useState<ThreadModeData | null>(null);
+  const [data, setData] = useState<ThreadModeData | null>(() => (threadId === null ? null : cachedThreadMode(threadId)));
+  const [hydrated, setHydrated] = useState(false);
   const request = useRef(0);
+
+  const accept = useCallback(
+    (next: ThreadModeData) => {
+      if (threadId !== null) storeThreadMode(threadId, next);
+      setData(next);
+      setHydrated(true);
+    },
+    [threadId],
+  );
 
   const refresh = useCallback(() => {
     if (threadId === null) return;
@@ -92,40 +159,42 @@ function useThreadMode(threadId: string | null) {
       .call("threadMode", { threadId })
       .then((result) => {
         if (id !== request.current) return;
-        setData({
+        accept({
           state: result.state,
           workspace: { projectId: result.projectId, environmentId: result.environmentId, providerId: result.providerId },
         });
       })
       .catch(() => undefined);
-  }, [rpc, threadId]);
+  }, [accept, rpc, threadId]);
 
   useEffect(() => {
-    setData(null);
+    setData(threadId === null ? null : cachedThreadMode(threadId));
+    setHydrated(false);
     refresh();
-  }, [refresh]);
+  }, [refresh, threadId]);
 
   useRealtime(MODE_CHANNEL, (payload) => {
     if ((payload as { threadId?: unknown } | null)?.threadId === threadId) refresh();
   });
 
+  const latest = useRef(data);
+  latest.current = data;
+
   const setDraft = useCallback(
     (mode: ModeRef | null) => {
-      if (threadId === null) return;
-      request.current += 1;
-      setData((current) => (current ? { ...current, state: { ...current.state, draft: mode } } : current));
+      const current = latest.current;
+      if (threadId === null || current === null) return;
+      const id = ++request.current;
+      setData({ ...current, state: { ...current.state, draft: mode } });
       rpc
-        .call("setThreadMode", { threadId, mode })
-        .then((result) => setData((current) => (current ? { ...current, state: result.state } : current)))
+        .call("setThreadMode", { threadId, mode, rev: current.state.rev })
+        .then((result) => {
+          if (id === request.current) accept({ ...current, state: result.state });
+        })
         .catch(() => refresh());
     },
-    [refresh, rpc, threadId],
+    [accept, refresh, rpc, threadId],
   );
-
-  const markSent = useCallback((committed: ModeRef | null) => {
-    request.current += 1;
-    setData((current) => (current ? { ...current, state: { ...current.state, committed } } : current));
-  }, []);
 
   const clearNotice = useCallback(() => {
     if (threadId === null) return;
@@ -133,13 +202,55 @@ function useThreadMode(threadId: string | null) {
     rpc.call("clearModeNotice", { threadId }).catch(() => undefined);
   }, [rpc, threadId]);
 
-  return useMemo(() => ({ data, setDraft, markSent, clearNotice }), [clearNotice, data, markSent, setDraft]);
+  return useMemo(() => ({ data, hydrated, setDraft, clearNotice, refresh }), [clearNotice, data, hydrated, refresh, setDraft]);
 }
 
-function environmentIdOf(environment: unknown): string | null {
-  if (environment === null || typeof environment !== "object") return null;
-  const value = environment as { type?: unknown; environmentId?: unknown };
-  return value.type === "existing" && typeof value.environmentId === "string" ? value.environmentId : null;
+interface EnvironmentTarget {
+  environmentId: string | null;
+  hostId: string | null;
+  newMachine: boolean;
+}
+
+export function environmentTargetOf(environment: unknown): EnvironmentTarget {
+  const none: EnvironmentTarget = { environmentId: null, hostId: null, newMachine: false };
+  if (environment === null || typeof environment !== "object") return none;
+  const value = environment as {
+    type?: unknown;
+    environmentId?: unknown;
+    hostId?: unknown;
+    machine?: { type?: unknown; hostId?: unknown };
+  };
+  if (value.type === "reuse" && typeof value.environmentId === "string") return { ...none, environmentId: value.environmentId };
+  if (value.type === "host") return { ...none, hostId: typeof value.hostId === "string" ? value.hostId : null };
+  if (value.type === "provider") {
+    if (value.machine?.type === "new") return { ...none, newMachine: true };
+    if (value.machine?.type === "existing" && typeof value.machine.hostId === "string") return { ...none, hostId: value.machine.hostId };
+  }
+  return none;
+}
+
+export function isRemoteTarget(target: EnvironmentTarget, primaryHostId: string | null): boolean {
+  if (target.newMachine) return true;
+  return target.hostId !== null && primaryHostId !== null && target.hostId !== primaryHostId;
+}
+
+function usePrimaryHostId(enabled: boolean): string | null {
+  const sdk = useSdk();
+  const [primary, setPrimary] = useState<string | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    sdk.system
+      .config()
+      .then((config) => {
+        if (live) setPrimary(config.primaryHostId ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [enabled, sdk]);
+  return primary;
 }
 
 export function ModeBadge({ option, label }: { option: Pick<ModeOption, "icon" | "color"> | null; label: string }) {
@@ -165,6 +276,48 @@ function placeMenu(trigger: HTMLElement): { top: number; left: number; maxHeight
   if (below >= 240 || below >= above) return { top: rect.bottom + GAP, left, maxHeight: Math.max(160, below) };
   const height = Math.min(above, 420);
   return { top: Math.max(8, rect.top - GAP - height), left, maxHeight: height };
+}
+
+function OptionGroup({
+  title,
+  options,
+  selected,
+  choose,
+}: {
+  title: string;
+  options: ModeOption[];
+  selected: ModeRef | null;
+  choose: (mode: ModeRef | null) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <div className="bb-agent-pills-env__section" role="group" aria-label={title}>
+      <div className="bb-agent-pills-env__section-title" aria-hidden="true">{title}</div>
+      {options.map((option) => {
+        const on = sameMode(selected, option);
+        return (
+          <button
+            key={option.skillId}
+            type="button"
+            role="menuitemradio"
+            aria-checked={on}
+            title={option.path}
+            className="bb-agent-pills-env__item"
+            onClick={() => choose({ skillId: option.skillId, label: option.label })}
+          >
+            <span className="bb-agent-pills-env__icon" aria-hidden="true">
+              <ProjectIconGlyph name={option.icon} className={`bb-agent-pills-mode__svg ${projectIconColorClass(option.color)}`} />
+            </span>
+            <span className="bb-agent-pills-env__text">
+              <span className="bb-agent-pills-env__label">{option.label}</span>
+              {option.description ? <span className="bb-agent-pills-env__description">{option.description}</span> : null}
+            </span>
+            <span className="bb-agent-pills-env__check" aria-hidden="true">{on ? <Icon name="Check" /> : null}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function ModeMenu({
@@ -239,36 +392,12 @@ export function ModeMenu({
             </button>
           ) : null}
         </div>
-        <div className="bb-agent-pills-env__section" role="group" aria-label="Skills">
-          <div className="bb-agent-pills-env__section-title" aria-hidden="true">Skills</div>
-          {options === null ? <div className="bb-agent-pills-mode__empty">Loading skills…</div> : null}
-          {options !== null && shown.length === 0 ? (
-            <div className="bb-agent-pills-mode__empty">{query ? "No matching skills" : "No skills in this thread"}</div>
-          ) : null}
-          {shown.map((option) => {
-            const on = sameMode(selected, option);
-            return (
-              <button
-                key={option.skillId}
-                type="button"
-                role="menuitemradio"
-                aria-checked={on}
-                title={option.path}
-                className="bb-agent-pills-env__item"
-                onClick={() => choose({ skillId: option.skillId, label: option.label })}
-              >
-                <span className="bb-agent-pills-env__icon" aria-hidden="true">
-                  <ProjectIconGlyph name={option.icon} className={`bb-agent-pills-mode__svg ${projectIconColorClass(option.color)}`} />
-                </span>
-                <span className="bb-agent-pills-env__text">
-                  <span className="bb-agent-pills-env__label">{option.label}</span>
-                  {option.description ? <span className="bb-agent-pills-env__description">{option.description}</span> : null}
-                </span>
-                <span className="bb-agent-pills-env__check" aria-hidden="true">{on ? <Icon name="Check" /> : null}</span>
-              </button>
-            );
-          })}
-        </div>
+        {options === null ? <div className="bb-agent-pills-mode__empty">Loading skills…</div> : null}
+        {options !== null && shown.length === 0 ? (
+          <div className="bb-agent-pills-mode__empty">{query ? "No matching skills" : "No skills in this thread"}</div>
+        ) : null}
+        <OptionGroup title="Modes" options={shown.filter((option) => option.mode)} selected={selected} choose={choose} />
+        <OptionGroup title="Skills" options={shown.filter((option) => !option.mode)} selected={selected} choose={choose} />
       </div>
     </div>
   );
@@ -298,7 +427,7 @@ export function ModeTrigger({
       aria-label={active ? `Mode: ${active.label}` : "Mode: none"}
       aria-haspopup="menu"
       aria-expanded={open}
-      title={active ? `${active.label} mode (Shift+Tab to cycle)` : "Choose a mode (Shift+Tab to cycle)"}
+      title={active ? `${active.label} mode (Shift+Tab cycles modes)` : "Choose a mode (Shift+Tab cycles modes)"}
       onClick={onToggle}
       onKeyDown={(event) => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -329,7 +458,7 @@ function ModeToast({ message, onDone }: { message: string; onDone: () => void })
   );
 }
 
-function useShiftTab(anchor: HTMLElement | null, cycle: () => void) {
+function useShiftTab(anchor: HTMLElement | null, cycle: () => boolean) {
   const latest = useRef(cycle);
   latest.current = cycle;
   useEffect(() => {
@@ -339,9 +468,9 @@ function useShiftTab(anchor: HTMLElement | null, cycle: () => void) {
       if (event.key !== "Tab" || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
       const target = event.target as HTMLElement | null;
       if (!target?.isContentEditable && target?.tagName !== "TEXTAREA") return;
+      if (!latest.current()) return;
       event.preventDefault();
       event.stopPropagation();
-      latest.current();
     };
     root.addEventListener("keydown", onKey, true);
     return () => root.removeEventListener("keydown", onKey, true);
@@ -362,19 +491,24 @@ export function ModeAction() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
+  const target = useMemo(() => environmentTargetOf(composer.selection?.environment), [composer.selection?.environment]);
+  const primaryHostId = usePrimaryHostId(scope.kind === "new-thread" && (target.hostId !== null || target.newMachine));
   const workspace: Workspace = useMemo(() => {
     if (scope.kind === "new-thread") {
       return {
         projectId: scope.projectId,
-        environmentId: environmentIdOf(composer.selection?.environment),
+        environmentId: target.environmentId,
         providerId: composer.selection?.providerId ?? null,
+        excludeUserSkills: isRemoteTarget(target, primaryHostId),
       };
     }
-    return thread.data?.workspace ?? { projectId: null, environmentId: null, providerId: null };
-  }, [composer.selection?.environment, composer.selection?.providerId, scope, thread.data?.workspace]);
+    const known = thread.data?.workspace ?? { projectId: null, environmentId: null, providerId: null };
+    return { ...known, excludeUserSkills: false };
+  }, [composer.selection?.providerId, primaryHostId, scope, target, thread.data?.workspace]);
 
-  const options = useModeOptions(workspace);
-  const state = scope.kind === "new-thread" ? { committed: null, draft: newThreadDraft, notice: null } : (thread.data?.state ?? EMPTY_STATE);
+  const { options, refresh: refreshOptions } = useModeOptions(workspace);
+  const state: ThreadModeState =
+    scope.kind === "new-thread" ? { committed: null, draft: newThreadDraft, rev: 0, notice: null } : (thread.data?.state ?? EMPTY_STATE);
   const transition: ModeTransition = transitionOf(state);
   const active = state.draft;
   const activeOption = active ? (options?.find((option) => option.skillId === active.skillId) ?? null) : null;
@@ -391,41 +525,53 @@ export function ModeAction() {
     [composer.key, scope.kind, thread],
   );
 
-  const ready = scope.kind === "new-thread" || thread.data !== null;
+  const known = scope.kind === "new-thread" || thread.data !== null;
+  const [nonce, setNonce] = useState(newNonce);
   const shown = transition.kind === "exit" ? transition.exited : transition.kind === "none" ? null : transition.mode;
   const shownOption = shown ? (options?.find((option) => option.skillId === shown.skillId) ?? null) : null;
   const tone = transition.kind === "exit" ? "exit" : (shownOption?.color ?? "default");
   const pillIcon = modeIconName(shownOption?.icon ?? DEFAULT_MODE_ICON);
+  const label = pillLabel(transition);
   const pill: ModePill | null = useMemo(() => {
-    if (!ready || transition.kind === "none" || workspace.projectId === null) return null;
+    if (!known || label === null || workspace.projectId === null) return null;
     return {
       pluginId,
       provider: MODE_MENTION_PROVIDER,
-      id: modeItemId(tone, { transition, projectId: workspace.projectId, environmentId: workspace.environmentId }),
-      label: mentionLabel(transition),
+      id: modeItemId(tone, {
+        dest: state.draft,
+        leaving: state.committed,
+        threadId,
+        projectId: workspace.projectId,
+        environmentId: workspace.environmentId,
+        nonce,
+      }),
+      label,
       icon: pillIcon,
     };
-  }, [pillIcon, pluginId, ready, tone, transition, workspace.environmentId, workspace.projectId]);
+  }, [known, label, nonce, pillIcon, pluginId, state.committed, state.draft, threadId, tone, workspace.environmentId, workspace.projectId]);
 
   useEffect(() => {
+    if (!known) return;
     const next = syncModePill(composer.draft, pill, pluginId, MODE_MENTION_PROVIDER);
     if (next !== null) composer.replace(next);
-  }, [composer, composer.draft, pill, pluginId]);
+  }, [composer, composer.draft, known, pill, pluginId]);
 
-  const committedAfterSend = transition.kind === "none" || transition.kind === "exit" ? null : transition.mode;
-  const afterSend = useRef(committedAfterSend);
-  afterSend.current = committedAfterSend;
+  useEffect(() => {
+    if (scope.kind !== "thread") return;
+    composer.setInputLock(!known);
+    return () => composer.setInputLock(false);
+  }, [composer, known, scope.kind]);
+
   useEffect(
     () =>
       composer.onSubmitted(() => {
+        setNonce(newNonce());
         if (scope.kind === "new-thread") {
           setNewThreadDraft(null);
           writeNewThreadMode(composer.key, null);
-        } else {
-          thread.markSent(afterSend.current);
         }
       }),
-    [composer, scope.kind, thread],
+    [composer, scope.kind],
   );
 
   const notice = thread.data?.state.notice ?? null;
@@ -435,10 +581,15 @@ export function ModeAction() {
     thread.clearNotice();
   }, [notice, thread]);
 
+  const ring = useMemo(
+    () => (options ?? []).filter((option) => option.mode).map((option) => ({ skillId: option.skillId, label: option.label })),
+    [options],
+  );
   const cycle = useCallback(() => {
-    const ring = (options ?? []).map((option) => ({ skillId: option.skillId, label: option.label }));
+    if (ring.length === 0 && active === null) return false;
     choose(cycleMode(ring, active));
-  }, [active, choose, options]);
+    return true;
+  }, [active, choose, ring]);
   useShiftTab(anchor, cycle);
 
   const close = useCallback(() => {
@@ -480,8 +631,14 @@ export function ModeAction() {
         option={activeOption}
         open={open}
         triggerRef={triggerRef}
-        onToggle={() => setOpen((value) => !value)}
-        onOpen={() => setOpen(true)}
+        onToggle={() => {
+          if (!open) refreshOptions();
+          setOpen((value) => !value);
+        }}
+        onOpen={() => {
+          refreshOptions();
+          setOpen(true);
+        }}
       />
       {open && position
         ? createPortal(

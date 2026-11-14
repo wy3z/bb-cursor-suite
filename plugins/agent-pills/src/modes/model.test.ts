@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
-  committedAfter,
   cycleMode,
   decodeModeMention,
   encodeModeMention,
   enterText,
   exitText,
+  fixedTitle,
+  ownWords,
   maintainText,
-  mentionLabel,
   missingSkillNotice,
   modeColorOf,
   modeContext,
   modeItemId,
+  pillLabel,
   splitSkill,
   transitionOf,
   type ModeRef,
@@ -43,21 +44,12 @@ describe("transitionOf", () => {
     expect(transitionOf({ committed: reviewer, draft: planner })).toEqual({ kind: "switch", exited: reviewer, mode: planner });
   });
 
-  it("commits the mode a send leaves the thread in", () => {
-    expect(committedAfter({ kind: "enter", mode: reviewer })).toEqual(reviewer);
-    expect(committedAfter({ kind: "maintain", mode: reviewer })).toEqual(reviewer);
-    expect(committedAfter({ kind: "switch", exited: reviewer, mode: planner })).toEqual(planner);
-    expect(committedAfter({ kind: "exit", exited: reviewer })).toBeNull();
-    expect(committedAfter({ kind: "none" })).toBeNull();
-  });
-
   it("walks enter, maintain, exit, then nothing", () => {
     let committed: ModeRef | null = null;
     const kinds: string[] = [];
     for (const draft of [reviewer, reviewer, null, null]) {
-      const transition = transitionOf({ committed, draft });
-      kinds.push(transition.kind);
-      committed = committedAfter(transition);
+      kinds.push(transitionOf({ committed, draft }).kind);
+      committed = draft;
     }
     expect(kinds).toEqual(["enter", "maintain", "exit", "none"]);
   });
@@ -123,28 +115,28 @@ describe("instruction text", () => {
 });
 
 describe("mode mentions", () => {
-  it("round-trips every transition through an item id", () => {
-    const transitions = [
-      { kind: "enter", mode: reviewer },
-      { kind: "maintain", mode: reviewer },
-      { kind: "exit", exited: reviewer },
-      { kind: "switch", exited: planner, mode: { skillId: "skill_ü", label: "Révision" } },
-    ] as const;
-    for (const transition of transitions) {
-      const mention = { transition, projectId: "proj_1", environmentId: null };
+  it("round-trips a destination, the mode being left, the thread and a nonce", () => {
+    const mentions = [
+      { dest: reviewer, leaving: null, threadId: "thr_1", projectId: "proj_1", environmentId: null, nonce: "n1" },
+      { dest: null, leaving: reviewer, threadId: null, projectId: "proj_1", environmentId: "env_1", nonce: "n2" },
+      { dest: { skillId: "skill_ü", label: "Révision" }, leaving: planner, threadId: "thr_1", projectId: "p", environmentId: null, nonce: "n3" },
+    ];
+    for (const mention of mentions) {
       expect(decodeModeMention(encodeModeMention(mention))).toEqual(mention);
       expect(decodeModeMention(modeItemId("purple", mention))).toEqual(mention);
     }
   });
 
-  it("rejects ids it did not write", () => {
+  it("rejects ids it did not write, including the first wire version", () => {
     expect(decodeModeMention("not-a-mode")).toBeNull();
-    expect(decodeModeMention(btoa(JSON.stringify({ v: 1, k: "enter", p: "proj_1" })))).toBeNull();
+    expect(decodeModeMention(btoa(JSON.stringify({ v: 1, k: "enter", p: "proj_1", m: ["a", "b"] })))).toBeNull();
+    expect(decodeModeMention(btoa(JSON.stringify({ v: 2, d: null, x: null, t: null, p: "p", e: null, n: "" })))).toBeNull();
   });
 
-  it("labels exit pills", () => {
-    expect(mentionLabel({ kind: "exit", exited: reviewer })).toBe("Exit reviewer");
-    expect(mentionLabel({ kind: "switch", exited: planner, mode: reviewer })).toBe("reviewer");
+  it("labels pills from the transition the composer expects", () => {
+    expect(pillLabel({ kind: "exit", exited: reviewer })).toBe("Exit reviewer");
+    expect(pillLabel({ kind: "switch", exited: planner, mode: reviewer })).toBe("reviewer");
+    expect(pillLabel({ kind: "none" })).toBeNull();
   });
 });
 
@@ -161,7 +153,7 @@ describe("cycleMode", () => {
 describe("splitSkill", () => {
   it("reads icon and color from frontmatter and trims the body", () => {
     const parsed = splitSkill('---\nname: reviewer\ndescription: "Careful reviews"\nicon: eye\ncolor: purple\n---\n\n# Reviewer\n\nRules.\n');
-    expect(parsed.frontmatter).toEqual({ name: "reviewer", description: "Careful reviews", icon: "eye", color: "purple" });
+    expect(parsed.frontmatter).toEqual({ name: "reviewer", description: "Careful reviews", icon: "eye", color: "purple", mode: false });
     expect(parsed.body).toBe("# Reviewer\n\nRules.");
   });
 
@@ -173,5 +165,30 @@ describe("splitSkill", () => {
     expect(modeColorOf("Purple")).toBe("purple");
     expect(modeColorOf("teal")).toBe("default");
     expect(modeColorOf(null)).toBe("default");
+  });
+});
+
+describe("mode flag", () => {
+  it("reads mode: true from frontmatter", () => {
+    expect(splitSkill("---\nmode: true\n---\nx").frontmatter.mode).toBe(true);
+    expect(splitSkill("---\nmode: yes\n---\nx").frontmatter.mode).toBe(true);
+    expect(splitSkill("---\nmode: false\n---\nx").frontmatter.mode).toBe(false);
+    expect(splitSkill("x").frontmatter.mode).toBe(false);
+  });
+});
+
+describe("titles", () => {
+  it("keeps only the user's words after the pill label", () => {
+    expect(ownWords("reviewer  Check the\nREADME", "reviewer")).toBe("Check the README");
+    expect(ownWords("Check the README", "reviewer")).toBeNull();
+    expect(ownWords("reviewer ", "reviewer")).toBeNull();
+    expect(ownWords(`reviewer ${"word ".repeat(40)}`, "reviewer")?.length).toBe(80);
+  });
+
+  it("replaces a fallback or title that leads with the label, and leaves real titles alone", () => {
+    expect(fixedTitle({ title: null, titleFallback: "reviewer Check" }, "reviewer", "Check")).toBe("Check");
+    expect(fixedTitle({ title: null, titleFallback: "Check" }, "reviewer", "Check")).toBeNull();
+    expect(fixedTitle({ title: "reviewer Check it", titleFallback: null }, "reviewer", "Check")).toBe("Check it");
+    expect(fixedTitle({ title: "Review the README", titleFallback: "reviewer Check" }, "reviewer", "Check")).toBeNull();
   });
 });
