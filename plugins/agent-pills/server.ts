@@ -34,6 +34,8 @@ export default function plugin(bb: BbPluginApi) {
   const exitNotes = createExitNoter({
     pluginId: bb.pluginId,
     flag: modes.exitFlag,
+    activeMode: (threadId) => modes.activeMode(threadId),
+    modeContext: (threadId) => modes.threadModeContext(threadId),
     listQueued: (threadId) => bb.sdk.threads.queuedMessages.list({ threadId }),
     updateQueued: async ({ threadId, queuedMessageId, input, expectedUpdatedAt }) => {
       await bb.sdk.threads.queuedMessages.update({
@@ -137,6 +139,7 @@ export default function plugin(bb: BbPluginApi) {
         initiator: context.initiator,
         blocks: context.input.blocks,
         carriesMode: modes.carriesMode(context.input.blocks),
+        queuedIds: context.queuedMessages.map((row) => row.id),
       });
       if (decision.action !== "proceed") return decision;
       const fix = modes.titleFixFor(context.thread, context.input.blocks);
