@@ -2355,12 +2355,6 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
   margin-left: 0;
 }
 
-[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:exit.'] {
-  background: transparent;
-  border-color: color-mix(in srgb, var(--foreground) 14%, transparent);
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, var(--foreground) 35%, transparent);
-}
 [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:green.'] { --bb-agent-pills-mode-fg: #2e8a52; }
 [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:cyan.'] { --bb-agent-pills-mode-fg: #0f7f8f; }
 [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:blue.'] { --bb-agent-pills-mode-fg: #2f6fd6; }

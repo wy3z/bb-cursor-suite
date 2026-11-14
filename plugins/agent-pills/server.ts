@@ -128,7 +128,6 @@ export default function plugin(bb: BbPluginApi) {
 
   bb.events.on("experimental_thread.events", ({ thread }) => {
     publish(bb, thread.id);
-    void modes.observe(thread.id).catch(() => undefined);
   });
   // Queue rows change without a timeline event: a message can be queued,
   // cancelled or dispatched while nothing else about the thread moves.

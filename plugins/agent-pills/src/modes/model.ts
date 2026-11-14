@@ -3,30 +3,9 @@ export interface ModeRef {
   label: string;
 }
 
-export interface ModeState {
-  committed: ModeRef | null;
-  draft: ModeRef | null;
-}
-
-export const EMPTY_MODE_STATE: ModeState = { committed: null, draft: null };
-
-export type ModeTransition =
-  | { kind: "none" }
-  | { kind: "enter"; mode: ModeRef }
-  | { kind: "maintain"; mode: ModeRef }
-  | { kind: "exit"; exited: ModeRef }
-  | { kind: "switch"; exited: ModeRef; mode: ModeRef };
-
 export function sameMode(left: ModeRef | null, right: ModeRef | null): boolean {
   if (left === null || right === null) return left === right;
   return left.skillId === right.skillId || left.label === right.label;
-}
-
-export function transitionOf({ committed, draft }: ModeState): ModeTransition {
-  if (draft === null) return committed === null ? { kind: "none" } : { kind: "exit", exited: committed };
-  if (committed === null) return { kind: "enter", mode: draft };
-  if (sameMode(committed, draft)) return { kind: "maintain", mode: draft };
-  return { kind: "switch", exited: committed, mode: draft };
 }
 
 export function skillPathPhrase(path: string | null): string | null {
@@ -35,19 +14,9 @@ export function skillPathPhrase(path: string | null): string | null {
   return JSON.stringify(trimmed);
 }
 
-export function enterText(label: string, path: string | null): string {
-  const quoted = skillPathPhrase(path);
-  const follow = quoted === null ? "Follow the attached skill" : `Follow the skill instructions in ${quoted}`;
-  return `The user has entered ${label} custom mode. ${follow} until the user exits or switches modes. Do not drift back to default agent behavior.`;
-}
-
-export function maintainText(label: string, path: string | null): string {
+export function modeText(label: string, path: string | null): string {
   const quoted = skillPathPhrase(path) ?? "the skill";
-  return `Reminder: you are still in ${label} mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read ${quoted} before acting.`;
-}
-
-export function exitText(label: string): string {
-  return `The user has exited ${label} custom mode. Stop following that mode's skill. Continue without those constraints.`;
+  return `You are in ${label} mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read ${quoted} before acting.`;
 }
 
 export interface LoadedSkill {
@@ -60,26 +29,9 @@ export function skillBlock(label: string, skill: LoadedSkill): string {
   return `<skill name=${JSON.stringify(label)}${where}>\n${skill.body}\n</skill>`;
 }
 
-export function modeContext(transition: ModeTransition, skill: LoadedSkill | null): string {
-  switch (transition.kind) {
-    case "none":
-      return "";
-    case "exit":
-      return exitText(transition.exited.label);
-    case "enter":
-      if (skill === null) return "";
-      return [enterText(transition.mode.label, skill.path), skillBlock(transition.mode.label, skill)].join("\n\n");
-    case "maintain":
-      if (skill === null) return exitText(transition.mode.label);
-      return [maintainText(transition.mode.label, skill.path), skillBlock(transition.mode.label, skill)].join("\n\n");
-    case "switch":
-      if (skill === null) return exitText(transition.exited.label);
-      return [
-        exitText(transition.exited.label),
-        enterText(transition.mode.label, skill.path),
-        skillBlock(transition.mode.label, skill),
-      ].join("\n\n");
-  }
+export function modeContext(mode: ModeRef, skill: LoadedSkill | null): string {
+  if (skill === null) return "";
+  return [modeText(mode.label, skill.path), skillBlock(mode.label, skill)].join("\n\n");
 }
 
 export function missingSkillNotice(label: string): string {
@@ -94,8 +46,7 @@ export function cycleMode(options: readonly ModeRef[], current: ModeRef | null, 
 }
 
 export interface ModeMention {
-  dest: ModeRef | null;
-  leaving: ModeRef | null;
+  mode: ModeRef;
   threadId: string | null;
   projectId: string;
   environmentId: string | null;
@@ -103,9 +54,8 @@ export interface ModeMention {
 }
 
 interface WireMention {
-  v: 2;
-  d: [string, string] | null;
-  x: [string, string] | null;
+  v: 3;
+  m: [string, string];
   t: string | null;
   p: string;
   e: string | null;
@@ -126,15 +76,10 @@ function fromBase64Url(text: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-function pairOf(ref: ModeRef | null): [string, string] | null {
-  return ref === null ? null : [ref.skillId, ref.label];
-}
-
 export function encodeModeMention(mention: ModeMention): string {
   const wire: WireMention = {
-    v: 2,
-    d: pairOf(mention.dest),
-    x: pairOf(mention.leaving),
+    v: 3,
+    m: [mention.mode.skillId, mention.mode.label],
     t: mention.threadId,
     p: mention.projectId,
     e: mention.environmentId,
@@ -162,29 +107,17 @@ export function decodeModeMention(itemId: string): ModeMention | null {
   } catch {
     return null;
   }
-  if (wire === null || typeof wire !== "object" || wire.v !== 2) return null;
+  if (wire === null || typeof wire !== "object" || wire.v !== 3) return null;
   if (typeof wire.p !== "string" || typeof wire.n !== "string" || wire.n.length === 0) return null;
-  const dest = wire.d === null ? null : refOf(wire.d);
-  if (wire.d !== null && dest === null) return null;
+  const mode = refOf(wire.m);
+  if (mode === null) return null;
   return {
-    dest,
-    leaving: refOf(wire.x),
+    mode,
     threadId: typeof wire.t === "string" ? wire.t : null,
     projectId: wire.p,
     environmentId: typeof wire.e === "string" ? wire.e : null,
     nonce: wire.n,
   };
-}
-
-export function pillLabel(transition: ModeTransition): string | null {
-  switch (transition.kind) {
-    case "none":
-      return null;
-    case "exit":
-      return `Exit ${transition.exited.label}`;
-    default:
-      return transition.mode.label;
-  }
 }
 
 export function newNonce(): string {

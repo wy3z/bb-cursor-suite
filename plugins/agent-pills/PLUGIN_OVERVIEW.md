@@ -23,8 +23,8 @@ Used by the app. Every action returns `{ ok: boolean }`; a failure is reported a
 | `restoreEnvironment` | `{ threadId }` | `{ ok }` |
 | `resumeHost` | `{ threadId, hostId }` | `{ ok }`. Resumes a paused cloud machine |
 | `listModes` | `{ projectId, environmentId, providerId, excludeUserSkills }` | `{ modes: { skillId, label, description, path, scope, icon, color, styled, mode }[] }`. Mode-flagged skills first. Answers from cache and refreshes in the background |
-| `threadMode` | `{ threadId }` | `{ state: { committed, draft, rev, notice }, projectId, environmentId, providerId }`. `committed` is derived from the thread's log |
-| `setThreadMode` | `{ threadId, mode: { skillId, label } \| null, rev }` | `{ ok, state }`. Sets the mode the next message asks for; `ok: false` when `rev` is stale |
+| `threadMode` | `{ threadId }` | `{ state: { draft, rev, notice }, projectId, environmentId, providerId }` |
+| `setThreadMode` | `{ threadId, mode: { skillId, label } \| null, rev }` | `{ ok, state }`. Sets the thread's mode; `ok: false` when `rev` is stale |
 | `clearModeNotice` | `{ threadId }` | `{ ok }` |
 | `iconGlyphs` | `{ names: string[] \| null }` | `{ glyphs }`. Project icon glyphs for mode badges |
 
@@ -59,23 +59,22 @@ await sdk.plugins.callRpc({
 ### Realtime channels
 
 - `agent-pills:thread-updated`, payload `{ threadId }`. Published on thread timeline events, queue changes (queued, cancelled, dispatched), archive and unarchive.
-- `agent-pills:mode-updated`, payload `{ threadId }`. Published when a thread's mode, draft or notice changes.
+- `agent-pills:mode-updated`, payload `{ threadId }`. Published when a thread's mode or notice changes.
 - `agent-pills:modes-updated`, payload `{ projectId }`. Published when a background frontmatter scan changed the skill list.
 
 ### Mention provider and dispatch hook
 
-- Mention provider `mode` (trigger `~`, never listed in the menu). The app inserts its pill. BB calls `resolve` on the delivery path (inline send, queue drain, retry, Send now, edit resend), and that is where the transition is decided.
-- `message.dispatch` hook. Always proceeds. It only hands a new-thread choice to the spawned thread and notes a title to fix; it commits nothing.
+- Mention provider `mode` (trigger `~`, never listed in the menu). The app inserts its pill. BB calls `resolve` when it sends the message, and it returns the mode line plus the SKILL.md as agent-only context.
+- `message.dispatch` hook. Always proceeds. It binds a first-message pill to the created thread, hands a new-thread choice over, and notes a title to fix.
 
 ### Plugin storage
 
 `bb.storage.kv`:
 
-- `draft:<threadId>`: `{ draft, rev }`. Kept as a tombstone once set, so None survives.
+- `draft:<threadId>`: `{ draft, rev }`, the thread's mode. Kept once set, so a None chosen for a new thread survives its first message.
 - `notice:<threadId>`: the missing-skill toast text, until shown.
+- `pill:<nonce>`: the thread a first-message pill was sent to.
 - `frontmatter:v1`: icon, color, description and `mode` per skill, so the menu opens warm after a restart.
-
-The committed mode is never stored. It is folded from the thread's own events.
 
 ### What it calls in other plugins
 
@@ -142,22 +141,14 @@ Cursor 3.30's custom modes: any skill becomes a thread's mode and stays in conte
 - **Shift+Tab** in the prompt box cycles None and the `mode: true` skills only. With none flagged and no mode on, Shift+Tab is left alone. BB 0.49 binds nothing to it.
 - **Badge style.** Frontmatter `icon:` takes a Cursor icon name (the project icon catalog), defaulting to `lightning`. `color:` takes `default`, `green`, `cyan`, `blue`, `purple`, `magenta`, `orange`, `yellow`, `red` or `brand`.
 - **Which skills a thread can use.** A thread's menu lists skills from its own environment, so a cloud thread sees what its VM can load. In the new-thread composer, choosing a new cloud machine or another host leaves user skills out, because they live on this computer. When a host lists a skill under another id, it is matched by name.
-- **State.** Each thread has a draft (what the next message asks for, with a revision) and a committed mode (what the agent was last told). The committed mode is folded from the thread's log:
-  - each delivered request carrying a mode pill sets it to the pill's mode, or to none when the skill was missing or the pill asked for None;
-  - a rejected request drops out;
-  - an edit that rewinds history drops the requests it cut;
-  - clearing the context resets it;
-  - a fork starts from its copied log, so it inherits the mode and None sends the exit.
-- **Delivery.** The pill carries only the requested mode, the thread and a per-message id. When BB delivers the message, the server derives none, enter, maintain, exit or switch from the committed mode at that moment, in delivery order, one thread at a time. So a queued message, a held or rejected one, Send now and a second tab all get the right note, and an exit or switch is sent once.
-- **What the agent gets.** Once the draft has text, the plugin puts a small mode pill at its start. At delivery the pill resolves to agent-only context:
-  - Enter: "The user has entered <label> custom mode. Follow the skill instructions in "<path>" until the user exits or switches modes. Do not drift back to default agent behavior." plus the SKILL.md body.
-  - Maintain: "Reminder: you are still in <label> mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read "<path>" before acting." plus the body.
-  - Exit, once: "The user has exited <label> custom mode. Stop following that mode's skill. Continue without those constraints." The pill reads "Exit <label>", struck through.
-  - Switch: the exit text, then the enter text and body.
-- **Fresh reads.** The skill is read from the thread's environment on every delivery. When it has gone (renamed or removed), the message goes without it, the mode is cleared, and a toast says "'<label>' mode couldn't be applied — its skill file may have been renamed or removed. Message sent without it."
-- **Opening a thread.** The last known state from this browser is shown while the composer asks the server, but only for display. Until the server answers and the draft's pill matches, the prompt box is locked and Enter and the send button do nothing.
+- **What the agent gets.** Every message sent while a mode is on carries a small mode pill at the start of its text (added once the draft has text). When BB sends it, the pill resolves to agent-only context: one fixed line, then the SKILL.md body.
+  - "You are in <label> mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read "<path>" before acting."
+  - Each message describes itself, so queued, retried, steered or reordered messages and second tabs all get exactly what their own pill says.
+- **Leaving a mode** sends no exit note. A message sent with None carries nothing, so the agent simply stops getting the mode line. This differs from Cursor, which sends one exit or switch note.
+- **Fresh reads.** The skill is read from the thread's environment on every message. When it has gone (renamed or removed), the message goes without it, the mode is cleared, and a toast says "'<label>' mode couldn't be applied — its skill file may have been renamed or removed. Message sent without it."
+- **Opening a thread.** The last known state from this browser is shown while the composer asks the server, but only for display. Until the server answers and the draft's pill matches, Enter and the send button do nothing. Typing stays open: locking the box would blur it, and on a phone that collapses the composer.
 - **Picking quickly.** Choices are coalesced: one write is in flight at a time, and the latest choice is written against the revision the server returned. After three conflicts with another tab, the server's state wins.
-- **New threads.** A mode picked in the new-thread composer travels in the first message's pill, and becomes the thread's mode unless a None was already chosen for it. BB resolves that first message before the thread exists, against the project's source. The dispatch hook binds the pill to the created thread (`pill:<nonce>` in plugin storage), so any later resolution of it, such as a retry, uses that thread's mode and its environment once ready.
+- **New threads.** A mode picked in the new-thread composer travels in the first message's pill, and becomes the thread's mode unless a None was already chosen for it. BB resolves that first message before the thread exists, against the project's source. The dispatch hook binds the pill to the created thread, so any later resolution of it, such as a retry, reads from that thread's environment once ready.
 - **Titles.** The pill's label is part of the message text, so BB's fallback title would start with it. When the first turn settles (or after 20 seconds), a thread that is still untitled and whose fallback is exactly the one recorded at dispatch gets the user's own words as its title. Any title set by BB or by hand is left alone. BB's thread update has no compare-and-set, so a rename in the moment between the read and the write can still be overwritten.
 - **Why a pill, not instructions.** `bb.agents.contributeInstructions` only reaches a provider session when the session is built ("BB never hot-mutates a running session"), so it can't enter or leave a mode mid-thread. A plugin mention is the only per-message channel.
 

@@ -3,18 +3,15 @@ import {
   cycleMode,
   decodeModeMention,
   encodeModeMention,
-  enterText,
-  exitText,
   fixedTitle,
-  ownWords,
-  maintainText,
   missingSkillNotice,
   modeColorOf,
   modeContext,
   modeItemId,
-  pillLabel,
+  modeText,
+  ownWords,
+  sameMode,
   splitSkill,
-  transitionOf,
   type ModeRef,
 } from "./model";
 
@@ -23,88 +20,26 @@ const planner: ModeRef = { skillId: "skill_planner", label: "planner" };
 const path = "/repo/.agents/skills/reviewer/SKILL.md";
 const skill = { path, body: "Hard rules: never edit files." };
 
-describe("transitionOf", () => {
-  it("is none with no mode before or after", () => {
-    expect(transitionOf({ committed: null, draft: null })).toEqual({ kind: "none" });
-  });
-
-  it("enters when a mode is chosen on a thread without one", () => {
-    expect(transitionOf({ committed: null, draft: reviewer })).toEqual({ kind: "enter", mode: reviewer });
-  });
-
-  it("maintains while the same mode stays chosen", () => {
-    expect(transitionOf({ committed: reviewer, draft: { ...reviewer } })).toEqual({ kind: "maintain", mode: reviewer });
-  });
-
-  it("exits when the mode is cleared", () => {
-    expect(transitionOf({ committed: reviewer, draft: null })).toEqual({ kind: "exit", exited: reviewer });
-  });
-
-  it("switches when another mode is chosen", () => {
-    expect(transitionOf({ committed: reviewer, draft: planner })).toEqual({ kind: "switch", exited: reviewer, mode: planner });
-  });
-
-  it("walks enter, maintain, exit, then nothing", () => {
-    let committed: ModeRef | null = null;
-    const kinds: string[] = [];
-    for (const draft of [reviewer, reviewer, null, null]) {
-      kinds.push(transitionOf({ committed, draft }).kind);
-      committed = draft;
-    }
-    expect(kinds).toEqual(["enter", "maintain", "exit", "none"]);
-  });
-});
-
-describe("instruction text", () => {
-  it("matches Cursor's enter text", () => {
-    expect(enterText("reviewer", path)).toBe(
-      'The user has entered reviewer custom mode. Follow the skill instructions in "/repo/.agents/skills/reviewer/SKILL.md" until the user exits or switches modes. Do not drift back to default agent behavior.',
+describe("mode text", () => {
+  it("is Cursor's maintain reminder, worded so it works on the first message too", () => {
+    expect(modeText("reviewer", path)).toBe(
+      "You are in reviewer mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read \"/repo/.agents/skills/reviewer/SKILL.md\" before acting.",
     );
   });
 
-  it("matches Cursor's maintain text", () => {
-    expect(maintainText("reviewer", path)).toBe(
-      "Reminder: you are still in reviewer mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read \"/repo/.agents/skills/reviewer/SKILL.md\" before acting.",
+  it("falls back to 'the skill' when the path is not a SKILL.md", () => {
+    expect(modeText("reviewer", "/tmp/notes.md")).toContain("read the skill before acting.");
+    expect(modeText("reviewer", null)).toContain("read the skill before acting.");
+  });
+
+  it("attaches the skill body after the line", () => {
+    expect(modeContext(reviewer, skill)).toBe(
+      `${modeText("reviewer", path)}\n\n<skill name="reviewer" path="${path}">\nHard rules: never edit files.\n</skill>`,
     );
   });
 
-  it("matches Cursor's exit text", () => {
-    expect(exitText("reviewer")).toBe(
-      "The user has exited reviewer custom mode. Stop following that mode's skill. Continue without those constraints.",
-    );
-  });
-
-  it("falls back to the attached skill when the path is not a SKILL.md", () => {
-    expect(enterText("reviewer", "/tmp/notes.md")).toContain("Follow the attached skill until");
-    expect(maintainText("reviewer", null)).toContain("read the skill before acting.");
-  });
-
-  it("attaches the skill body on enter and maintain", () => {
-    const enter = modeContext({ kind: "enter", mode: reviewer }, skill);
-    expect(enter.startsWith(enterText("reviewer", path))).toBe(true);
-    expect(enter).toContain(`<skill name="reviewer" path="${path}">\nHard rules: never edit files.\n</skill>`);
-    const maintain = modeContext({ kind: "maintain", mode: reviewer }, skill);
-    expect(maintain.startsWith(maintainText("reviewer", path))).toBe(true);
-    expect(maintain).toContain("Hard rules: never edit files.");
-  });
-
-  it("sends the exit note alone", () => {
-    expect(modeContext({ kind: "exit", exited: reviewer }, null)).toBe(exitText("reviewer"));
-  });
-
-  it("puts the exit note before the enter text on a switch", () => {
-    const text = modeContext({ kind: "switch", exited: planner, mode: reviewer }, skill);
-    expect(text.startsWith(`${exitText("planner")}\n\n${enterText("reviewer", path)}\n\n<skill`)).toBe(true);
-  });
-
-  it("sends nothing for a fresh mode whose skill is gone", () => {
-    expect(modeContext({ kind: "enter", mode: reviewer }, null)).toBe("");
-    expect(modeContext({ kind: "none" }, skill)).toBe("");
-  });
-
-  it("drops a mode whose skill vanished mid-thread, like Cursor", () => {
-    expect(modeContext({ kind: "maintain", mode: reviewer }, null)).toBe(exitText("reviewer"));
-    expect(modeContext({ kind: "switch", exited: planner, mode: reviewer }, null)).toBe(exitText("planner"));
+  it("attaches nothing when the skill is gone", () => {
+    expect(modeContext(reviewer, null)).toBe("");
   });
 
   it("names the mode in the missing-skill notice", () => {
@@ -115,11 +50,10 @@ describe("instruction text", () => {
 });
 
 describe("mode mentions", () => {
-  it("round-trips a destination, the mode being left, the thread and a nonce", () => {
+  it("round-trips the mode, thread, workspace hints and nonce", () => {
     const mentions = [
-      { dest: reviewer, leaving: null, threadId: "thr_1", projectId: "proj_1", environmentId: null, nonce: "n1" },
-      { dest: null, leaving: reviewer, threadId: null, projectId: "proj_1", environmentId: "env_1", nonce: "n2" },
-      { dest: { skillId: "skill_ü", label: "Révision" }, leaving: planner, threadId: "thr_1", projectId: "p", environmentId: null, nonce: "n3" },
+      { mode: reviewer, threadId: "thr_1", projectId: "proj_1", environmentId: null, nonce: "n1" },
+      { mode: { skillId: "skill_ü", label: "Révision" }, threadId: null, projectId: "p", environmentId: "env_1", nonce: "n2" },
     ];
     for (const mention of mentions) {
       expect(decodeModeMention(encodeModeMention(mention))).toEqual(mention);
@@ -127,16 +61,16 @@ describe("mode mentions", () => {
     }
   });
 
-  it("rejects ids it did not write, including the first wire version", () => {
+  it("rejects ids it did not write, including earlier wire versions", () => {
     expect(decodeModeMention("not-a-mode")).toBeNull();
-    expect(decodeModeMention(btoa(JSON.stringify({ v: 1, k: "enter", p: "proj_1", m: ["a", "b"] })))).toBeNull();
-    expect(decodeModeMention(btoa(JSON.stringify({ v: 2, d: null, x: null, t: null, p: "p", e: null, n: "" })))).toBeNull();
+    expect(decodeModeMention(btoa(JSON.stringify({ v: 2, d: ["a", "b"], x: null, t: null, p: "p", e: null, n: "n" })))).toBeNull();
+    expect(decodeModeMention(btoa(JSON.stringify({ v: 3, m: null, t: null, p: "p", e: null, n: "n" })))).toBeNull();
   });
 
-  it("labels pills from the transition the composer expects", () => {
-    expect(pillLabel({ kind: "exit", exited: reviewer })).toBe("Exit reviewer");
-    expect(pillLabel({ kind: "switch", exited: planner, mode: reviewer })).toBe("reviewer");
-    expect(pillLabel({ kind: "none" })).toBeNull();
+  it("treats the same skill name as the same mode", () => {
+    expect(sameMode(reviewer, { skillId: "other_id", label: "reviewer" })).toBe(true);
+    expect(sameMode(reviewer, planner)).toBe(false);
+    expect(sameMode(null, null)).toBe(true);
   });
 });
 

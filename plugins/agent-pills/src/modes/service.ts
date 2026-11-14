@@ -8,14 +8,11 @@ import {
   modeColorOf,
   modeContext,
   ownWords,
-  pillLabel,
   splitSkill,
-  transitionOf,
   type LoadedSkill,
   type ModeMention,
   type ModeRef,
 } from "./model";
-import { EMPTY_LEDGER, LEDGER_EVENT_TYPES, applyLedgerEvents, committedOf, seenNonces, type Ledger, type LedgerEvent } from "./ledger";
 import type { ModeOption, ThreadModeState } from "./rpc";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
 
@@ -26,8 +23,6 @@ const READ_CONCURRENCY = 8;
 const FRONTMATTER_KEY = "frontmatter:v1";
 const FRONTMATTER_LIMIT = 2000;
 const TITLE_FIX_DELAY_MS = 20_000;
-const PENDING_TTL_MS = 20_000;
-const EVENT_PAGE = 100;
 const MODE_ITEM_PREFIX = `${MODE_MENTION_PROVIDER}:`;
 
 export interface SkillListing {
@@ -67,7 +62,6 @@ export interface ModeDeps {
   pluginId: string;
   listSkills(args: { projectId: string; environmentId: string | null }): Promise<SkillListing[]>;
   readSkill(args: { projectId: string; environmentId: string | null; skillId: string }): Promise<string>;
-  readEvents(args: { threadId: string; afterSeq: number; limit: number }): Promise<LedgerEvent[]>;
   threadPlace(threadId: string): Promise<ThreadPlace | null>;
   kv: Pick<BbPluginApi["storage"]["kv"], "get" | "set" | "delete">;
   publish(threadId: string): void;
@@ -82,16 +76,6 @@ export function modeDepsFrom(bb: BbPluginApi): ModeDeps {
     listSkills: async (args) => (await bb.sdk.skills.list(args)).skills,
     readSkill: async ({ projectId, environmentId, skillId }) =>
       (await bb.sdk.skills.getContent({ projectId, environmentId, skillId, path: "SKILL.md" })).content,
-    readEvents: async ({ threadId, afterSeq, limit }) =>
-      (
-        await bb.sdk.threads.events.list({
-          threadId,
-          afterSeq: String(afterSeq),
-          limit: String(limit),
-          order: "asc",
-          types: [...LEDGER_EVENT_TYPES],
-        })
-      ).map((row) => ({ seq: row.seq, type: row.type, data: row.data })),
     threadPlace: async (threadId) => {
       try {
         const thread = await bb.sdk.threads.get({ threadId });
@@ -114,12 +98,6 @@ interface StoredDraft {
   rev: number;
 }
 
-interface Pending {
-  nonce: string;
-  committed: ModeRef | null;
-  at: number;
-}
-
 function draftKey(threadId: string): string {
   return `draft:${threadId}`;
 }
@@ -130,11 +108,6 @@ function noticeKey(threadId: string): string {
 
 function bindingKey(nonce: string): string {
   return `pill:${nonce}`;
-}
-
-function sameRef(left: ModeRef | null, right: ModeRef | null): boolean {
-  if (left === null || right === null) return left === right;
-  return left.skillId === right.skillId && left.label === right.label;
 }
 
 function rank(skill: SkillListing, providerId: string | null): number {
@@ -274,8 +247,6 @@ export function createModeService(deps: ModeDeps) {
     while (refreshing.size > 0) await Promise.all(refreshing.values());
   }
 
-  const ledgers = new Map<string, Ledger>();
-  const pending = new Map<string, Pending[]>();
   const queues = new Map<string, Promise<unknown>>();
   const handoffNotices = new Map<string, string>();
 
@@ -288,26 +259,6 @@ export function createModeService(deps: ModeDeps) {
       if (queues.get(threadId) === settledNext) queues.delete(threadId);
     });
     return next;
-  }
-
-  async function catchUp(threadId: string): Promise<Ledger> {
-    let ledger = ledgers.get(threadId) ?? EMPTY_LEDGER;
-    for (;;) {
-      const events = await deps.readEvents({ threadId, afterSeq: ledger.lastSeq, limit: EVENT_PAGE });
-      ledger = applyLedgerEvents(ledger, events, deps.pluginId);
-      if (events.length < EVENT_PAGE) break;
-    }
-    ledgers.set(threadId, ledger);
-    const logged = seenNonces(ledger);
-    const live = (pending.get(threadId) ?? []).filter((entry) => !logged.has(entry.nonce) && now() - entry.at < PENDING_TTL_MS);
-    if (live.length > 0) pending.set(threadId, live);
-    else pending.delete(threadId);
-    return ledger;
-  }
-
-  function committedNow(threadId: string, ledger: Ledger, exceptNonce?: string): ModeRef | null {
-    const inFlight = (pending.get(threadId) ?? []).filter((entry) => entry.nonce !== exceptNonce);
-    return inFlight.length > 0 ? inFlight.at(-1)!.committed : committedOf(ledger);
   }
 
   async function loadSkill(place: ThreadPlace, mode: ModeRef): Promise<LoadedSkill | null> {
@@ -327,13 +278,9 @@ export function createModeService(deps: ModeDeps) {
   }
 
   async function readState(threadId: string): Promise<ThreadModeState> {
-    return serial(threadId, async () => {
-      const ledger = await catchUp(threadId);
-      const committed = committedNow(threadId, ledger);
-      const stored = await storedDraft(threadId);
-      const notice = (await deps.kv.get<string>(noticeKey(threadId))) ?? null;
-      return { committed, draft: stored ? stored.draft : committed, rev: stored?.rev ?? 0, notice };
-    });
+    const stored = await storedDraft(threadId);
+    const notice = (await deps.kv.get<string>(noticeKey(threadId))) ?? null;
+    return { draft: stored?.draft ?? null, rev: stored?.rev ?? 0, notice };
   }
 
   async function writeDraft(threadId: string, draft: ModeRef | null, rev: number): Promise<void> {
@@ -361,41 +308,35 @@ export function createModeService(deps: ModeDeps) {
     await deps.kv.set(noticeKey(threadId), missingSkillNotice(label));
   }
 
-  async function contextFor(mention: ModeMention, committed: ModeRef | null, place: ThreadPlace) {
-    const transition = transitionOf({ committed, draft: mention.dest });
-    const skill = mention.dest === null || transition.kind === "none" ? null : await loadSkill(place, mention.dest);
-    const context = modeContext(transition, skill);
-    const after = mention.dest !== null && skill !== null ? mention.dest : null;
-    const missing = mention.dest !== null && skill === null ? mention.dest : null;
+  async function contextFor(mention: ModeMention, place: ThreadPlace) {
+    const skill = await loadSkill(place, mention.mode);
+    const context = modeContext(mention.mode, skill);
     const instruction = context.split("\n\n<skill ")[0] ?? "";
-    deps.log.info(`mode ${transition.kind}${missing ? " (skill missing)" : ""}: ${instruction}${skill ? ` [+ ${skill.path ?? "skill"}, ${skill.body.length} chars]` : ""}`);
-    return { context, after, missing };
+    deps.log.info(
+      skill
+        ? `mode ${mention.mode.label}: ${instruction} [+ ${skill.path ?? "skill"}, ${skill.body.length} chars]`
+        : `mode ${mention.mode.label}: skill missing, nothing attached`,
+    );
+    return { context, missing: skill === null };
   }
 
   async function resolveMention(itemId: string): Promise<string> {
     const mention = decodeModeMention(itemId);
     if (mention === null) return "";
     const threadId = mention.threadId ?? (await deps.kv.get<string>(bindingKey(mention.nonce))) ?? null;
+    const hinted = { projectId: mention.projectId, environmentId: mention.environmentId };
     if (threadId === null) {
-      const { context, missing } = await contextFor(mention, null, { projectId: mention.projectId, environmentId: mention.environmentId });
-      if (missing) handoffNotices.set(mention.nonce, missing.label);
+      const { context, missing } = await contextFor(mention, hinted);
+      if (missing) handoffNotices.set(mention.nonce, mention.mode.label);
       return context;
     }
-    const result = await serial(threadId, async () => {
-      const ledger = await catchUp(threadId).catch((cause) => {
-        deps.log.warn(`Could not read the thread log before resolving its mode: ${cause instanceof Error ? cause.message : String(cause)}`);
-        return ledgers.get(threadId) ?? EMPTY_LEDGER;
-      });
-      const committed = committedNow(threadId, ledger, mention.nonce);
-      const place = (await deps.threadPlace(threadId)) ?? { projectId: mention.projectId, environmentId: mention.environmentId };
-      const outcome = await contextFor(mention, committed, place);
-      const others = (pending.get(threadId) ?? []).filter((entry) => entry.nonce !== mention.nonce);
-      pending.set(threadId, [...others, { nonce: mention.nonce, committed: outcome.after, at: now() }]);
-      if (outcome.missing) await dropMissingMode(threadId, outcome.missing.label);
-      return outcome;
-    });
-    deps.publish(threadId);
-    return result.context;
+    const place = (await deps.threadPlace(threadId)) ?? hinted;
+    const { context, missing } = await contextFor(mention, place);
+    if (missing) {
+      await serial(threadId, () => dropMissingMode(threadId, mention.mode.label));
+      deps.publish(threadId);
+    }
+    return context;
   }
 
   function mentionsIn(blocks: readonly unknown[]): ModeMention[] {
@@ -427,18 +368,8 @@ export function createModeService(deps: ModeDeps) {
         return true;
       }
       if ((await storedDraft(threadId)) !== undefined) return false;
-      await writeDraft(threadId, handoff.dest, 1);
+      await writeDraft(threadId, handoff.mode, 1);
       return true;
-    });
-    if (changed) deps.publish(threadId);
-  }
-
-  async function observe(threadId: string): Promise<void> {
-    if (!ledgers.has(threadId)) return;
-    const changed = await serial(threadId, async () => {
-      const before = committedNow(threadId, ledgers.get(threadId)!);
-      const ledger = await catchUp(threadId);
-      return !sameRef(before, committedNow(threadId, ledger));
     });
     if (changed) deps.publish(threadId);
   }
@@ -454,13 +385,13 @@ export function createModeService(deps: ModeDeps) {
       .join(" ");
     const mention = mentionsIn(blocks)[0];
     if (!mention) return null;
-    const label = pillLabel(transitionOf({ committed: mention.leaving, draft: mention.dest }));
-    if (label === null || !thread.titleFallback?.startsWith(`${label} `)) return null;
+    const label = mention.mode.label;
+    if (thread.titleFallback === null || !thread.titleFallback.startsWith(`${label} `)) return null;
     const own = ownWords(text, label);
     return own === null ? null : { threadId: thread.id, contaminated: thread.titleFallback, own };
   }
 
-  return { listModes, settled, readState, setDraft, clearNotice, resolveMention, admit, observe, titleFixFor };
+  return { listModes, settled, readState, setDraft, clearNotice, resolveMention, admit, titleFixFor };
 }
 
 export interface TitleFixDeps {

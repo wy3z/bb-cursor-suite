@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createModeService, createTitleFixer, pickSkills, type SkillListing } from "./service";
-import { enterText, exitText, maintainText, modeItemId, type ModeMention, type ModeRef } from "./model";
-import type { LedgerEvent } from "./ledger";
+import { modeItemId, modeText, type ModeMention, type ModeRef } from "./model";
 
 const A: ModeRef = { skillId: "skill_a", label: "alpha" };
 const B: ModeRef = { skillId: "skill_b", label: "beta" };
@@ -21,14 +20,12 @@ interface Options {
 function core(options: Options = {}) {
   const files: Record<string, string> = options.files ?? { [A.skillId]: "---\nicon: eye\ncolor: purple\n---\nAlpha rules.", [B.skillId]: "Beta rules." };
   const kv = new Map<string, unknown>();
-  const logs = new Map<string, LedgerEvent[]>();
   const published: string[] = [];
   const modesPublished: string[] = [];
   const reads: Array<{ environmentId: string | null; skillId: string }> = [];
   let clock = 0;
-  let requests = 0;
   let slow = options.slowDraftRead;
-  const places = new Map<string, { projectId: string; environmentId: string | null }>();
+  const places = new Map<string, { projectId: string; environmentId: string | null } | null>();
 
   const service = createModeService({
     pluginId: "agent-pills",
@@ -42,8 +39,7 @@ function core(options: Options = {}) {
       if (content === undefined) throw new Error("missing");
       return content;
     },
-    readEvents: async ({ threadId, afterSeq, limit }) => (logs.get(threadId) ?? []).filter((event) => event.seq > afterSeq).slice(0, limit),
-    threadPlace: async (threadId) => places.get(threadId) ?? { projectId: "proj_1", environmentId: null },
+    threadPlace: async (threadId) => (places.has(threadId) ? places.get(threadId)! : { projectId: "proj_1", environmentId: "env_thread" }),
     kv: {
       get: async <T,>(key: string) => {
         const value = kv.get(key) as T | undefined;
@@ -63,204 +59,61 @@ function core(options: Options = {}) {
     now: () => clock,
   });
 
-  function append(threadId: string, type: string, data: unknown): number {
-    const log = logs.get(threadId) ?? [];
-    const seq = (log.at(-1)?.seq ?? 0) + 1;
-    log.push({ seq, type, data });
-    logs.set(threadId, log);
-    return seq;
-  }
-
   let nonces = 0;
-  function pill(threadId: string | null, dest: ModeRef | null, leaving: ModeRef | null = null): ModeMention {
+  function pill(threadId: string | null, mode: ModeRef): ModeMention {
     nonces += 1;
-    return { dest, leaving, threadId, projectId: "proj_1", environmentId: "env_hint", nonce: `n${nonces}` };
+    return { mode, threadId, projectId: "proj_1", environmentId: "env_hint", nonce: `n${nonces}` };
   }
 
-  function blocksOf(mention: ModeMention | null, text = "hello") {
-    const label = mention === null ? "" : (mention.dest?.label ?? `Exit ${mention.leaving?.label ?? ""}`);
+  function blocksOf(mention: ModeMention) {
+    const label = mention.mode.label;
     return [
       {
         type: "text",
-        text: mention === null ? text : `${label} ${text}`,
-        mentions:
-          mention === null
-            ? []
-            : [{ start: 0, end: label.length, resource: { kind: "plugin", pluginId: "agent-pills", label, itemId: `mode:${modeItemId("default", mention)}` } }],
+        text: `${label} hello`,
+        mentions: [{ start: 0, end: label.length, resource: { kind: "plugin", pluginId: "agent-pills", label, itemId: `mode:${modeItemId("default", mention)}` } }],
       },
     ];
   }
 
-  async function resolveOnly(mention: ModeMention): Promise<string> {
+  async function send(threadId: string, mention: ModeMention): Promise<string> {
+    await service.admit(threadId, blocksOf(mention));
     return service.resolveMention(modeItemId("default", mention));
-  }
-
-  function log(threadId: string, mention: ModeMention | null, context: string, extra: { reject?: boolean } = {}): void {
-    requests += 1;
-    const requestId = `creq_${requests}`;
-    const input: unknown[] = blocksOf(mention);
-    if (context.length > 0 && mention !== null) {
-      input.push({ type: "text", visibility: "agent-only", mentions: [], text: `Context for @x (resolved by plugin "agent-pills"):\n\n${context}` });
-    }
-    append(threadId, "client/turn/requested", { requestId, input });
-    if (extra.reject) append(threadId, "client/turn/rejected", { requestId, reason: "x", message: "x" });
-  }
-
-  async function send(threadId: string, mention: ModeMention | null, extra: { reject?: boolean; skipHook?: boolean; resolvedThread?: string | null } = {}): Promise<string> {
-    if (!extra.skipHook) await service.admit(threadId, blocksOf(mention));
-    const context = mention === null ? "" : await resolveOnly(mention);
-    log(threadId, mention, context, extra);
-    return context;
   }
 
   return {
     service,
     kv,
-    logs,
     files,
     reads,
     places,
     published,
     modesPublished,
-    append,
     pill,
+    blocksOf,
     send,
-    resolveOnly,
-    log,
+    resolve: (mention: ModeMention) => service.resolveMention(modeItemId("default", mention)),
     tick: (ms: number) => {
       clock += ms;
     },
   };
 }
 
-describe("P1: transitions are owned by the server and follow delivery", () => {
-  it("an exit that is admitted but rejected does not consume the exit", async () => {
+describe("a message sent in a mode", () => {
+  it("gets the fixed mode line and the fresh SKILL.md, on the first message and every later one", async () => {
     const t = core();
-    await t.send("thr", t.pill("thr", A));
-    await t.service.setDraft("thr", null, 0);
-    await t.send("thr", t.pill("thr", null, A), { reject: true });
-    expect((await t.service.readState("thr")).committed).toEqual(A);
-    expect(await t.send("thr", t.pill("thr", null, A))).toBe(exitText("alpha"));
-    expect((await t.service.readState("thr")).committed).toBeNull();
+    const first = await t.send("thr", t.pill("thr", A));
+    expect(first).toBe(`${modeText("alpha", PATH_A)}\n\n<skill name="alpha" path="${PATH_A}">\nAlpha rules.\n</skill>`);
+    t.files[A.skillId] = "Alpha rules, edited.";
+    expect(await t.send("thr", t.pill("thr", A))).toContain("Alpha rules, edited.");
   });
 
-  it("a message held by the hook and never delivered changes nothing", async () => {
+  it("depends only on its own pill, so order, queues, tabs and failed sends don't matter", async () => {
     const t = core();
-    await t.send("thr", t.pill("thr", A));
-    await t.service.admit("thr", [{ type: "text", text: "x", mentions: [] }]);
-    expect((await t.service.readState("thr")).committed).toEqual(A);
-  });
-
-  it("Send now, which skips the dispatch hook, still gets its transition at delivery", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A), { skipHook: true });
-    const context = await t.send("thr", t.pill("thr", A), { skipHook: true });
-    expect(context.startsWith(maintainText("alpha", PATH_A))).toBe(true);
-  });
-
-  it("a queued message is judged against the mode in force when it is delivered, not when it was typed", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    const queued = t.pill("thr", A, A);
-    await t.send("thr", t.pill("thr", B, A));
-    const context = await t.send("thr", queued);
-    expect(context.startsWith(`${exitText("beta")}\n\n${enterText("alpha", PATH_A)}`)).toBe(true);
-    expect((await t.service.readState("thr")).committed).toEqual(A);
-  });
-
-  it("two tabs sending the same exit deliver it once", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    const first = t.pill("thr", null, A);
-    const second = t.pill("thr", null, A);
-    expect(await t.send("thr", first)).toBe(exitText("alpha"));
-    expect(await t.send("thr", second)).toBe("");
-  });
-
-  it("two resolutions racing ahead of the log still see each other in order", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    const switchToB = t.pill("thr", B, A);
-    const backToA = t.pill("thr", A, A);
-    const [first, second] = await Promise.all([t.resolveOnly(switchToB), t.resolveOnly(backToA)]);
-    expect(first.startsWith(exitText("alpha"))).toBe(true);
-    expect(second.startsWith(exitText("beta"))).toBe(true);
-    t.log("thr", switchToB, first);
-    t.log("thr", backToA, second);
-    expect((await t.service.readState("thr")).committed).toEqual(A);
-  });
-
-  it("an in-flight resolution that never reaches the log expires", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    await t.resolveOnly(t.pill("thr", null, A));
-    t.tick(30_000);
-    expect((await t.service.readState("thr")).committed).toEqual(A);
-  });
-
-  it("a slow draft write with a stale revision is refused and cannot touch the committed mode", async () => {
-    let release!: () => void;
-    const t = core({ slowDraftRead: new Promise<void>((resolve) => (release = resolve)) });
-    const write = t.service.setDraft("thr", B, 0);
-    const other = t.service.setDraft("thr", A, 0);
-    release();
-    const [slowResult, otherResult] = await Promise.all([write, other]);
-    expect(slowResult.ok).toBe(true);
-    expect(otherResult.ok).toBe(false);
-    expect(otherResult.state).toMatchObject({ draft: B, rev: 1 });
+    const queued = t.pill("thr", A);
     await t.send("thr", t.pill("thr", B));
-    expect((await t.service.readState("thr")).committed).toEqual(B);
-  });
-});
-
-describe("P2: forks, edits, handoff, environments", () => {
-  it("a fork inherits the mode from its copied log, and None then sends the exit", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    t.logs.set("fork", [...(t.logs.get("thr") ?? [])]);
-    expect(await t.service.readState("fork")).toMatchObject({ committed: A, draft: A, rev: 0 });
-    await t.service.setDraft("fork", null, 0);
-    expect(await t.send("fork", t.pill("fork", null, A))).toBe(exitText("alpha"));
-  });
-
-  it("an edit that rewinds history rewinds the mode", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    await t.send("thr", t.pill("thr", B, A));
-    const cutoff = t.logs.get("thr")!.at(-1)!.seq;
-    t.append("thr", "system/operation", { operation: "edit_message", status: "completed", metadata: { cutoffSequence: cutoff, oldMaxSequence: cutoff } });
-    expect((await t.service.readState("thr")).committed).toEqual(A);
-  });
-
-  it("clearing the context drops the mode", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    t.append("thr", "thread/context/cleared", {});
-    expect((await t.service.readState("thr")).committed).toBeNull();
-    const context = await t.send("thr", t.pill("thr", A, A));
-    expect(context.startsWith(enterText("alpha", PATH_A))).toBe(true);
-  });
-
-  it("carries a new-thread choice over through the first message's handoff", async () => {
-    const t = core();
-    await t.send("thr_new", t.pill(null, A));
-    expect(await t.service.readState("thr_new")).toMatchObject({ committed: A, draft: A, rev: 1 });
-  });
-
-  it("a None chosen before the first dispatch is kept, not resurrected by the handoff", async () => {
-    const t = core();
-    await t.service.setDraft("thr_new", null, 0);
-    await t.send("thr_new", t.pill(null, A));
-    expect(await t.service.readState("thr_new")).toMatchObject({ draft: null, rev: 1 });
-  });
-
-  it("an exit that empties the state never lets an old message bring the mode back", async () => {
-    const t = core();
-    await t.send("thr", t.pill(null, A));
-    await t.service.setDraft("thr", null, 1);
-    await t.send("thr", t.pill("thr", null, A));
-    await t.service.admit("thr", [{ type: "text", text: "x", mentions: [] }]);
-    expect(await t.service.readState("thr")).toMatchObject({ committed: null, draft: null });
+    expect((await t.resolve(queued)).startsWith(modeText("alpha", PATH_A))).toBe(true);
+    expect((await t.resolve(queued)).startsWith(modeText("alpha", PATH_A))).toBe(true);
   });
 
   it("reads the skill from the thread's own environment, not the one the pill was typed against", async () => {
@@ -270,15 +123,93 @@ describe("P2: forks, edits, handoff, environments", () => {
     expect(t.reads.at(-1)).toEqual({ environmentId: "env_cloud", skillId: A.skillId });
   });
 
-  it("re-binds a skill by name when the thread's host lists it under another id", async () => {
+  it("falls back to the pill's workspace while the thread's environment isn't ready", async () => {
     const t = core();
+    t.places.set("thr", null);
     await t.send("thr", t.pill("thr", A));
-    const elsewhere: ModeRef = { skillId: "skill_a_on_vm", label: "alpha" };
-    t.files[elsewhere.skillId] = t.files[A.skillId]!;
-    const context = await t.send("thr", t.pill("thr", elsewhere, A));
-    expect(context.startsWith(maintainText("alpha", PATH_A))).toBe(true);
+    expect(t.reads.at(-1)).toEqual({ environmentId: "env_hint", skillId: A.skillId });
   });
 
+  it("re-binds a skill by name when the thread's host lists it under another id", async () => {
+    const t = core();
+    const elsewhere: ModeRef = { skillId: "skill_a_on_vm", label: "alpha" };
+    expect((await t.send("thr", t.pill("thr", elsewhere))).startsWith(modeText("alpha", PATH_A))).toBe(true);
+  });
+});
+
+describe("draft selection", () => {
+  it("starts at None and refuses a write against a stale revision", async () => {
+    let release!: () => void;
+    const t = core({ slowDraftRead: new Promise<void>((resolve) => (release = resolve)) });
+    const write = t.service.setDraft("thr", B, 0);
+    const other = t.service.setDraft("thr", A, 0);
+    release();
+    const [slowResult, otherResult] = await Promise.all([write, other]);
+    expect(slowResult.ok).toBe(true);
+    expect(otherResult).toMatchObject({ ok: false, state: { draft: B, rev: 1 } });
+    expect(await core().service.readState("thr_fresh")).toEqual({ draft: null, rev: 0, notice: null });
+  });
+});
+
+describe("first-message pills", () => {
+  it("carry a new-thread choice over to the created thread", async () => {
+    const t = core();
+    await t.send("thr_new", t.pill(null, A));
+    expect(await t.service.readState("thr_new")).toMatchObject({ draft: A, rev: 1 });
+  });
+
+  it("don't override a choice already recorded for the thread", async () => {
+    const t = core();
+    await t.service.setDraft("thr_new", null, 0);
+    await t.send("thr_new", t.pill(null, A));
+    expect(await t.service.readState("thr_new")).toMatchObject({ draft: null, rev: 1 });
+  });
+
+  it("are bound to the created thread, so a later resolution reads from that thread's ready environment", async () => {
+    const t = core();
+    const first = t.pill(null, A);
+    await t.resolve(first);
+    expect(t.reads.at(-1)?.environmentId).toBe("env_hint");
+    await t.service.admit("thr_new", t.blocksOf(first));
+    t.places.set("thr_new", { projectId: "proj_1", environmentId: "env_ready" });
+    await t.resolve(first);
+    expect(t.reads.at(-1)).toEqual({ environmentId: "env_ready", skillId: A.skillId });
+  });
+
+  it("keep their first binding when admitted again", async () => {
+    const t = core();
+    const first = t.pill(null, A);
+    await t.send("thr_new", first);
+    await t.service.admit("thr_other", t.blocksOf(first));
+    expect(t.kv.get(`pill:${first.nonce}`)).toBe("thr_new");
+  });
+});
+
+describe("missing skill files", () => {
+  it("send nothing, clear the mode and leave a notice", async () => {
+    const t = core();
+    await t.service.setDraft("thr", A, 0);
+    delete t.files[A.skillId];
+    expect(await t.send("thr", t.pill("thr", A))).toBe("");
+    expect(await t.service.readState("thr")).toEqual({
+      draft: null,
+      rev: 2,
+      notice: "'alpha' mode couldn't be applied — its skill file may have been renamed or removed. Message sent without it.",
+    });
+    await t.service.clearNotice("thr");
+    expect((await t.service.readState("thr")).notice).toBeNull();
+  });
+
+  it("hand a new thread's notice to the thread once it exists", async () => {
+    const t = core({ files: {} });
+    const mention = t.pill(null, A);
+    expect(await t.resolve(mention)).toBe("");
+    await t.service.admit("thr_new", t.blocksOf(mention));
+    expect(await t.service.readState("thr_new")).toMatchObject({ draft: null, notice: expect.stringContaining("'alpha' mode") });
+  });
+});
+
+describe("skill listing", () => {
   it("leaves user skills out for a host that can't load them", async () => {
     const t = core({ extraSkills: [listingOf({ skillId: "skill_u", label: "mine" }, "/home/u/.agents/skills/mine/SKILL.md", "shared-user")] });
     const local = await t.service.listModes({ projectId: "p", environmentId: null, providerId: null });
@@ -286,58 +217,7 @@ describe("P2: forks, edits, handoff, environments", () => {
     expect(local.map((option) => option.label)).toContain("mine");
     expect(remote.map((option) => option.label)).not.toContain("mine");
   });
-});
 
-describe("first-message pills", () => {
-  it("are bound to the created thread, so a later resolution uses that thread's mode and environment", async () => {
-    const t = core();
-    const first = t.pill(null, A);
-    expect((await t.send("thr_new", first)).startsWith(enterText("alpha", PATH_A))).toBe(true);
-    await t.send("thr_new", t.pill("thr_new", B, A));
-    t.places.set("thr_new", { projectId: "proj_1", environmentId: "env_ready" });
-    const replay = await t.resolveOnly(first);
-    expect(replay.startsWith(`${exitText("beta")}\n\n${enterText("alpha", PATH_A)}`)).toBe(true);
-    expect(t.reads.at(-1)).toEqual({ environmentId: "env_ready", skillId: A.skillId });
-  });
-
-  it("keep the first binding when the same pill is admitted again", async () => {
-    const t = core();
-    const first = t.pill(null, A);
-    await t.send("thr_new", first);
-    await t.service.admit("thr_other", [
-      { type: "text", text: "alpha x", mentions: [{ resource: { kind: "plugin", pluginId: "agent-pills", label: "alpha", itemId: `mode:${modeItemId("x", first)}` } }] },
-    ]);
-    expect(t.kv.get(`pill:${first.nonce}`)).toBe("thr_new");
-  });
-});
-
-describe("missing skill files", () => {
-  it("drops the mode, sends the exit once, and leaves a notice", async () => {
-    const t = core();
-    await t.send("thr", t.pill("thr", A));
-    delete t.files[A.skillId];
-    expect(await t.send("thr", t.pill("thr", A, A))).toBe(exitText("alpha"));
-    expect(await t.service.readState("thr")).toMatchObject({
-      committed: null,
-      draft: null,
-      notice: "'alpha' mode couldn't be applied — its skill file may have been renamed or removed. Message sent without it.",
-    });
-    await t.service.clearNotice("thr");
-    expect((await t.service.readState("thr")).notice).toBeNull();
-  });
-
-  it("hands a new thread's missing-skill notice to the thread once it exists", async () => {
-    const t = core({ files: {} });
-    const mention = t.pill(null, A);
-    expect(await t.resolveOnly(mention)).toBe("");
-    await t.service.admit("thr_new", [
-      { type: "text", text: "alpha x", mentions: [{ resource: { kind: "plugin", pluginId: "agent-pills", label: "alpha", itemId: `mode:${modeItemId("x", mention)}` } }] },
-    ]);
-    expect(await t.service.readState("thr_new")).toMatchObject({ draft: null, notice: expect.stringContaining("'alpha' mode") });
-  });
-});
-
-describe("skill listing", () => {
   it("answers at once from what it knows, then fills in frontmatter in the background", async () => {
     const t = core();
     const args = { projectId: "proj_1", environmentId: null, providerId: "claude-code" };

@@ -18,11 +18,8 @@ import {
   cycleMode,
   modeItemId,
   newNonce,
-  pillLabel,
   sameMode,
-  transitionOf,
   type ModeRef,
-  type ModeTransition,
 } from "./model";
 import { syncModePill, type ModePill } from "./draft";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
@@ -118,7 +115,7 @@ interface ThreadModeData {
 }
 
 const THREAD_STORE_PREFIX = "bb-plugin-agent-pills.thread-mode.v1:";
-const EMPTY_STATE: ThreadModeState = { committed: null, draft: null, rev: 0, notice: null };
+const EMPTY_STATE: ThreadModeState = { draft: null, rev: 0, notice: null };
 
 function cachedThreadMode(threadId: string): ThreadModeData | null {
   try {
@@ -563,8 +560,7 @@ export function ModeAction() {
 
   const { options, refresh: refreshOptions } = useModeOptions(workspace);
   const state: ThreadModeState =
-    scope.kind === "new-thread" ? { committed: null, draft: newThreadDraft, rev: 0, notice: null } : (thread.data?.state ?? EMPTY_STATE);
-  const transition: ModeTransition = transitionOf(state);
+    scope.kind === "new-thread" ? { draft: newThreadDraft, rev: 0, notice: null } : (thread.data?.state ?? EMPTY_STATE);
   const active = state.draft;
   const activeOption = active ? (options?.find((option) => option.skillId === active.skillId) ?? null) : null;
 
@@ -582,40 +578,26 @@ export function ModeAction() {
 
   const authoritative = scope.kind === "new-thread" || (thread.hydrated && !thread.writing);
   const [nonce, setNonce] = useState(newNonce);
-  const shown = transition.kind === "exit" ? transition.exited : transition.kind === "none" ? null : transition.mode;
-  const shownOption = shown ? (options?.find((option) => option.skillId === shown.skillId) ?? null) : null;
-  const tone = transition.kind === "exit" ? "exit" : (shownOption?.color ?? "default");
-  const pillIcon = modeIconName(shownOption?.icon ?? DEFAULT_MODE_ICON);
-  const label = pillLabel(transition);
+  const mode = state.draft;
+  const modeOption = mode ? (options?.find((option) => sameMode(option, mode)) ?? null) : null;
+  const tone = modeOption?.color ?? "default";
+  const pillIcon = modeIconName(modeOption?.icon ?? DEFAULT_MODE_ICON);
   const pill: ModePill | null = useMemo(() => {
-    if (!authoritative || label === null || workspace.projectId === null) return null;
+    if (!authoritative || mode === null || workspace.projectId === null) return null;
     return {
       pluginId,
       provider: MODE_MENTION_PROVIDER,
-      id: modeItemId(tone, {
-        dest: state.draft,
-        leaving: state.committed,
-        threadId,
-        projectId: workspace.projectId,
-        environmentId: workspace.environmentId,
-        nonce,
-      }),
-      label,
+      id: modeItemId(tone, { mode, threadId, projectId: workspace.projectId, environmentId: workspace.environmentId, nonce }),
+      label: mode.label,
       icon: pillIcon,
     };
-  }, [authoritative, label, nonce, pillIcon, pluginId, state.committed, state.draft, threadId, tone, workspace.environmentId, workspace.projectId]);
+  }, [authoritative, mode, nonce, pillIcon, pluginId, threadId, tone, workspace.environmentId, workspace.projectId]);
 
   const pending = authoritative ? syncModePill(composer.draft, pill, pluginId, MODE_MENTION_PROVIDER) : null;
   useEffect(() => {
     if (pending !== null) composer.replace(pending);
   }, [composer, pending]);
 
-  const hydrating = scope.kind === "thread" && !thread.hydrated;
-  useEffect(() => {
-    if (scope.kind !== "thread") return;
-    composer.setInputLock(hydrating);
-    return () => composer.setInputLock(false);
-  }, [composer, hydrating, scope.kind]);
   useSubmitGate(anchor, !authoritative || pending !== null);
 
   useEffect(

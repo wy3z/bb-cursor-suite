@@ -22,7 +22,6 @@ const modeOptionSchema = modeRefSchema.extend({
 export type ModeOption = z.infer<typeof modeOptionSchema>;
 
 const threadModeStateSchema = z.object({
-  committed: modeRefSchema.nullable(),
   draft: modeRefSchema.nullable(),
   rev: z.number().int().min(0),
   notice: z.string().nullable(),

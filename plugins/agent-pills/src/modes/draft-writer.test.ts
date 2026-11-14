@@ -7,7 +7,7 @@ const A: ModeRef = { skillId: "skill_a", label: "alpha" };
 const B: ModeRef = { skillId: "skill_b", label: "beta" };
 const C: ModeRef = { skillId: "skill_c", label: "gamma" };
 
-function server(initial: ThreadModeState = { committed: null, draft: null, rev: 0, notice: null }) {
+function server(initial: ThreadModeState = { draft: null, rev: 0, notice: null }) {
   let state = initial;
   const calls: Array<[string | null, number]> = [];
   const gates: Array<() => void> = [];
