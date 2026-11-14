@@ -363,9 +363,9 @@ function ModeToast({ message, onDone }: { message: string; onDone: () => void })
   );
 }
 
-function useSubmitGate(anchor: HTMLElement | null, blocked: boolean) {
-  const latest = useRef(blocked);
-  latest.current = blocked;
+function useSubmitGate(anchor: HTMLElement | null, blocked: boolean, sendWithPill: () => boolean) {
+  const latest = useRef({ blocked, sendWithPill });
+  latest.current = { blocked, sendWithPill };
   useEffect(() => {
     const root = anchor?.closest<HTMLElement>("[data-app-composer]");
     if (!root) return;
@@ -374,13 +374,23 @@ function useSubmitGate(anchor: HTMLElement | null, blocked: boolean) {
       event.stopPropagation();
     };
     const onKey = (event: KeyboardEvent) => {
-      if (!latest.current || event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-      stop(event);
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+      if (latest.current.blocked) {
+        stop(event);
+        return;
+      }
+      if (event.altKey || event.ctrlKey || event.metaKey || root.querySelector("[data-promptbox-typeahead-menu]")) return;
+      const target = event.target as HTMLElement | null;
+      if ((target?.isContentEditable || target?.tagName === "TEXTAREA") && latest.current.sendWithPill()) stop(event);
     };
     const onPress = (event: Event) => {
-      if (!latest.current) return;
       const target = event.target as Element | null;
-      if (target?.closest("[data-promptbox-submit-action], [data-promptbox-send-menu]")) stop(event);
+      if (!target?.closest("[data-promptbox-submit-action], [data-promptbox-send-menu]")) return;
+      if (latest.current.blocked) {
+        stop(event);
+        return;
+      }
+      if (target.closest("[data-promptbox-submit-action]") && event.type === "click" && latest.current.sendWithPill()) stop(event);
     };
     root.addEventListener("keydown", onKey, true);
     root.addEventListener("click", onPress, true);
@@ -503,12 +513,38 @@ export function ModeAction() {
     };
   }, [authoritative, mode, nonce, pillIcon, pluginId, state.rev, threadId, tone, workspace.environmentId, workspace.projectId]);
 
-  const pending = authoritative ? syncModePill(composer.draft, pill, pluginId, MODE_MENTION_PROVIDER) : null;
+  const [released, setReleased] = useState(0);
+  const pending = authoritative ? syncModePill(composer.draft, null, pluginId, MODE_MENTION_PROVIDER) : null;
+  const insertPill = useCallback(() => {
+    if (pill === null) return false;
+    let inserted = false;
+    composer.replace((current) => {
+      const next = syncModePill(current, pill, pluginId, MODE_MENTION_PROVIDER);
+      inserted = next !== null;
+      return next ?? current;
+    });
+    return inserted;
+  }, [composer, pill, pluginId]);
+  const holding = useRef(false);
+  const sendWithPill = useCallback(() => {
+    if (holding.current || !insertPill()) return false;
+    holding.current = true;
+    window.requestAnimationFrame(() => {
+      composer
+        .submit()
+        .catch((cause: unknown) => setToast(cause instanceof Error ? cause.message : "Couldn't send the message."))
+        .finally(() => {
+          holding.current = false;
+          setReleased((count) => count + 1);
+        });
+    });
+    return true;
+  }, [composer, insertPill]);
   useEffect(() => {
-    if (pending !== null) composer.replace(pending);
-  }, [composer, pending]);
+    if (pending !== null && !holding.current) composer.replace(pending);
+  }, [composer, pending, released]);
 
-  useSubmitGate(anchor, !authoritative || pending !== null);
+  useSubmitGate(anchor, !authoritative || pending !== null, sendWithPill);
 
   useEffect(
     () =>
@@ -574,8 +610,8 @@ export function ModeAction() {
     }
     if (!authoritative || pending !== null || !sameMode(state.draft, sendAs.mode) || pill === null) return;
     setSendAs(null);
-    composer.submit().catch((cause: unknown) => setToast(cause instanceof Error ? cause.message : "Couldn't send the message."));
-  }, [authoritative, composer, pending, pill, sendAs, state.draft]);
+    if (!sendWithPill()) composer.submit().catch((cause: unknown) => setToast(cause instanceof Error ? cause.message : "Couldn't send the message."));
+  }, [authoritative, composer, pending, pill, sendAs, sendWithPill, state.draft]);
 
   const close = useCallback(() => {
     setOpen(false);

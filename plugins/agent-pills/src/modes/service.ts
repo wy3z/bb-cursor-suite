@@ -417,11 +417,43 @@ export function createModeService(deps: ModeDeps) {
     return own === null ? null : { threadId: thread.id, contaminated: thread.titleFallback, own };
   }
 
+  async function activeMode(threadId: string): Promise<ModeRef | null> {
+    return (await storedDraft(threadId))?.draft ?? null;
+  }
+
+  async function threadModeContext(threadId: string): Promise<string | null> {
+    const stored = await storedDraft(threadId);
+    const mode = stored?.draft ?? null;
+    if (mode === null) return null;
+    const place = await deps.threadPlace(threadId);
+    if (place === null) return null;
+    const mention: ModeMention = { mode, rev: stored?.rev ?? 0, threadId, projectId: place.projectId, environmentId: place.environmentId, nonce: "dispatch" };
+    const { context, missing } = await contextFor(mention, place);
+    if (missing) {
+      await serial(threadId, () => dropMissingMode(threadId, mention));
+      deps.publish(threadId);
+    }
+    return context;
+  }
+
   function carriesMode(blocks: readonly unknown[]): boolean {
     return mentionsIn(blocks).length > 0;
   }
 
-  return { listModes, settled, readState, setDraft, clearNotice, resolveMention, admit, titleFixFor, carriesMode, exitFlag };
+  return {
+    listModes,
+    settled,
+    readState,
+    setDraft,
+    clearNotice,
+    resolveMention,
+    admit,
+    titleFixFor,
+    carriesMode,
+    exitFlag,
+    activeMode,
+    threadModeContext,
+  };
 }
 
 export interface TitleFixDeps {
