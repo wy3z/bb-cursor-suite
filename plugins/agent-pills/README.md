@@ -10,6 +10,7 @@ People who spend their day in the prompt box and want it calm. The pills keep ch
 
 - **The composer** becomes a rounded, opaque row: the paperclip, then permission mode, model and reasoning as plain text, and a round send button. Right-click the send button for BB's send options.
 - **The environment picker** under a new thread's prompt box works like Cursor's: **Cloud** and **This Computer** under Run on, then your existing worktrees, **New Worktree** and any other local environment. Cloud appears once a cloud environment provider is installed, and is greyed out with a Learn more link until then. See [Cloud agents](../../README.md#cloud-agents).
+- **Mode** puts any skill in charge of a thread, like Cursor's custom modes. Pick one from the **Mode** pill in the composer, or press Shift+Tab in the prompt box to cycle. The skill and a short reminder go with every message until you pick **None** or another mode. A skill's `icon:` and `color:` frontmatter style its badge.
 - **Agents** collects child threads and background tasks in one tray. Answer, stop or open them from there.
 - **Changes** shows the checkout's changes with commit, push and pull request buttons. These need the Pull Requests plugin.
 - **Apply locally** copies a child thread's worktree into the parent's checkout as uncommitted changes. This also needs Pull Requests.

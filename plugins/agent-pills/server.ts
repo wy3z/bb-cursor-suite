@@ -19,8 +19,12 @@ import {
   type QueuedMessage,
   type ThreadState,
 } from "./src/rpc";
+import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
+import { MODE_MENTION_PROVIDER, createModeService, modeDepsFrom } from "./src/modes/service";
 
 export default function plugin(bb: BbPluginApi) {
+  const modes = createModeService(modeDepsFrom(bb));
+
   bb.rpc.register(agentPillsRpcContract, {
     async threadActivity({ threadId, childThreadIds }) {
       const [summary, queue, thread] = await Promise.all([
@@ -68,6 +72,49 @@ export default function plugin(bb: BbPluginApi) {
       runAction(() => bb.sdk.threads.restoreEnvironment({ threadId })),
     resumeHost: ({ hostId }) =>
       runAction(() => bb.sdk.hosts.experimental_resume({ hostId })),
+
+    listModes: async (input) => {
+      try {
+        return { modes: await modes.listModes(input) };
+      } catch {
+        return { modes: [] };
+      }
+    },
+    threadMode: async ({ threadId }) => {
+      const [state, thread] = await Promise.all([
+        modes.readState(threadId),
+        bb.sdk.threads.get({ threadId }).catch(() => null),
+      ]);
+      return {
+        state,
+        projectId: thread?.projectId ?? null,
+        environmentId: thread?.environmentId ?? null,
+        providerId: thread?.providerId ?? null,
+      };
+    },
+    setThreadMode: async ({ threadId, mode }) => ({ state: await modes.setDraft(threadId, mode) }),
+    clearModeNotice: async ({ threadId }) => {
+      await modes.clearNotice(threadId);
+      return { ok: true };
+    },
+    iconGlyphs: (input) => serveProjectIconGlyphs(input),
+  });
+
+  bb.ui.registerMentionProvider({
+    id: MODE_MENTION_PROVIDER,
+    label: "Mode",
+    triggers: ["~"],
+    search: () => [],
+    resolve: async (itemId) => ({ context: await modes.resolveMention(itemId) }),
+  });
+
+  bb.experimental_hooks.on("message.dispatch", async (context) => {
+    try {
+      await modes.commitDispatch(context.thread.id, context.input.blocks);
+    } catch (cause) {
+      bb.log.warn(`Could not record the thread's mode: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+    return { action: "proceed" };
   });
 
   bb.events.on("experimental_thread.events", ({ thread }) => {
