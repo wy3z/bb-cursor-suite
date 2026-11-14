@@ -1,6 +1,7 @@
 /** The RPC contract shared by the server and the app's typed client. */
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { modeRpcMethods } from "./modes/rpc";
 
 const backgroundTaskSchema = z.object({
   id: z.string(),
@@ -173,4 +174,5 @@ export const agentPillsRpcContract = defineRpcContract({
     }),
     output: okSchema,
   },
+  ...modeRpcMethods,
 });

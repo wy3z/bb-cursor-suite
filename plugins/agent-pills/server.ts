@@ -19,8 +19,34 @@ import {
   type QueuedMessage,
   type ThreadState,
 } from "./src/rpc";
+import { MODE_MENTION_PROVIDER, createModeService, createTitleFixer, modeDepsFrom } from "./src/modes/service";
+import { createExitNoter } from "./src/modes/exit-note";
 
 export default function plugin(bb: BbPluginApi) {
+  const modes = createModeService(modeDepsFrom(bb));
+  const titles = createTitleFixer({
+    getThread: (threadId) => bb.sdk.threads.get({ threadId }),
+    setTitle: async (threadId, title) => {
+      await bb.sdk.threads.update({ threadId, title });
+    },
+    log: { info: (message) => bb.log.info(message), warn: (message) => bb.log.warn(message) },
+  });
+  const exitNotes = createExitNoter({
+    pluginId: bb.pluginId,
+    flag: modes.exitFlag,
+    listQueued: (threadId) => bb.sdk.threads.queuedMessages.list({ threadId }),
+    updateQueued: async ({ threadId, queuedMessageId, input, expectedUpdatedAt }) => {
+      await bb.sdk.threads.queuedMessages.update({
+        threadId,
+        queuedMessageId,
+        expectedUpdatedAt,
+        input: input as Parameters<typeof bb.sdk.threads.queuedMessages.update>[0]["input"],
+      });
+    },
+    recheck: () => bb.experimental_hooks.recheck("message.dispatch"),
+    log: { warn: (message) => bb.log.warn(message) },
+  });
+
   bb.rpc.register(agentPillsRpcContract, {
     async threadActivity({ threadId, childThreadIds }) {
       const [summary, queue, thread] = await Promise.all([
@@ -68,7 +94,59 @@ export default function plugin(bb: BbPluginApi) {
       runAction(() => bb.sdk.threads.restoreEnvironment({ threadId })),
     resumeHost: ({ hostId }) =>
       runAction(() => bb.sdk.hosts.experimental_resume({ hostId })),
+
+    listModes: async (input) => {
+      try {
+        return { modes: await modes.listModes(input) };
+      } catch {
+        return { modes: [] };
+      }
+    },
+    threadMode: async ({ threadId }) => {
+      const [state, thread] = await Promise.all([
+        modes.readState(threadId),
+        bb.sdk.threads.get({ threadId }).catch(() => null),
+      ]);
+      return {
+        state,
+        projectId: thread?.projectId ?? null,
+        environmentId: thread?.environmentId ?? null,
+        providerId: thread?.providerId ?? null,
+      };
+    },
+    setThreadMode: ({ threadId, mode, rev }) => modes.setDraft(threadId, mode, rev),
+    clearModeNotice: async ({ threadId }) => {
+      await modes.clearNotice(threadId);
+      return { ok: true };
+    },
   });
+
+  bb.ui.registerMentionProvider({
+    id: MODE_MENTION_PROVIDER,
+    label: "Mode",
+    triggers: ["~"],
+    search: () => [],
+    resolve: async (itemId) => ({ context: await modes.resolveMention(itemId) }),
+  });
+
+  bb.experimental_hooks.on("message.dispatch", async (context) => {
+    try {
+      await modes.admit(context.thread.id, context.input.blocks);
+      const decision = await exitNotes.decide({
+        threadId: context.thread.id,
+        initiator: context.initiator,
+        blocks: context.input.blocks,
+        carriesMode: modes.carriesMode(context.input.blocks),
+      });
+      if (decision.action !== "proceed") return decision;
+      const fix = modes.titleFixFor(context.thread, context.input.blocks);
+      if (fix) titles.track(fix);
+    } catch (cause) {
+      bb.log.warn(`Could not handle the thread's mode: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+    return { action: "proceed" };
+  });
+
 
   bb.events.on("experimental_thread.events", ({ thread }) => {
     publish(bb, thread.id);
@@ -79,6 +157,8 @@ export default function plugin(bb: BbPluginApi) {
   bb.events.on("message.cancelled", ({ entry }) => publish(bb, entry.threadId));
   bb.events.on("message.dispatched", ({ entry }) => publish(bb, entry.threadId));
   bb.events.on("thread.archived", ({ thread }) => publish(bb, thread.id));
+  bb.events.on("thread.idle", ({ thread }) => titles.apply(thread.id));
+  bb.events.on("thread.failed", ({ thread }) => titles.apply(thread.id));
   bb.events.on("thread.unarchived", ({ thread }) => publish(bb, thread.id));
 }
 

@@ -29,6 +29,7 @@ import { OpenInEditorGuard } from "./src/open-in-editor/OpenInEditorGuard";
 import { DesktopPill, useDesktopPillVisible } from "./src/desktop/DesktopPill";
 import { DesktopTab, useDesktopTabVisible } from "./src/desktop/DesktopTab";
 import { DESKTOP_TAB } from "./src/desktop/model";
+import { ModeAction } from "./src/modes/ModeControl";
 
 /** The segment exists only while it has at least one pill to draw. */
 function usePillsVisible({
@@ -138,6 +139,12 @@ export default definePluginApp((app) => {
     id: "environment-picker",
     scopes: ["new-thread"],
     actions: [{ id: "environment", component: EnvironmentPickerAction }],
+  });
+
+  app.composer.customize({
+    id: "skill-mode",
+    scopes: ["thread", "new-thread"],
+    actions: [{ id: "mode", component: ModeAction }],
   });
 
   app.composer.customize({

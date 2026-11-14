@@ -2234,3 +2234,173 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
     width: 32px;
   }
 }
+
+.bb-agent-pills-mode {
+  display: inline-flex;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.bb-agent-pills-mode__trigger {
+  max-width: 180px;
+}
+
+.bb-agent-pills-mode__trigger[data-active] {
+  padding: 0 6px;
+  color: var(--bb-agent-pills-mode-tone, var(--foreground));
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 12%, transparent);
+}
+
+.bb-agent-pills-mode__trigger[data-active]:hover,
+.bb-agent-pills-mode__trigger[data-active][aria-expanded="true"] {
+  color: var(--bb-agent-pills-mode-tone, var(--foreground));
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 18%, transparent);
+}
+
+.bb-agent-pills-mode__glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+
+.bb-agent-pills-mode__glyph > *,
+.bb-agent-pills-mode__svg {
+  width: 100%;
+  height: 100%;
+}
+
+.bb-agent-pills-mode__svg {
+  color: var(--bb-agent-pills-mode-tone, currentColor);
+}
+
+.bb-agent-pills-mode__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-agent-pills-mode__menu {
+  gap: 0;
+}
+
+.bb-agent-pills-mode__filter {
+  margin: 2px 2px 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--bbs-text-meta, 12px);
+  outline: none;
+}
+
+.bb-agent-pills-mode__filter:focus {
+  border-color: color-mix(in srgb, var(--foreground) 24%, transparent);
+}
+
+.bb-agent-pills-mode__empty {
+  padding: 4px 8px 6px;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: var(--bbs-text-meta, 12px);
+}
+
+.bb-agent-pills-mode__toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--bbs-tray-radius, 10px);
+  background: var(--popover, var(--surface-raised-solid, var(--background)));
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
+  font-size: var(--bbs-text-body, 13px);
+  line-height: 1.4;
+}
+
+.bb-agent-pills-mode__toast-close {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:'] {
+  --bb-agent-pills-mode-fg: color-mix(in srgb, var(--foreground) 66%, transparent);
+  gap: 3px;
+  padding: 0 6px 0 4px;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-fg) 12%, transparent);
+  color: var(--bb-agent-pills-mode-fg);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:'] [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  margin-left: 0;
+}
+
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:green.'] { --bb-agent-pills-mode-fg: #2e8a52; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:cyan.'] { --bb-agent-pills-mode-fg: #0f7f8f; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:blue.'] { --bb-agent-pills-mode-fg: #2f6fd6; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:purple.'] { --bb-agent-pills-mode-fg: #6c5ce0; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:magenta.'] { --bb-agent-pills-mode-fg: #a24a94; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:orange.'] { --bb-agent-pills-mode-fg: #c4562c; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:yellow.'] { --bb-agent-pills-mode-fg: #a06a00; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:red.'] { --bb-agent-pills-mode-fg: #d42f4f; }
+[data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:brand.'] { --bb-agent-pills-mode-fg: #d94600; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:green.'] { --bb-agent-pills-mode-fg: #3fa266; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:cyan.'] { --bb-agent-pills-mode-fg: #56b6c2; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:blue.'] { --bb-agent-pills-mode-fg: #7bafe9; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:purple.'] { --bb-agent-pills-mode-fg: #9386f2; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:magenta.'] { --bb-agent-pills-mode-fg: #b48ead; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:orange.'] { --bb-agent-pills-mode-fg: #d08770; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:yellow.'] { --bb-agent-pills-mode-fg: #f1b467; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:red.'] { --bb-agent-pills-mode-fg: #fc6b83; }
+html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:brand.'] { --bb-agent-pills-mode-fg: #f54e00; }
+
+.bb-agent-pills-mode-tone-default { --bb-agent-pills-mode-tone: color-mix(in srgb, var(--foreground) 66%, transparent); }
+.bb-agent-pills-mode-tone-green { --bb-agent-pills-mode-tone: #2e8a52; }
+.bb-agent-pills-mode-tone-cyan { --bb-agent-pills-mode-tone: #0f7f8f; }
+.bb-agent-pills-mode-tone-blue { --bb-agent-pills-mode-tone: #2f6fd6; }
+.bb-agent-pills-mode-tone-purple { --bb-agent-pills-mode-tone: #6c5ce0; }
+.bb-agent-pills-mode-tone-magenta { --bb-agent-pills-mode-tone: #a24a94; }
+.bb-agent-pills-mode-tone-orange { --bb-agent-pills-mode-tone: #c4562c; }
+.bb-agent-pills-mode-tone-yellow { --bb-agent-pills-mode-tone: #a06a00; }
+.bb-agent-pills-mode-tone-red { --bb-agent-pills-mode-tone: #d42f4f; }
+.bb-agent-pills-mode-tone-brand { --bb-agent-pills-mode-tone: #d94600; }
+html.dark .bb-agent-pills-mode-tone-green { --bb-agent-pills-mode-tone: #3fa266; }
+html.dark .bb-agent-pills-mode-tone-cyan { --bb-agent-pills-mode-tone: #56b6c2; }
+html.dark .bb-agent-pills-mode-tone-blue { --bb-agent-pills-mode-tone: #7bafe9; }
+html.dark .bb-agent-pills-mode-tone-purple { --bb-agent-pills-mode-tone: #9386f2; }
+html.dark .bb-agent-pills-mode-tone-magenta { --bb-agent-pills-mode-tone: #b48ead; }
+html.dark .bb-agent-pills-mode-tone-orange { --bb-agent-pills-mode-tone: #d08770; }
+html.dark .bb-agent-pills-mode-tone-yellow { --bb-agent-pills-mode-tone: #f1b467; }
+html.dark .bb-agent-pills-mode-tone-red { --bb-agent-pills-mode-tone: #fc6b83; }
+html.dark .bb-agent-pills-mode-tone-brand { --bb-agent-pills-mode-tone: #f54e00; }
+
+.bb-agent-pills-mode__svg {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+}
+
+.bb-agent-pills-mode__svg > * {
+  width: 100%;
+  height: 100%;
+}
