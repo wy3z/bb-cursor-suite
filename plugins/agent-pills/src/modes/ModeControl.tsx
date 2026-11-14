@@ -587,11 +587,11 @@ export function ModeAction() {
     return {
       pluginId,
       provider: MODE_MENTION_PROVIDER,
-      id: modeItemId(tone, { mode, threadId, projectId: workspace.projectId, environmentId: workspace.environmentId, nonce }),
+      id: modeItemId(tone, { mode, rev: state.rev, threadId, projectId: workspace.projectId, environmentId: workspace.environmentId, nonce }),
       label: mode.label,
       icon: pillIcon,
     };
-  }, [authoritative, mode, nonce, pillIcon, pluginId, threadId, tone, workspace.environmentId, workspace.projectId]);
+  }, [authoritative, mode, nonce, pillIcon, pluginId, state.rev, threadId, tone, workspace.environmentId, workspace.projectId]);
 
   const pending = authoritative ? syncModePill(composer.draft, pill, pluginId, MODE_MENTION_PROVIDER) : null;
   useEffect(() => {

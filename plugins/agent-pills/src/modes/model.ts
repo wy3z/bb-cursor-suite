@@ -47,6 +47,7 @@ export function cycleMode(options: readonly ModeRef[], current: ModeRef | null, 
 
 export interface ModeMention {
   mode: ModeRef;
+  rev: number;
   threadId: string | null;
   projectId: string;
   environmentId: string | null;
@@ -56,6 +57,7 @@ export interface ModeMention {
 interface WireMention {
   v: 3;
   m: [string, string];
+  r: number;
   t: string | null;
   p: string;
   e: string | null;
@@ -80,6 +82,7 @@ export function encodeModeMention(mention: ModeMention): string {
   const wire: WireMention = {
     v: 3,
     m: [mention.mode.skillId, mention.mode.label],
+    r: mention.rev,
     t: mention.threadId,
     p: mention.projectId,
     e: mention.environmentId,
@@ -113,6 +116,7 @@ export function decodeModeMention(itemId: string): ModeMention | null {
   if (mode === null) return null;
   return {
     mode,
+    rev: typeof wire.r === "number" && Number.isInteger(wire.r) && wire.r >= 0 ? wire.r : 0,
     threadId: typeof wire.t === "string" ? wire.t : null,
     projectId: wire.p,
     environmentId: typeof wire.e === "string" ? wire.e : null,

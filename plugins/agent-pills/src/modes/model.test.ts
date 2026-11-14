@@ -52,8 +52,8 @@ describe("mode text", () => {
 describe("mode mentions", () => {
   it("round-trips the mode, thread, workspace hints and nonce", () => {
     const mentions = [
-      { mode: reviewer, threadId: "thr_1", projectId: "proj_1", environmentId: null, nonce: "n1" },
-      { mode: { skillId: "skill_ü", label: "Révision" }, threadId: null, projectId: "p", environmentId: "env_1", nonce: "n2" },
+      { mode: reviewer, rev: 3, threadId: "thr_1", projectId: "proj_1", environmentId: null, nonce: "n1" },
+      { mode: { skillId: "skill_ü", label: "Révision" }, rev: 0, threadId: null, projectId: "p", environmentId: "env_1", nonce: "n2" },
     ];
     for (const mention of mentions) {
       expect(decodeModeMention(encodeModeMention(mention))).toEqual(mention);

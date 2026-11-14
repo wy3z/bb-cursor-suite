@@ -21,6 +21,7 @@ import {
 } from "./src/rpc";
 import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
 import { MODE_MENTION_PROVIDER, createModeService, createTitleFixer, modeDepsFrom } from "./src/modes/service";
+import { createExitNoter } from "./src/modes/exit-note";
 
 export default function plugin(bb: BbPluginApi) {
   const modes = createModeService(modeDepsFrom(bb));
@@ -30,6 +31,21 @@ export default function plugin(bb: BbPluginApi) {
       await bb.sdk.threads.update({ threadId, title });
     },
     log: { info: (message) => bb.log.info(message), warn: (message) => bb.log.warn(message) },
+  });
+  const exitNotes = createExitNoter({
+    pluginId: bb.pluginId,
+    flag: modes.exitFlag,
+    listQueued: (threadId) => bb.sdk.threads.queuedMessages.list({ threadId }),
+    updateQueued: async ({ threadId, queuedMessageId, input, expectedUpdatedAt }) => {
+      await bb.sdk.threads.queuedMessages.update({
+        threadId,
+        queuedMessageId,
+        expectedUpdatedAt,
+        input: input as Parameters<typeof bb.sdk.threads.queuedMessages.update>[0]["input"],
+      });
+    },
+    recheck: () => bb.experimental_hooks.recheck("message.dispatch"),
+    log: { warn: (message) => bb.log.warn(message) },
   });
 
   bb.rpc.register(agentPillsRpcContract, {
@@ -118,13 +134,21 @@ export default function plugin(bb: BbPluginApi) {
   bb.experimental_hooks.on("message.dispatch", async (context) => {
     try {
       await modes.admit(context.thread.id, context.input.blocks);
+      const decision = await exitNotes.decide({
+        threadId: context.thread.id,
+        initiator: context.initiator,
+        blocks: context.input.blocks,
+        carriesMode: modes.carriesMode(context.input.blocks),
+      });
+      if (decision.action !== "proceed") return decision;
       const fix = modes.titleFixFor(context.thread, context.input.blocks);
       if (fix) titles.track(fix);
     } catch (cause) {
-      bb.log.warn(`Could not record the thread's mode: ${cause instanceof Error ? cause.message : String(cause)}`);
+      bb.log.warn(`Could not handle the thread's mode: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
     return { action: "proceed" };
   });
+
 
   bb.events.on("experimental_thread.events", ({ thread }) => {
     publish(bb, thread.id);

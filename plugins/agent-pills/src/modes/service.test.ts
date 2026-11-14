@@ -60,9 +60,9 @@ function core(options: Options = {}) {
   });
 
   let nonces = 0;
-  function pill(threadId: string | null, mode: ModeRef): ModeMention {
+  function pill(threadId: string | null, mode: ModeRef, rev = 0): ModeMention {
     nonces += 1;
-    return { mode, threadId, projectId: "proj_1", environmentId: "env_hint", nonce: `n${nonces}` };
+    return { mode, rev, threadId, projectId: "proj_1", environmentId: "env_hint", nonce: `n${nonces}` };
   }
 
   function blocksOf(mention: ModeMention) {
@@ -165,13 +165,14 @@ describe("first-message pills", () => {
     expect(await t.service.readState("thr_new")).toMatchObject({ draft: null, rev: 1 });
   });
 
-  it("are bound to the created thread, so a later resolution reads from that thread's ready environment", async () => {
+  it("are bound to the created thread, so a later resolution without admission reads from that thread's ready environment", async () => {
     const t = core();
     const first = t.pill(null, A);
     await t.resolve(first);
     expect(t.reads.at(-1)?.environmentId).toBe("env_hint");
     await t.service.admit("thr_new", t.blocksOf(first));
     t.places.set("thr_new", { projectId: "proj_1", environmentId: "env_ready" });
+    t.tick(120_000);
     await t.resolve(first);
     expect(t.reads.at(-1)).toEqual({ environmentId: "env_ready", skillId: A.skillId });
   });
@@ -186,18 +187,29 @@ describe("first-message pills", () => {
 });
 
 describe("missing skill files", () => {
-  it("send nothing, clear the mode and leave a notice", async () => {
+  it("send nothing, clear the mode it was sent under and leave a notice", async () => {
     const t = core();
     await t.service.setDraft("thr", A, 0);
     delete t.files[A.skillId];
-    expect(await t.send("thr", t.pill("thr", A))).toBe("");
+    expect(await t.send("thr", t.pill("thr", A, 1))).toBe("");
     expect(await t.service.readState("thr")).toEqual({
       draft: null,
       rev: 2,
       notice: "'alpha' mode couldn't be applied — its skill file may have been renamed or removed. Message sent without it.",
     });
+    expect(await t.service.exitFlag.get("thr")).toBe(true);
     await t.service.clearNotice("thr");
     expect((await t.service.readState("thr")).notice).toBeNull();
+  });
+
+  it("leave a newer healthy selection alone when an old message's skill is gone", async () => {
+    const t = core();
+    await t.service.setDraft("thr", A, 0);
+    const old = t.pill("thr", A, 1);
+    await t.service.setDraft("thr", B, 1);
+    delete t.files[A.skillId];
+    expect(await t.send("thr", old)).toBe("");
+    expect(await t.service.readState("thr")).toMatchObject({ draft: B, rev: 2, notice: expect.stringContaining("'alpha' mode") });
   });
 
   it("hand a new thread's notice to the thread once it exists", async () => {
@@ -209,13 +221,68 @@ describe("missing skill files", () => {
   });
 });
 
+describe("delivery target", () => {
+  it("resolves a replayed pill against the thread that is actually receiving it", async () => {
+    const t = core();
+    t.places.set("thr_parent", { projectId: "proj_1", environmentId: "env_parent" });
+    t.places.set("thr_fork", { projectId: "proj_1", environmentId: "env_fork" });
+    const inherited = t.pill("thr_parent", A);
+    await t.send("thr_parent", inherited);
+    expect(t.reads.at(-1)?.environmentId).toBe("env_parent");
+    await t.send("thr_fork", inherited);
+    expect(t.reads.at(-1)?.environmentId).toBe("env_fork");
+  });
+
+  it("overrides a first-message binding when the pill is delivered elsewhere", async () => {
+    const t = core();
+    t.places.set("thr_fork", { projectId: "proj_1", environmentId: "env_fork" });
+    const first = t.pill(null, A);
+    await t.resolve(first);
+    await t.service.admit("thr_new", t.blocksOf(first));
+    await t.send("thr_fork", first);
+    expect(t.reads.at(-1)?.environmentId).toBe("env_fork");
+  });
+
+  it("falls back to the pill's thread once the delivery record is old", async () => {
+    const t = core();
+    t.places.set("thr_a", { projectId: "proj_1", environmentId: "env_a" });
+    t.places.set("thr_b", { projectId: "proj_1", environmentId: "env_b" });
+    const mention = t.pill("thr_a", A);
+    await t.send("thr_b", mention);
+    t.tick(120_000);
+    await t.resolve(mention);
+    expect(t.reads.at(-1)?.environmentId).toBe("env_a");
+  });
+});
+
+describe("exit flag", () => {
+  it("is set when a thread goes from a mode to None and cleared when a mode is picked again", async () => {
+    const t = core();
+    await t.service.setDraft("thr", null, 0);
+    expect(await t.service.exitFlag.get("thr")).toBe(false);
+    await t.service.setDraft("thr", A, 1);
+    await t.service.setDraft("thr", null, 2);
+    expect(await t.service.exitFlag.get("thr")).toBe(true);
+    await t.service.setDraft("thr", B, 3);
+    expect(await t.service.exitFlag.get("thr")).toBe(false);
+  });
+});
+
 describe("skill listing", () => {
-  it("leaves user skills out for a host that can't load them", async () => {
-    const t = core({ extraSkills: [listingOf({ skillId: "skill_u", label: "mine" }, "/home/u/.agents/skills/mine/SKILL.md", "shared-user")] });
+  it("leaves out this computer's own user skills for another host, but keeps BB's user skills, which BB ships there", async () => {
+    const t = core({
+      extraSkills: [
+        listingOf({ skillId: "skill_u", label: "mine" }, "/home/u/.agents/skills/mine/SKILL.md", "shared-user"),
+        listingOf({ skillId: "skill_p", label: "provider-mine" }, "/home/u/.claude/skills/x/SKILL.md", "provider-user"),
+        listingOf({ skillId: "skill_bb", label: "bb-mine" }, "/home/u/.bb/skills/bb-mine/SKILL.md", "bb-user"),
+      ],
+    });
     const local = await t.service.listModes({ projectId: "p", environmentId: null, providerId: null });
     const remote = await t.service.listModes({ projectId: "p", environmentId: null, providerId: null, excludeUserSkills: true });
-    expect(local.map((option) => option.label)).toContain("mine");
+    expect(local.map((option) => option.label)).toEqual(expect.arrayContaining(["mine", "provider-mine", "bb-mine"]));
     expect(remote.map((option) => option.label)).not.toContain("mine");
+    expect(remote.map((option) => option.label)).not.toContain("provider-mine");
+    expect(remote.map((option) => option.label)).toContain("bb-mine");
   });
 
   it("answers at once from what it knows, then fills in frontmatter in the background", async () => {

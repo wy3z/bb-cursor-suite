@@ -23,6 +23,8 @@ const READ_CONCURRENCY = 8;
 const FRONTMATTER_KEY = "frontmatter:v1";
 const FRONTMATTER_LIMIT = 2000;
 const TITLE_FIX_DELAY_MS = 20_000;
+const DELIVERY_TTL_MS = 60_000;
+const DEVICE_LOCAL_SCOPES: ReadonlySet<string> = new Set(["provider-user", "shared-user"]);
 const MODE_ITEM_PREFIX = `${MODE_MENTION_PROVIDER}:`;
 
 export interface SkillListing {
@@ -108,6 +110,10 @@ function noticeKey(threadId: string): string {
 
 function bindingKey(nonce: string): string {
   return `pill:${nonce}`;
+}
+
+function exitKey(threadId: string): string {
+  return `exit:${threadId}`;
 }
 
 function rank(skill: SkillListing, providerId: string | null): number {
@@ -231,7 +237,7 @@ export function createModeService(deps: ModeDeps) {
     await ensureLoaded();
     const listed = await deps.listSkills({ projectId: args.projectId, environmentId: args.environmentId });
     const skills = pickSkills(
-      args.excludeUserSkills ? listed.filter((skill) => !skill.scope.endsWith("-user")) : listed,
+      args.excludeUserSkills ? listed.filter((skill) => !DEVICE_LOCAL_SCOPES.has(skill.scope)) : listed,
       args.providerId,
     );
     const stale = skills.filter((skill) => {
@@ -249,6 +255,17 @@ export function createModeService(deps: ModeDeps) {
 
   const queues = new Map<string, Promise<unknown>>();
   const handoffNotices = new Map<string, string>();
+  const deliveries = new Map<string, { threadId: string; at: number }>();
+
+  function deliveryTarget(nonce: string): string | null {
+    const entry = deliveries.get(nonce);
+    if (!entry) return null;
+    if (now() - entry.at > DELIVERY_TTL_MS) {
+      deliveries.delete(nonce);
+      return null;
+    }
+    return entry.threadId;
+  }
 
   function serial<T>(threadId: string, run: () => Promise<T>): Promise<T> {
     const previous = queues.get(threadId) ?? Promise.resolve();
@@ -283,15 +300,23 @@ export function createModeService(deps: ModeDeps) {
     return { draft: stored?.draft ?? null, rev: stored?.rev ?? 0, notice };
   }
 
-  async function writeDraft(threadId: string, draft: ModeRef | null, rev: number): Promise<void> {
+  async function writeDraft(threadId: string, draft: ModeRef | null, rev: number, previous: ModeRef | null = null): Promise<void> {
     await deps.kv.set(draftKey(threadId), { draft, rev } satisfies StoredDraft);
+    if (draft !== null) await deps.kv.delete(exitKey(threadId));
+    else if (previous !== null) await deps.kv.set(exitKey(threadId), true);
   }
+
+  const exitFlag = {
+    get: async (threadId: string) => (await deps.kv.get<boolean>(exitKey(threadId))) === true,
+    clear: (threadId: string) => deps.kv.delete(exitKey(threadId)),
+  };
 
   async function setDraft(threadId: string, draft: ModeRef | null, expectedRev: number): Promise<{ ok: boolean; state: ThreadModeState }> {
     const ok = await serial(threadId, async () => {
-      const current = (await storedDraft(threadId))?.rev ?? 0;
+      const stored = await storedDraft(threadId);
+      const current = stored?.rev ?? 0;
       if (current !== expectedRev) return false;
-      await writeDraft(threadId, draft, current + 1);
+      await writeDraft(threadId, draft, current + 1, stored?.draft ?? null);
       return true;
     });
     if (ok) deps.publish(threadId);
@@ -302,10 +327,11 @@ export function createModeService(deps: ModeDeps) {
     await deps.kv.delete(noticeKey(threadId));
   }
 
-  async function dropMissingMode(threadId: string, label: string): Promise<void> {
+  async function dropMissingMode(threadId: string, mention: ModeMention): Promise<void> {
     const current = await storedDraft(threadId);
-    await writeDraft(threadId, null, (current?.rev ?? 0) + 1);
-    await deps.kv.set(noticeKey(threadId), missingSkillNotice(label));
+    const unchanged = current !== undefined && current.rev === mention.rev && current.draft !== null && current.draft.skillId === mention.mode.skillId;
+    if (unchanged) await writeDraft(threadId, null, current.rev + 1, current.draft);
+    await deps.kv.set(noticeKey(threadId), missingSkillNotice(mention.mode.label));
   }
 
   async function contextFor(mention: ModeMention, place: ThreadPlace) {
@@ -323,7 +349,7 @@ export function createModeService(deps: ModeDeps) {
   async function resolveMention(itemId: string): Promise<string> {
     const mention = decodeModeMention(itemId);
     if (mention === null) return "";
-    const threadId = mention.threadId ?? (await deps.kv.get<string>(bindingKey(mention.nonce))) ?? null;
+    const threadId = deliveryTarget(mention.nonce) ?? mention.threadId ?? (await deps.kv.get<string>(bindingKey(mention.nonce))) ?? null;
     const hinted = { projectId: mention.projectId, environmentId: mention.environmentId };
     if (threadId === null) {
       const { context, missing } = await contextFor(mention, hinted);
@@ -333,7 +359,7 @@ export function createModeService(deps: ModeDeps) {
     const place = (await deps.threadPlace(threadId)) ?? hinted;
     const { context, missing } = await contextFor(mention, place);
     if (missing) {
-      await serial(threadId, () => dropMissingMode(threadId, mention.mode.label));
+      await serial(threadId, () => dropMissingMode(threadId, mention));
       deps.publish(threadId);
     }
     return context;
@@ -356,6 +382,7 @@ export function createModeService(deps: ModeDeps) {
   }
 
   async function admit(threadId: string, blocks: readonly unknown[]): Promise<void> {
+    for (const mention of mentionsIn(blocks)) deliveries.set(mention.nonce, { threadId, at: now() });
     const handoff = mentionsIn(blocks).find((mention) => mention.threadId === null);
     if (!handoff) return;
     if ((await deps.kv.get<string>(bindingKey(handoff.nonce))) === undefined) await deps.kv.set(bindingKey(handoff.nonce), threadId);
@@ -391,7 +418,11 @@ export function createModeService(deps: ModeDeps) {
     return own === null ? null : { threadId: thread.id, contaminated: thread.titleFallback, own };
   }
 
-  return { listModes, settled, readState, setDraft, clearNotice, resolveMention, admit, titleFixFor };
+  function carriesMode(blocks: readonly unknown[]): boolean {
+    return mentionsIn(blocks).length > 0;
+  }
+
+  return { listModes, settled, readState, setDraft, clearNotice, resolveMention, admit, titleFixFor, carriesMode, exitFlag };
 }
 
 export interface TitleFixDeps {
