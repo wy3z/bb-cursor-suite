@@ -1,7 +1,5 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { findProjectIconName } from "@wy3z/bb-suite/project-icon";
 import {
-  DEFAULT_MODE_ICON,
   decodeModeMention,
   fixedTitle,
   missingSkillNotice,
@@ -15,6 +13,7 @@ import {
 } from "./model";
 import type { ModeOption, ThreadModeState } from "./rpc";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
+import { modeIconOf } from "./icons";
 
 export { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL };
 
@@ -221,7 +220,7 @@ export function createModeService(deps: ModeDeps) {
       description: skill.description ?? meta?.description ?? null,
       path: skill.filePath,
       scope: skill.scope,
-      icon: (icon ? findProjectIconName(icon) : null) ?? DEFAULT_MODE_ICON,
+      icon: modeIconOf(icon),
       color: modeColorOf(color),
       styled: icon !== null || color !== null,
       mode: meta?.mode ?? false,

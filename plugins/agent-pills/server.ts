@@ -19,7 +19,6 @@ import {
   type QueuedMessage,
   type ThreadState,
 } from "./src/rpc";
-import { serveProjectIconGlyphs } from "@wy3z/bb-suite/project-icon/server";
 import { MODE_MENTION_PROVIDER, createModeService, createTitleFixer, modeDepsFrom } from "./src/modes/service";
 import { createExitNoter } from "./src/modes/exit-note";
 
@@ -120,7 +119,6 @@ export default function plugin(bb: BbPluginApi) {
       await modes.clearNotice(threadId);
       return { ok: true };
     },
-    iconGlyphs: (input) => serveProjectIconGlyphs(input),
   });
 
   bb.ui.registerMentionProvider({

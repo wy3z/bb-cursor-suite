@@ -4,7 +4,6 @@
 // @get-bb/plugin-sdk/app are provided by the BB app at load time.
 import "@wy3z/bb-suite/tokens.css";
 import "@wy3z/bb-suite/settings.css";
-import "@wy3z/bb-suite/project-icon.css";
 import "./app.css";
 import {
   definePluginApp,
@@ -31,7 +30,6 @@ import { DesktopPill, useDesktopPillVisible } from "./src/desktop/DesktopPill";
 import { DesktopTab, useDesktopTabVisible } from "./src/desktop/DesktopTab";
 import { DESKTOP_TAB } from "./src/desktop/model";
 import { ModeAction } from "./src/modes/ModeControl";
-import { registerModeIcons } from "./src/modes/icons";
 
 /** The segment exists only while it has at least one pill to draw. */
 function usePillsVisible({
@@ -74,8 +72,6 @@ function PillsSettings() {
 }
 
 export default definePluginApp((app) => {
-  registerModeIcons(app);
-
   app.slots.experimental_threadContextSegment({
     id: "parent-thread",
     title: "Parent thread",

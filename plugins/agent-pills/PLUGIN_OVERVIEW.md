@@ -26,7 +26,6 @@ Used by the app. Every action returns `{ ok: boolean }`; a failure is reported a
 | `threadMode` | `{ threadId }` | `{ state: { draft, rev, notice }, projectId, environmentId, providerId }` |
 | `setThreadMode` | `{ threadId, mode: { skillId, label } \| null, rev }` | `{ ok, state }`. Sets the thread's mode; `ok: false` when `rev` is stale |
 | `clearModeNotice` | `{ threadId }` | `{ ok }` |
-| `iconGlyphs` | `{ names: string[] \| null }` | `{ glyphs }`. Project icon glyphs for mode badges |
 
 `threadActivity` returns:
 
@@ -140,7 +139,7 @@ Cursor 3.30's custom modes: any skill becomes a thread's mode and stays in conte
 
 - **Mode pill.** In the composer's action row on threads and new threads. It reads "Mode" with none, or the skill's icon and name tinted with its colour. The menu lists **None**, then **Modes** (skills with `mode: true` in frontmatter), then every other skill: project skills, then user skills, then plugin skills, one per name, preferring the thread's provider. More than eight shows a search box. The list opens from cache and refreshes on open and when a background scan finds changes.
 - **Shift+Tab** in the prompt box cycles None and the `mode: true` skills only. With none flagged and no mode on, Shift+Tab is left alone. BB 0.49 binds nothing to it.
-- **Badge style.** Frontmatter `icon:` takes a Cursor icon name (the project icon catalog), defaulting to `lightning`. `color:` takes `default`, `green`, `cyan`, `blue`, `purple`, `magenta`, `orange`, `yellow`, `red` or `brand`.
+- **Badge style.** Frontmatter `icon:` takes one of BB's built-in icon names (`Eye`, `Bug`, `Beaker`, `GitBranch`, …) or a lowercase alias for the common ones (`eye`, `bug`, `book`, `map`, `shield`, `terminal`, …), defaulting to `Zap`. The same icon shows in the menu, the composer pill and the sent message. `color:` takes `default`, `green`, `cyan`, `blue`, `purple`, `magenta`, `orange`, `yellow`, `red` or `brand`.
 - **Which skills a thread can use.** A thread's menu lists skills from its own environment, so a cloud thread sees what its VM can load. In the new-thread composer, choosing a new cloud machine or another host leaves out this computer's own provider and shared user skills, and keeps BB's user skills (`~/.bb/skills`, which BB ships to the machine), project skills and plugin skills. When a host lists a skill under another id, it is matched by name.
 - **What the agent gets.** Every message sent while a mode is on carries a small mode pill at the start of its text (added once the draft has text). When BB sends it, the pill resolves to agent-only context: one fixed line, then the SKILL.md body.
   - "You are in <label> mode. Follow that mode's skill on this turn. Do not drop it because the request looks small or you already have context. Do not drift back to default agent behavior. If you cannot state the mode's hard rules, read "<path>" before acting."

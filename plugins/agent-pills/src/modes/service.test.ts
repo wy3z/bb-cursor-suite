@@ -288,10 +288,10 @@ describe("skill listing", () => {
   it("answers at once from what it knows, then fills in frontmatter in the background", async () => {
     const t = core();
     const args = { projectId: "proj_1", environmentId: null, providerId: "claude-code" };
-    expect((await t.service.listModes(args))[0]).toMatchObject({ label: "alpha", icon: "lightning", color: "default", styled: false });
+    expect((await t.service.listModes(args))[0]).toMatchObject({ label: "alpha", icon: "Zap", color: "default", styled: false });
     await t.service.settled();
     expect(t.modesPublished).toEqual(["proj_1"]);
-    expect((await t.service.listModes(args))[0]).toMatchObject({ label: "alpha", icon: "eye", color: "purple", styled: true, path: PATH_A });
+    expect((await t.service.listModes(args))[0]).toMatchObject({ label: "alpha", icon: "Eye", color: "purple", styled: true, path: PATH_A });
   });
 
   it("starts warm from the frontmatter saved in plugin storage", async () => {

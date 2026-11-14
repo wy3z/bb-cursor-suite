@@ -8,13 +8,10 @@ import {
   useRpc,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { ProjectIconGlyph } from "@wy3z/bb-suite/project-icon/picker";
-import { projectIconColorClass } from "@wy3z/bb-suite/project-icon";
 import { useMenuKeyboard } from "@wy3z/bb-suite/menu-keyboard";
 import { agentPillsRpcContract } from "../rpc";
 import type { ModeOption, ThreadModeState } from "./rpc";
 import {
-  DEFAULT_MODE_ICON,
   cycleMode,
   modeItemId,
   newNonce,
@@ -24,10 +21,14 @@ import {
 import { syncModePill, type ModePill } from "./draft";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
 import { readNewThreadMode, writeNewThreadMode } from "./new-thread-store";
-import { modeIconName } from "./icons";
+import { DEFAULT_MODE_ICON } from "./icons";
 import { createDraftWriter } from "./draft-writer";
 
 const MENU_WIDTH = 280;
+
+function toneClass(color: string): string {
+  return `bb-agent-pills-mode-tone-${color}`;
+}
 const GAP = 6;
 const FILTER_THRESHOLD = 8;
 const TOAST_MS = 6000;
@@ -280,7 +281,7 @@ export function ModeBadge({ option, label }: { option: Pick<ModeOption, "icon" |
     <>
       <span className="bb-agent-pills-mode__glyph" aria-hidden="true">
         {option ? (
-          <ProjectIconGlyph name={option.icon} className={`bb-agent-pills-mode__svg ${projectIconColorClass(option.color)}`} />
+          <span className={`bb-agent-pills-mode__svg ${toneClass(option.color)}`}><Icon name={option.icon} fallback={DEFAULT_MODE_ICON} /></span>
         ) : (
           <Icon name="Sparkles" fallback="Zap" />
         )}
@@ -328,7 +329,7 @@ function OptionGroup({
             onClick={() => choose({ skillId: option.skillId, label: option.label })}
           >
             <span className="bb-agent-pills-env__icon" aria-hidden="true">
-              <ProjectIconGlyph name={option.icon} className={`bb-agent-pills-mode__svg ${projectIconColorClass(option.color)}`} />
+              <span className={`bb-agent-pills-mode__svg ${toneClass(option.color)}`}><Icon name={option.icon} fallback={DEFAULT_MODE_ICON} /></span>
             </span>
             <span className="bb-agent-pills-env__text">
               <span className="bb-agent-pills-env__label">{option.label}</span>
@@ -444,7 +445,7 @@ export function ModeTrigger({
     <button
       ref={triggerRef}
       type="button"
-      className={`bb-agent-pills-env__trigger bb-agent-pills-mode__trigger${active ? ` ${projectIconColorClass(option?.color ?? "default")}` : ""}`}
+      className={`bb-agent-pills-env__trigger bb-agent-pills-mode__trigger${active ? ` ${toneClass(option?.color ?? "default")}` : ""}`}
       data-active={active ? "" : undefined}
       aria-label={active ? `Mode: ${active.label}` : "Mode: none"}
       aria-haspopup="menu"
@@ -581,7 +582,7 @@ export function ModeAction() {
   const mode = state.draft;
   const modeOption = mode ? (options?.find((option) => sameMode(option, mode)) ?? null) : null;
   const tone = modeOption?.color ?? "default";
-  const pillIcon = modeIconName(modeOption?.icon ?? DEFAULT_MODE_ICON);
+  const pillIcon = modeOption?.icon ?? DEFAULT_MODE_ICON;
   const pill: ModePill | null = useMemo(() => {
     if (!authoritative || mode === null || workspace.projectId === null) return null;
     return {

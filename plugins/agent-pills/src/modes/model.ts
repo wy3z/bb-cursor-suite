@@ -168,7 +168,6 @@ export function splitSkill(content: string): { frontmatter: SkillFrontmatter; bo
 
 export const MODE_COLORS = ["default", "green", "cyan", "blue", "purple", "magenta", "orange", "yellow", "red", "brand"] as const;
 export type ModeColor = (typeof MODE_COLORS)[number];
-export const DEFAULT_MODE_ICON = "lightning";
 
 export function modeColorOf(value: string | null | undefined): ModeColor {
   const wanted = value?.trim().toLowerCase() ?? "";

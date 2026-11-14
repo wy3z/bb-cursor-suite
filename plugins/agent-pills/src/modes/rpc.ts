@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { PROJECT_ICON_GLYPHS_METHOD } from "@wy3z/bb-suite/contracts";
 import { MODE_COLORS } from "./model";
 
 const idSchema = z.string().trim().min(1).max(200);
@@ -56,5 +55,4 @@ export const modeRpcMethods = {
     input: z.object({ threadId: idSchema }),
     output: z.object({ ok: z.boolean() }),
   },
-  iconGlyphs: PROJECT_ICON_GLYPHS_METHOD,
 };

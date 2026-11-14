@@ -2247,14 +2247,14 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 
 .bb-agent-pills-mode__trigger[data-active] {
   padding: 0 6px;
-  color: var(--bbs-pi-fg, var(--foreground));
-  background: color-mix(in srgb, var(--bbs-pi-fg, var(--foreground)) 12%, transparent);
+  color: var(--bb-agent-pills-mode-tone, var(--foreground));
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 12%, transparent);
 }
 
 .bb-agent-pills-mode__trigger[data-active]:hover,
 .bb-agent-pills-mode__trigger[data-active][aria-expanded="true"] {
-  color: var(--bbs-pi-fg, var(--foreground));
-  background: color-mix(in srgb, var(--bbs-pi-fg, var(--foreground)) 18%, transparent);
+  color: var(--bb-agent-pills-mode-tone, var(--foreground));
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 18%, transparent);
 }
 
 .bb-agent-pills-mode__glyph {
@@ -2271,7 +2271,7 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 }
 
 .bb-agent-pills-mode__svg {
-  color: var(--bbs-pi-fg, currentColor);
+  color: var(--bb-agent-pills-mode-tone, currentColor);
 }
 
 .bb-agent-pills-mode__label {
@@ -2373,3 +2373,34 @@ html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt
 html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:yellow.'] { --bb-agent-pills-mode-fg: #f1b467; }
 html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:red.'] { --bb-agent-pills-mode-fg: #fc6b83; }
 html.dark [data-prompt-mention-resource*='"pluginId":"agent-pills"'][data-prompt-mention-resource*='"itemId":"mode:brand.'] { --bb-agent-pills-mode-fg: #f54e00; }
+
+.bb-agent-pills-mode-tone-default { --bb-agent-pills-mode-tone: color-mix(in srgb, var(--foreground) 66%, transparent); }
+.bb-agent-pills-mode-tone-green { --bb-agent-pills-mode-tone: #2e8a52; }
+.bb-agent-pills-mode-tone-cyan { --bb-agent-pills-mode-tone: #0f7f8f; }
+.bb-agent-pills-mode-tone-blue { --bb-agent-pills-mode-tone: #2f6fd6; }
+.bb-agent-pills-mode-tone-purple { --bb-agent-pills-mode-tone: #6c5ce0; }
+.bb-agent-pills-mode-tone-magenta { --bb-agent-pills-mode-tone: #a24a94; }
+.bb-agent-pills-mode-tone-orange { --bb-agent-pills-mode-tone: #c4562c; }
+.bb-agent-pills-mode-tone-yellow { --bb-agent-pills-mode-tone: #a06a00; }
+.bb-agent-pills-mode-tone-red { --bb-agent-pills-mode-tone: #d42f4f; }
+.bb-agent-pills-mode-tone-brand { --bb-agent-pills-mode-tone: #d94600; }
+html.dark .bb-agent-pills-mode-tone-green { --bb-agent-pills-mode-tone: #3fa266; }
+html.dark .bb-agent-pills-mode-tone-cyan { --bb-agent-pills-mode-tone: #56b6c2; }
+html.dark .bb-agent-pills-mode-tone-blue { --bb-agent-pills-mode-tone: #7bafe9; }
+html.dark .bb-agent-pills-mode-tone-purple { --bb-agent-pills-mode-tone: #9386f2; }
+html.dark .bb-agent-pills-mode-tone-magenta { --bb-agent-pills-mode-tone: #b48ead; }
+html.dark .bb-agent-pills-mode-tone-orange { --bb-agent-pills-mode-tone: #d08770; }
+html.dark .bb-agent-pills-mode-tone-yellow { --bb-agent-pills-mode-tone: #f1b467; }
+html.dark .bb-agent-pills-mode-tone-red { --bb-agent-pills-mode-tone: #fc6b83; }
+html.dark .bb-agent-pills-mode-tone-brand { --bb-agent-pills-mode-tone: #f54e00; }
+
+.bb-agent-pills-mode__svg {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+}
+
+.bb-agent-pills-mode__svg > * {
+  width: 100%;
+  height: 100%;
+}
