@@ -18,7 +18,7 @@ import {
   sameMode,
   type ModeRef,
 } from "./model";
-import { skillMentionIn, syncModePill, withoutMention, type ModePill } from "./draft";
+import { newSkillMentionIndex, skillMentionIn, skillMentionKeys, syncModePill, withoutMention, type ModePill } from "./draft";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
 import { setNewThreadMode, useNewThreadMode, useThreadMode } from "./thread-mode";
 import { useModeMenuEnabled } from "./mode-preferences";
@@ -394,11 +394,12 @@ function useSubmitGate(anchor: HTMLElement | null, blocked: boolean) {
 }
 
 const SEND_AS_TIMEOUT_MS = 8000;
+const MENU_PICK_TIMEOUT_MS = 2000;
 const EMPTY_STATE: ThreadModeState = { draft: null, rev: 0, notice: null };
 
-function useAltEnter(anchor: HTMLElement | null, start: () => boolean) {
-  const latest = useRef(start);
-  latest.current = start;
+function useAltEnter(anchor: HTMLElement | null, start: () => boolean, deferToMenu: () => void) {
+  const latest = useRef({ start, deferToMenu });
+  latest.current = { start, deferToMenu };
   useEffect(() => {
     const root = anchor?.closest<HTMLElement>("[data-app-composer]");
     if (!root) return;
@@ -406,7 +407,11 @@ function useAltEnter(anchor: HTMLElement | null, start: () => boolean) {
       if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
       const target = event.target as HTMLElement | null;
       if (!target?.isContentEditable && target?.tagName !== "TEXTAREA") return;
-      if (!latest.current()) return;
+      if (root.querySelector("[data-promptbox-typeahead-menu]")) {
+        latest.current.deferToMenu();
+        return;
+      }
+      if (!latest.current.start()) return;
       event.preventDefault();
       event.stopPropagation();
     };
@@ -533,8 +538,8 @@ export function ModeAction() {
   useShiftTab(anchor, cycle);
 
   const [sendAs, setSendAs] = useState<{ mode: ModeRef; at: number } | null>(null);
-  const startMode = useCallback(() => {
-    const found = skillMentionIn(composer.draft);
+  const startMode = useCallback((index?: number) => {
+    const found = skillMentionIn(composer.draft, index);
     if (found === null) return false;
     const option = options?.find((candidate) => candidate.label === found.name) ?? null;
     const next: ModeRef = option ? { skillId: option.skillId, label: option.label } : { skillId: `name:${found.name}`, label: found.name };
@@ -545,7 +550,21 @@ export function ModeAction() {
     else composer.focus();
     return true;
   }, [choose, composer, options]);
-  useAltEnter(anchor, startMode);
+  const [fromMenu, setFromMenu] = useState<{ before: string[]; at: number } | null>(null);
+  const deferToMenu = useCallback(() => setFromMenu({ before: skillMentionKeys(composer.draft), at: Date.now() }), [composer]);
+  useAltEnter(anchor, startMode, deferToMenu);
+
+  useEffect(() => {
+    if (fromMenu === null) return;
+    if (Date.now() - fromMenu.at > MENU_PICK_TIMEOUT_MS) {
+      setFromMenu(null);
+      return;
+    }
+    const index = newSkillMentionIndex(fromMenu.before, composer.draft);
+    if (index === -1) return;
+    setFromMenu(null);
+    startMode(index);
+  }, [composer.draft, fromMenu, startMode]);
 
   useEffect(() => {
     if (sendAs === null) return;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ComposerDraftSnapshot, ComposerMention } from "@get-bb/plugin-sdk/app";
-import { skillMentionIn, syncModePill, withoutMention, type ModePill } from "./draft";
+import { newSkillMentionIndex, skillMentionIn, skillMentionKeys, syncModePill, withoutMention, type ModePill } from "./draft";
 
 const pill: ModePill = { pluginId: "agent-pills", provider: "mode", id: "purple.abc", label: "reviewer", icon: "bb-agent-pills-mode-eye" };
 
@@ -99,5 +99,36 @@ describe("Alt+Enter skill detection", () => {
 
   it("does not count an existing mode pill as content", () => {
     expect(skillMentionIn(draft("alpha /reviewer", [ours(0, pill.id, "alpha"), skill(6, "reviewer")]))?.hasOtherContent).toBe(false);
+  });
+});
+
+describe("Alt+Enter from the open skill menu", () => {
+  const skill = (from: number, name: string): ComposerMention => ({
+    kind: "command",
+    trigger: "$",
+    name,
+    source: "skill",
+    origin: "user",
+    argumentHint: null,
+    label: name,
+    from,
+    to: from + name.length + 1,
+  });
+
+  it("finds the skill BB just inserted, not one that was already there", () => {
+    const before = draft("$planner hello $debu", [skill(0, "planner")]);
+    const after = draft("$planner hello $debugger ", [skill(0, "planner"), skill(15, "debugger")]);
+    expect(newSkillMentionIndex(skillMentionKeys(before), after)).toBe(1);
+    expect(skillMentionIn(after, 1)).toEqual({ index: 1, name: "debugger", hasOtherContent: true });
+  });
+
+  it("reports nothing new when the menu closed without inserting", () => {
+    const before = draft("hello $zzz");
+    expect(newSkillMentionIndex(skillMentionKeys(before), before)).toBe(-1);
+  });
+
+  it("decides send or switch on what is left once the picked skill is removed", () => {
+    expect(skillMentionIn(draft("$debugger ", [skill(0, "debugger")]), 0)?.hasOtherContent).toBe(false);
+    expect(skillMentionIn(draft("fix this $debugger ", [skill(9, "debugger")]), 0)?.hasOtherContent).toBe(true);
   });
 });
