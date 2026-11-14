@@ -2404,3 +2404,36 @@ html.dark .bb-agent-pills-mode-tone-brand { --bb-agent-pills-mode-tone: #f54e00;
   width: 100%;
   height: 100%;
 }
+
+.bb-agent-pills__pill.bb-agent-pills-mode__pill {
+  gap: var(--bbs-gap-xs, 4px);
+  border-color: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 28%, transparent);
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 10%, transparent);
+  color: var(--bb-agent-pills-mode-tone, var(--foreground));
+}
+
+.bb-agent-pills__pill.bb-agent-pills-mode__pill:hover {
+  background: color-mix(in srgb, var(--bb-agent-pills-mode-tone, var(--foreground)) 16%, transparent);
+}
+
+.bb-agent-pills-mode__pill-icon,
+.bb-agent-pills-mode__pill-x {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: var(--bbs-icon, 14px);
+  height: var(--bbs-icon, 14px);
+}
+
+.bb-agent-pills-mode__pill-x {
+  opacity: 0.6;
+}
+
+.bb-agent-pills-mode__pill:hover .bb-agent-pills-mode__pill-x {
+  opacity: 1;
+}
+
+.bb-agent-pills-mode__pill-icon > *,
+.bb-agent-pills-mode__pill-x > * {
+  width: 100%;
+  height: 100%;
+}

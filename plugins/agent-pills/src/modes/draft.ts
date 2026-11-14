@@ -1,4 +1,5 @@
 import type { ComposerDraftReplacement, ComposerDraftSnapshot, ComposerMention } from "@get-bb/plugin-sdk/app";
+import { MODE_MENTION_PROVIDER } from "./channel";
 
 export interface ModePill {
   pluginId: string;
@@ -53,5 +54,33 @@ export function syncModePill(
       { kind: "plugin", pluginId: pill.pluginId, provider: pill.provider, id: pill.id, label: pill.label, icon: pill.icon, from: 0, to: text.length },
       ...rest.mentions.map((mention) => ({ ...mention, from: mention.from + shift, to: mention.to + shift })),
     ],
+  };
+}
+
+
+export function skillMentionIn(draft: ComposerDraftSnapshot): { index: number; name: string; hasOtherContent: boolean } | null {
+  const index = draft.mentions.findIndex((mention: ComposerMention) => mention.kind === "command" && mention.source === "skill");
+  if (index === -1) return null;
+  const mention = draft.mentions[index] as Extract<ComposerMention, { kind: "command" }>;
+  const rest = withoutMention(draft, index);
+  const isModePillMention = (other: ComposerMention) => other.kind === "plugin" && other.provider === MODE_MENTION_PROVIDER;
+  let visible = rest.text;
+  for (const other of rest.mentions.filter(isModePillMention).sort((left, right) => right.from - left.from)) {
+    visible = visible.slice(0, other.from) + visible.slice(other.to);
+  }
+  const hasOtherContent =
+    visible.trim().length > 0 || rest.mentions.some((other) => !isModePillMention(other)) || draft.attachments.length > 0;
+  return { index, name: mention.name, hasOtherContent };
+}
+
+export function withoutMention(draft: ComposerDraftSnapshot, index: number): { text: string; mentions: ComposerMention[] } {
+  const target = draft.mentions[index]!;
+  const end = draft.text[target.to] === " " ? target.to + 1 : target.to;
+  const removed = end - target.from;
+  return {
+    text: draft.text.slice(0, target.from) + draft.text.slice(end),
+    mentions: draft.mentions
+      .filter((_, position) => position !== index)
+      .map((mention) => (mention.from >= end ? { ...mention, from: mention.from - removed, to: mention.to - removed } : mention)),
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ComposerDraftSnapshot, ComposerMention } from "@get-bb/plugin-sdk/app";
-import { syncModePill, type ModePill } from "./draft";
+import { skillMentionIn, syncModePill, withoutMention, type ModePill } from "./draft";
 
 const pill: ModePill = { pluginId: "agent-pills", provider: "mode", id: "purple.abc", label: "reviewer", icon: "bb-agent-pills-mode-eye" };
 
@@ -60,5 +60,44 @@ describe("syncModePill", () => {
   it("ignores other plugins' mentions", () => {
     const other: ComposerMention = { kind: "plugin", pluginId: "elsewhere", provider: "mode", id: "x", label: "x", from: 0, to: 1 };
     expect(syncModePill(draft("x", [other]), null, "agent-pills", "mode")).toBeNull();
+  });
+});
+
+describe("Alt+Enter skill detection", () => {
+  const skill = (from: number, name: string): ComposerMention => ({
+    kind: "command",
+    trigger: "/",
+    name,
+    source: "skill",
+    origin: "user",
+    argumentHint: null,
+    label: name,
+    from,
+    to: from + name.length + 1,
+  });
+
+  it("finds a picked skill and whether anything else would be sent", () => {
+    expect(skillMentionIn(draft("/reviewer check the README", [skill(0, "reviewer")]))).toEqual({ index: 0, name: "reviewer", hasOtherContent: true });
+    expect(skillMentionIn(draft("/reviewer", [skill(0, "reviewer")]))).toEqual({ index: 0, name: "reviewer", hasOtherContent: false });
+    expect(skillMentionIn(draft("/reviewer ", [skill(0, "reviewer")]), )?.hasOtherContent).toBe(false);
+    expect(skillMentionIn(draft("/reviewer", [skill(0, "reviewer")], 1))?.hasOtherContent).toBe(true);
+  });
+
+  it("ignores slash commands that aren't skills", () => {
+    const command: ComposerMention = { kind: "command", trigger: "/", name: "compact", source: "command", origin: "builtin", argumentHint: null, label: "compact", from: 0, to: 8 };
+    expect(skillMentionIn(draft("/compact", [command]))).toBeNull();
+    expect(skillMentionIn(draft("hello"))).toBeNull();
+  });
+
+  it("removes the skill mention and shifts the mentions after it", () => {
+    const thread: ComposerMention = { kind: "thread", threadId: "thr_1", label: "Other", from: 21, to: 26 };
+    expect(withoutMention(draft("/reviewer check with Other", [skill(0, "reviewer"), thread]), 0)).toEqual({
+      text: "check with Other",
+      mentions: [{ ...thread, from: 11, to: 16 }],
+    });
+  });
+
+  it("does not count an existing mode pill as content", () => {
+    expect(skillMentionIn(draft("alpha /reviewer", [ours(0, pill.id, "alpha"), skill(6, "reviewer")]))?.hasOtherContent).toBe(false);
   });
 });
