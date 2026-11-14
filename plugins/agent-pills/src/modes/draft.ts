@@ -58,8 +58,25 @@ export function syncModePill(
 }
 
 
-export function skillMentionIn(draft: ComposerDraftSnapshot): { index: number; name: string; hasOtherContent: boolean } | null {
-  const index = draft.mentions.findIndex((mention: ComposerMention) => mention.kind === "command" && mention.source === "skill");
+function isSkillMention(mention: ComposerMention): boolean {
+  return mention.kind === "command" && mention.source === "skill";
+}
+
+export function skillMentionKeys(draft: ComposerDraftSnapshot): string[] {
+  return draft.mentions.filter(isSkillMention).map((mention) => `${(mention as Extract<ComposerMention, { kind: "command" }>).name}@${mention.from}`);
+}
+
+export function newSkillMentionIndex(before: readonly string[], draft: ComposerDraftSnapshot): number {
+  const seen = new Set(before);
+  return draft.mentions.findIndex(
+    (mention) => isSkillMention(mention) && !seen.has(`${(mention as Extract<ComposerMention, { kind: "command" }>).name}@${mention.from}`),
+  );
+}
+
+export function skillMentionIn(draft: ComposerDraftSnapshot, preferred?: number): { index: number; name: string; hasOtherContent: boolean } | null {
+  const index = preferred !== undefined && draft.mentions[preferred] !== undefined && isSkillMention(draft.mentions[preferred]!)
+    ? preferred
+    : draft.mentions.findIndex(isSkillMention);
   if (index === -1) return null;
   const mention = draft.mentions[index] as Extract<ComposerMention, { kind: "command" }>;
   const rest = withoutMention(draft, index);
