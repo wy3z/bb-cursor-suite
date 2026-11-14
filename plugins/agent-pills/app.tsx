@@ -30,6 +30,8 @@ import { DesktopPill, useDesktopPillVisible } from "./src/desktop/DesktopPill";
 import { DesktopTab, useDesktopTabVisible } from "./src/desktop/DesktopTab";
 import { DESKTOP_TAB } from "./src/desktop/model";
 import { ModeAction } from "./src/modes/ModeControl";
+import { ModePill, NewThreadModeBanner, useModePillVisible } from "./src/modes/ModePill";
+import { useModeMenuEnabled, writeModeMenuEnabled } from "./src/modes/mode-preferences";
 
 /** The segment exists only while it has at least one pill to draw. */
 function usePillsVisible({
@@ -58,6 +60,7 @@ function usePillsVisible({
 
 function PillsSettings() {
   const enabled = usePillsEnabled();
+  const modeMenu = useModeMenuEnabled();
 
   return (
     <SettingsCard>
@@ -67,11 +70,26 @@ function PillsSettings() {
         checked={enabled}
         onCheckedChange={writePillsEnabled}
       />
+      <SettingsToggleRow
+        label="Mode menu"
+        description={`A Mode menu in the composer's toolbar for picking a skill as the thread's mode. Without it, pick a skill with / or $ and press Alt+Enter (Option+Enter on a Mac) to send it as a mode, and Shift+Tab cycles skills marked mode: true. Off by default. ${DEVICE_ONLY}`}
+        checked={modeMenu}
+        onCheckedChange={writeModeMenuEnabled}
+      />
     </SettingsCard>
   );
 }
 
 export default definePluginApp((app) => {
+  app.slots.experimental_threadContextSegment({
+    id: "mode",
+    title: "Mode",
+    group: experimental_THREAD_CONTEXT_SEGMENT_GROUPS.thread,
+    order: 10,
+    summary: ModePill,
+    useVisible: useModePillVisible,
+  });
+
   app.slots.experimental_threadContextSegment({
     id: "parent-thread",
     title: "Parent thread",
@@ -145,6 +163,7 @@ export default definePluginApp((app) => {
     id: "skill-mode",
     scopes: ["thread", "new-thread"],
     actions: [{ id: "mode", component: ModeAction }],
+    banners: [{ id: "mode", chrome: "bare", component: NewThreadModeBanner }],
   });
 
   app.composer.customize({

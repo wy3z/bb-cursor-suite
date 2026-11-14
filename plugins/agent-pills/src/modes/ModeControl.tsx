@@ -18,11 +18,11 @@ import {
   sameMode,
   type ModeRef,
 } from "./model";
-import { syncModePill, type ModePill } from "./draft";
+import { skillMentionIn, syncModePill, withoutMention, type ModePill } from "./draft";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
-import { readNewThreadMode, writeNewThreadMode } from "./new-thread-store";
+import { setNewThreadMode, useNewThreadMode, useThreadMode } from "./thread-mode";
+import { useModeMenuEnabled } from "./mode-preferences";
 import { DEFAULT_MODE_ICON } from "./icons";
-import { createDraftWriter } from "./draft-writer";
 
 const MENU_WIDTH = 280;
 
@@ -33,7 +33,7 @@ const GAP = 6;
 const FILTER_THRESHOLD = 8;
 const TOAST_MS = 6000;
 
-interface Workspace {
+export interface Workspace {
   projectId: string | null;
   environmentId: string | null;
   providerId: string | null;
@@ -70,7 +70,7 @@ function storeOptions(key: string, options: ModeOption[]): void {
   }
 }
 
-function useModeOptions(workspace: Workspace): { options: ModeOption[] | null; refresh: () => void } {
+export function useModeOptions(workspace: Workspace): { options: ModeOption[] | null; refresh: () => void } {
   const rpc = useRpc<typeof agentPillsRpcContract>();
   const key =
     workspace.projectId === null
@@ -108,124 +108,6 @@ function useModeOptions(workspace: Workspace): { options: ModeOption[] | null; r
   });
 
   return { options, refresh };
-}
-
-interface ThreadModeData {
-  state: ThreadModeState;
-  workspace: Omit<Workspace, "excludeUserSkills">;
-}
-
-const THREAD_STORE_PREFIX = "bb-plugin-agent-pills.thread-mode.v1:";
-const EMPTY_STATE: ThreadModeState = { draft: null, rev: 0, notice: null };
-
-function cachedThreadMode(threadId: string): ThreadModeData | null {
-  try {
-    const raw = localStorage.getItem(THREAD_STORE_PREFIX + threadId);
-    const parsed = raw ? (JSON.parse(raw) as ThreadModeData) : null;
-    return parsed && typeof parsed.state === "object" && typeof parsed.workspace === "object" ? { ...parsed, state: { ...parsed.state, notice: null } } : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeThreadMode(threadId: string, data: ThreadModeData): void {
-  try {
-    localStorage.setItem(THREAD_STORE_PREFIX + threadId, JSON.stringify(data));
-  } catch {
-    return;
-  }
-}
-
-function useThreadMode(threadId: string | null) {
-  const rpc = useRpc<typeof agentPillsRpcContract>();
-  const [data, setData] = useState<ThreadModeData | null>(() => (threadId === null ? null : cachedThreadMode(threadId)));
-  const [hydrated, setHydrated] = useState(false);
-  const [desired, setDesired] = useState<{ mode: ModeRef | null } | null>(null);
-  const request = useRef(0);
-  const workspaceRef = useRef<ThreadModeData["workspace"] | null>(data?.workspace ?? null);
-
-  const accept = useCallback(
-    (next: ThreadModeData) => {
-      workspaceRef.current = next.workspace;
-      if (threadId !== null) storeThreadMode(threadId, next);
-      setData(next);
-      setHydrated(true);
-    },
-    [threadId],
-  );
-
-  const writerRef = useRef<ReturnType<typeof createDraftWriter> | null>(null);
-  const refreshRef = useRef<() => void>(() => undefined);
-
-  const writer = useMemo(() => {
-    if (threadId === null) return null;
-    return createDraftWriter({
-      write: (mode, rev) => rpc.call("setThreadMode", { threadId, mode, rev }),
-      settled: (state) => {
-        setDesired(null);
-        const workspace = workspaceRef.current;
-        if (workspace) accept({ state, workspace });
-      },
-      failed: () => {
-        setDesired(null);
-        refreshRef.current();
-      },
-    });
-  }, [accept, rpc, threadId]);
-  writerRef.current = writer;
-
-  const refresh = useCallback(() => {
-    if (threadId === null) return;
-    const id = ++request.current;
-    rpc
-      .call("threadMode", { threadId })
-      .then((result) => {
-        if (id !== request.current) return;
-        writerRef.current?.know(result.state);
-        accept({
-          state: result.state,
-          workspace: { projectId: result.projectId, environmentId: result.environmentId, providerId: result.providerId },
-        });
-      })
-      .catch(() => undefined);
-  }, [accept, rpc, threadId]);
-  refreshRef.current = refresh;
-
-  useEffect(() => {
-    setData(threadId === null ? null : cachedThreadMode(threadId));
-    setHydrated(false);
-    setDesired(null);
-    refresh();
-  }, [refresh, threadId]);
-
-  useRealtime(MODE_CHANNEL, (payload) => {
-    if ((payload as { threadId?: unknown } | null)?.threadId === threadId) refresh();
-  });
-
-  const setDraft = useCallback(
-    (mode: ModeRef | null) => {
-      if (!writer || !hydrated) return;
-      setDesired({ mode });
-      void writer.choose(mode);
-    },
-    [hydrated, writer],
-  );
-
-  const clearNotice = useCallback(() => {
-    if (threadId === null) return;
-    setData((current) => (current ? { ...current, state: { ...current.state, notice: null } } : current));
-    rpc.call("clearModeNotice", { threadId }).catch(() => undefined);
-  }, [rpc, threadId]);
-
-  const shown = useMemo<ThreadModeData | null>(
-    () => (data && desired ? { ...data, state: { ...data.state, draft: desired.mode } } : data),
-    [data, desired],
-  );
-
-  return useMemo(
-    () => ({ data: shown, hydrated, writing: desired !== null, setDraft, clearNotice, refresh }),
-    [clearNotice, desired, hydrated, refresh, setDraft, shown],
-  );
 }
 
 interface EnvironmentTarget {
@@ -511,6 +393,28 @@ function useSubmitGate(anchor: HTMLElement | null, blocked: boolean) {
   }, [anchor]);
 }
 
+const SEND_AS_TIMEOUT_MS = 8000;
+const EMPTY_STATE: ThreadModeState = { draft: null, rev: 0, notice: null };
+
+function useAltEnter(anchor: HTMLElement | null, start: () => boolean) {
+  const latest = useRef(start);
+  latest.current = start;
+  useEffect(() => {
+    const root = anchor?.closest<HTMLElement>("[data-app-composer]");
+    if (!root) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.isContentEditable && target?.tagName !== "TEXTAREA") return;
+      if (!latest.current()) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    root.addEventListener("keydown", onKey, true);
+    return () => root.removeEventListener("keydown", onKey, true);
+  }, [anchor]);
+}
+
 function useShiftTab(anchor: HTMLElement | null, cycle: () => boolean) {
   const latest = useRef(cycle);
   latest.current = cycle;
@@ -536,7 +440,8 @@ export function ModeAction() {
   const scope = composer.scope;
   const threadId = scope.kind === "thread" ? scope.threadId : null;
   const thread = useThreadMode(threadId);
-  const [newThreadDraft, setNewThreadDraft] = useState<ModeRef | null>(() => readNewThreadMode(composer.key));
+  const newThreadDraft = useNewThreadMode(composer.key);
+  const menuEnabled = useModeMenuEnabled();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -566,13 +471,12 @@ export function ModeAction() {
   const activeOption = active ? (options?.find((option) => option.skillId === active.skillId) ?? null) : null;
 
   const choose = useCallback(
-    (mode: ModeRef | null) => {
+    (mode: ModeRef | null): boolean => {
       if (scope.kind === "new-thread") {
-        setNewThreadDraft(mode);
-        writeNewThreadMode(composer.key, mode);
-      } else {
-        thread.setDraft(mode);
+        setNewThreadMode(composer.key, mode);
+        return true;
       }
+      return thread.setDraft(mode);
     },
     [composer.key, scope.kind, thread],
   );
@@ -605,10 +509,7 @@ export function ModeAction() {
     () =>
       composer.onSubmitted(() => {
         setNonce(newNonce());
-        if (scope.kind === "new-thread") {
-          setNewThreadDraft(null);
-          writeNewThreadMode(composer.key, null);
-        }
+        if (scope.kind === "new-thread") setNewThreadMode(composer.key, null);
       }),
     [composer, scope.kind],
   );
@@ -630,6 +531,32 @@ export function ModeAction() {
     return true;
   }, [active, choose, ring]);
   useShiftTab(anchor, cycle);
+
+  const [sendAs, setSendAs] = useState<{ mode: ModeRef; at: number } | null>(null);
+  const startMode = useCallback(() => {
+    const found = skillMentionIn(composer.draft);
+    if (found === null) return false;
+    const option = options?.find((candidate) => candidate.label === found.name) ?? null;
+    const next: ModeRef = option ? { skillId: option.skillId, label: option.label } : { skillId: `name:${found.name}`, label: found.name };
+    const accepted = choose(next);
+    if (!accepted) return true;
+    composer.replace(withoutMention(composer.draft, found.index));
+    if (found.hasOtherContent) setSendAs({ mode: next, at: Date.now() });
+    else composer.focus();
+    return true;
+  }, [choose, composer, options]);
+  useAltEnter(anchor, startMode);
+
+  useEffect(() => {
+    if (sendAs === null) return;
+    if (Date.now() - sendAs.at > SEND_AS_TIMEOUT_MS) {
+      setSendAs(null);
+      return;
+    }
+    if (!authoritative || pending !== null || !sameMode(state.draft, sendAs.mode) || pill === null) return;
+    setSendAs(null);
+    composer.submit().catch((cause: unknown) => setToast(cause instanceof Error ? cause.message : "Couldn't send the message."));
+  }, [authoritative, composer, pending, pill, sendAs, state.draft]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -665,6 +592,7 @@ export function ModeAction() {
 
   return (
     <span ref={setAnchor} className="bb-agent-pills-mode" data-bb-agent-pills-mode-anchor="">
+      {menuEnabled ? (
       <ModeTrigger
         active={active}
         option={activeOption}
@@ -679,6 +607,7 @@ export function ModeAction() {
           setOpen(true);
         }}
       />
+      ) : null}
       {open && position
         ? createPortal(
             <div ref={popoverRef} className="bb-agent-pills-env__layer">
