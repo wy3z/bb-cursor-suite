@@ -49,7 +49,7 @@ interface CachedFrontmatter {
 
 export interface TitleFix {
   threadId: string;
-  label: string;
+  contaminated: string;
   own: string;
 }
 
@@ -95,7 +95,9 @@ export function modeDepsFrom(bb: BbPluginApi): ModeDeps {
     threadPlace: async (threadId) => {
       try {
         const thread = await bb.sdk.threads.get({ threadId });
-        return { projectId: thread.projectId, environmentId: thread.environmentId };
+        if (thread.environmentId === null) return null;
+        const environment = await bb.sdk.environments.get({ environmentId: thread.environmentId });
+        return environment.status === "ready" ? { projectId: thread.projectId, environmentId: environment.id } : null;
       } catch {
         return null;
       }
@@ -124,6 +126,10 @@ function draftKey(threadId: string): string {
 
 function noticeKey(threadId: string): string {
   return `notice:${threadId}`;
+}
+
+function bindingKey(nonce: string): string {
+  return `pill:${nonce}`;
 }
 
 function sameRef(left: ModeRef | null, right: ModeRef | null): boolean {
@@ -369,7 +375,7 @@ export function createModeService(deps: ModeDeps) {
   async function resolveMention(itemId: string): Promise<string> {
     const mention = decodeModeMention(itemId);
     if (mention === null) return "";
-    const threadId = mention.threadId;
+    const threadId = mention.threadId ?? (await deps.kv.get<string>(bindingKey(mention.nonce))) ?? null;
     if (threadId === null) {
       const { context, missing } = await contextFor(mention, null, { projectId: mention.projectId, environmentId: mention.environmentId });
       if (missing) handoffNotices.set(mention.nonce, missing.label);
@@ -411,6 +417,7 @@ export function createModeService(deps: ModeDeps) {
   async function admit(threadId: string, blocks: readonly unknown[]): Promise<void> {
     const handoff = mentionsIn(blocks).find((mention) => mention.threadId === null);
     if (!handoff) return;
+    if ((await deps.kv.get<string>(bindingKey(handoff.nonce))) === undefined) await deps.kv.set(bindingKey(handoff.nonce), threadId);
     const changed = await serial(threadId, async () => {
       const notice = handoffNotices.get(handoff.nonce);
       handoffNotices.delete(handoff.nonce);
@@ -450,7 +457,7 @@ export function createModeService(deps: ModeDeps) {
     const label = pillLabel(transitionOf({ committed: mention.leaving, draft: mention.dest }));
     if (label === null || !thread.titleFallback?.startsWith(`${label} `)) return null;
     const own = ownWords(text, label);
-    return own === null ? null : { threadId: thread.id, label, own };
+    return own === null ? null : { threadId: thread.id, contaminated: thread.titleFallback, own };
   }
 
   return { listModes, settled, readState, setDraft, clearNotice, resolveMention, admit, observe, titleFixFor };
@@ -472,7 +479,7 @@ export function createTitleFixer(deps: TitleFixDeps) {
     pending.delete(threadId);
     clearTimeout(entry.timer);
     try {
-      const title = fixedTitle(await deps.getThread(threadId), entry.fix.label, entry.fix.own);
+      const title = fixedTitle(await deps.getThread(threadId), entry.fix.contaminated, entry.fix.own);
       if (title !== null) await deps.setTitle(threadId, title);
     } catch (cause) {
       deps.log.warn(`Could not keep the mode pill out of the thread title: ${cause instanceof Error ? cause.message : String(cause)}`);

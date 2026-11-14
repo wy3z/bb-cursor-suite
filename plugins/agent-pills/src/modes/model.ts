@@ -248,12 +248,7 @@ export function ownWords(text: string, label: string): string | null {
   return rest.length > TITLE_MAX_LENGTH ? `${rest.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…` : rest;
 }
 
-export function fixedTitle(thread: { title: string | null; titleFallback: string | null }, label: string, own: string): string | null {
-  const prefix = `${label} `;
-  if (thread.title === null || thread.title.trim().length === 0) {
-    return thread.titleFallback?.startsWith(prefix) ? own : null;
-  }
-  if (!thread.title.startsWith(prefix)) return null;
-  const stripped = thread.title.slice(prefix.length).trim();
-  return stripped.length > 0 ? stripped : null;
+export function fixedTitle(thread: { title: string | null; titleFallback: string | null }, contaminated: string, own: string): string | null {
+  if (thread.title !== null) return null;
+  return thread.titleFallback === contaminated ? own : null;
 }

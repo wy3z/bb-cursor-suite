@@ -288,6 +288,29 @@ describe("P2: forks, edits, handoff, environments", () => {
   });
 });
 
+describe("first-message pills", () => {
+  it("are bound to the created thread, so a later resolution uses that thread's mode and environment", async () => {
+    const t = core();
+    const first = t.pill(null, A);
+    expect((await t.send("thr_new", first)).startsWith(enterText("alpha", PATH_A))).toBe(true);
+    await t.send("thr_new", t.pill("thr_new", B, A));
+    t.places.set("thr_new", { projectId: "proj_1", environmentId: "env_ready" });
+    const replay = await t.resolveOnly(first);
+    expect(replay.startsWith(`${exitText("beta")}\n\n${enterText("alpha", PATH_A)}`)).toBe(true);
+    expect(t.reads.at(-1)).toEqual({ environmentId: "env_ready", skillId: A.skillId });
+  });
+
+  it("keep the first binding when the same pill is admitted again", async () => {
+    const t = core();
+    const first = t.pill(null, A);
+    await t.send("thr_new", first);
+    await t.service.admit("thr_other", [
+      { type: "text", text: "alpha x", mentions: [{ resource: { kind: "plugin", pluginId: "agent-pills", label: "alpha", itemId: `mode:${modeItemId("x", first)}` } }] },
+    ]);
+    expect(t.kv.get(`pill:${first.nonce}`)).toBe("thr_new");
+  });
+});
+
 describe("missing skill files", () => {
   it("drops the mode, sends the exit once, and leaves a notice", async () => {
     const t = core();
@@ -378,16 +401,17 @@ describe("thread titles", () => {
     const blocks = [{ type: "text", text: "alpha The cart", mentions: [{ resource: { kind: "plugin", pluginId: "agent-pills", label: "alpha", itemId: `mode:${modeItemId("x", mention)}` } }] }];
     const thread = { id: "thr_1", title: null, titleFallback: "alpha The cart" };
     const withContext = [...blocks, { type: "text", visibility: "agent-only", text: "Context for @alpha (resolved by plugin \"agent-pills\"):\n\nRules." }];
-    expect(t.service.titleFixFor(thread, withContext)).toEqual({ threadId: "thr_1", label: "alpha", own: "The cart" });
+    expect(t.service.titleFixFor(thread, withContext)).toEqual({ threadId: "thr_1", contaminated: "alpha The cart", own: "The cart" });
     expect(t.service.titleFixFor({ ...thread, title: "Named" }, blocks)).toBeNull();
     expect(t.service.titleFixFor({ ...thread, titleFallback: "Hello" }, blocks)).toBeNull();
   });
 
-  it("sets the user's own words once the first turn settles, unless a real title arrived", async () => {
+  it("repairs only the exact contaminated fallback of a still-untitled thread", async () => {
     const titles: Record<string, { title: string | null; titleFallback: string | null }> = {
       thr_1: { title: null, titleFallback: "alpha The cart" },
       thr_2: { title: "Fix cart rounding", titleFallback: "alpha The cart" },
-      thr_3: { title: "alpha The cart", titleFallback: "alpha The cart" },
+      thr_3: { title: "alpha Centauri project", titleFallback: "alpha The cart" },
+      thr_4: { title: null, titleFallback: "alpha The cart, edited" },
     };
     const set: Array<[string, string]> = [];
     const fixer = createTitleFixer({
@@ -396,15 +420,13 @@ describe("thread titles", () => {
       log: { info: () => undefined, warn: () => undefined },
       delayMs: 60_000,
     });
-    for (const threadId of ["thr_1", "thr_2", "thr_3"]) {
-      fixer.track({ threadId, label: "alpha", own: "The cart" });
+    for (const threadId of ["thr_1", "thr_2", "thr_3", "thr_4"]) {
+      fixer.track({ threadId, contaminated: "alpha The cart", own: "The cart" });
       await fixer.apply(threadId);
     }
     await fixer.apply("thr_1");
     fixer.dispose();
-    expect(set).toEqual([
-      ["thr_1", "The cart"],
-      ["thr_3", "The cart"],
-    ]);
+    expect(set).toEqual([["thr_1", "The cart"]]);
   });
+
 });

@@ -28,6 +28,7 @@ import { syncModePill, type ModePill } from "./draft";
 import { MODE_CHANNEL, MODE_MENTION_PROVIDER, MODES_CHANNEL } from "./channel";
 import { readNewThreadMode, writeNewThreadMode } from "./new-thread-store";
 import { modeIconName } from "./icons";
+import { createDraftWriter } from "./draft-writer";
 
 const MENU_WIDTH = 280;
 const GAP = 6;
@@ -141,16 +142,39 @@ function useThreadMode(threadId: string | null) {
   const rpc = useRpc<typeof agentPillsRpcContract>();
   const [data, setData] = useState<ThreadModeData | null>(() => (threadId === null ? null : cachedThreadMode(threadId)));
   const [hydrated, setHydrated] = useState(false);
+  const [desired, setDesired] = useState<{ mode: ModeRef | null } | null>(null);
   const request = useRef(0);
+  const workspaceRef = useRef<ThreadModeData["workspace"] | null>(data?.workspace ?? null);
 
   const accept = useCallback(
     (next: ThreadModeData) => {
+      workspaceRef.current = next.workspace;
       if (threadId !== null) storeThreadMode(threadId, next);
       setData(next);
       setHydrated(true);
     },
     [threadId],
   );
+
+  const writerRef = useRef<ReturnType<typeof createDraftWriter> | null>(null);
+  const refreshRef = useRef<() => void>(() => undefined);
+
+  const writer = useMemo(() => {
+    if (threadId === null) return null;
+    return createDraftWriter({
+      write: (mode, rev) => rpc.call("setThreadMode", { threadId, mode, rev }),
+      settled: (state) => {
+        setDesired(null);
+        const workspace = workspaceRef.current;
+        if (workspace) accept({ state, workspace });
+      },
+      failed: () => {
+        setDesired(null);
+        refreshRef.current();
+      },
+    });
+  }, [accept, rpc, threadId]);
+  writerRef.current = writer;
 
   const refresh = useCallback(() => {
     if (threadId === null) return;
@@ -159,6 +183,7 @@ function useThreadMode(threadId: string | null) {
       .call("threadMode", { threadId })
       .then((result) => {
         if (id !== request.current) return;
+        writerRef.current?.know(result.state);
         accept({
           state: result.state,
           workspace: { projectId: result.projectId, environmentId: result.environmentId, providerId: result.providerId },
@@ -166,10 +191,12 @@ function useThreadMode(threadId: string | null) {
       })
       .catch(() => undefined);
   }, [accept, rpc, threadId]);
+  refreshRef.current = refresh;
 
   useEffect(() => {
     setData(threadId === null ? null : cachedThreadMode(threadId));
     setHydrated(false);
+    setDesired(null);
     refresh();
   }, [refresh, threadId]);
 
@@ -177,23 +204,13 @@ function useThreadMode(threadId: string | null) {
     if ((payload as { threadId?: unknown } | null)?.threadId === threadId) refresh();
   });
 
-  const latest = useRef(data);
-  latest.current = data;
-
   const setDraft = useCallback(
     (mode: ModeRef | null) => {
-      const current = latest.current;
-      if (threadId === null || current === null) return;
-      const id = ++request.current;
-      setData({ ...current, state: { ...current.state, draft: mode } });
-      rpc
-        .call("setThreadMode", { threadId, mode, rev: current.state.rev })
-        .then((result) => {
-          if (id === request.current) accept({ ...current, state: result.state });
-        })
-        .catch(() => refresh());
+      if (!writer || !hydrated) return;
+      setDesired({ mode });
+      void writer.choose(mode);
     },
-    [accept, refresh, rpc, threadId],
+    [hydrated, writer],
   );
 
   const clearNotice = useCallback(() => {
@@ -202,7 +219,15 @@ function useThreadMode(threadId: string | null) {
     rpc.call("clearModeNotice", { threadId }).catch(() => undefined);
   }, [rpc, threadId]);
 
-  return useMemo(() => ({ data, hydrated, setDraft, clearNotice, refresh }), [clearNotice, data, hydrated, refresh, setDraft]);
+  const shown = useMemo<ThreadModeData | null>(
+    () => (data && desired ? { ...data, state: { ...data.state, draft: desired.mode } } : data),
+    [data, desired],
+  );
+
+  return useMemo(
+    () => ({ data: shown, hydrated, writing: desired !== null, setDraft, clearNotice, refresh }),
+    [clearNotice, desired, hydrated, refresh, setDraft, shown],
+  );
 }
 
 interface EnvironmentTarget {
@@ -458,6 +483,36 @@ function ModeToast({ message, onDone }: { message: string; onDone: () => void })
   );
 }
 
+function useSubmitGate(anchor: HTMLElement | null, blocked: boolean) {
+  const latest = useRef(blocked);
+  latest.current = blocked;
+  useEffect(() => {
+    const root = anchor?.closest<HTMLElement>("[data-app-composer]");
+    if (!root) return;
+    const stop = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (!latest.current || event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+      stop(event);
+    };
+    const onPress = (event: Event) => {
+      if (!latest.current) return;
+      const target = event.target as Element | null;
+      if (target?.closest("[data-promptbox-submit-action], [data-promptbox-send-menu]")) stop(event);
+    };
+    root.addEventListener("keydown", onKey, true);
+    root.addEventListener("click", onPress, true);
+    root.addEventListener("pointerdown", onPress, true);
+    return () => {
+      root.removeEventListener("keydown", onKey, true);
+      root.removeEventListener("click", onPress, true);
+      root.removeEventListener("pointerdown", onPress, true);
+    };
+  }, [anchor]);
+}
+
 function useShiftTab(anchor: HTMLElement | null, cycle: () => boolean) {
   const latest = useRef(cycle);
   latest.current = cycle;
@@ -525,7 +580,7 @@ export function ModeAction() {
     [composer.key, scope.kind, thread],
   );
 
-  const known = scope.kind === "new-thread" || thread.data !== null;
+  const authoritative = scope.kind === "new-thread" || (thread.hydrated && !thread.writing);
   const [nonce, setNonce] = useState(newNonce);
   const shown = transition.kind === "exit" ? transition.exited : transition.kind === "none" ? null : transition.mode;
   const shownOption = shown ? (options?.find((option) => option.skillId === shown.skillId) ?? null) : null;
@@ -533,7 +588,7 @@ export function ModeAction() {
   const pillIcon = modeIconName(shownOption?.icon ?? DEFAULT_MODE_ICON);
   const label = pillLabel(transition);
   const pill: ModePill | null = useMemo(() => {
-    if (!known || label === null || workspace.projectId === null) return null;
+    if (!authoritative || label === null || workspace.projectId === null) return null;
     return {
       pluginId,
       provider: MODE_MENTION_PROVIDER,
@@ -548,19 +603,20 @@ export function ModeAction() {
       label,
       icon: pillIcon,
     };
-  }, [known, label, nonce, pillIcon, pluginId, state.committed, state.draft, threadId, tone, workspace.environmentId, workspace.projectId]);
+  }, [authoritative, label, nonce, pillIcon, pluginId, state.committed, state.draft, threadId, tone, workspace.environmentId, workspace.projectId]);
 
+  const pending = authoritative ? syncModePill(composer.draft, pill, pluginId, MODE_MENTION_PROVIDER) : null;
   useEffect(() => {
-    if (!known) return;
-    const next = syncModePill(composer.draft, pill, pluginId, MODE_MENTION_PROVIDER);
-    if (next !== null) composer.replace(next);
-  }, [composer, composer.draft, known, pill, pluginId]);
+    if (pending !== null) composer.replace(pending);
+  }, [composer, pending]);
 
+  const hydrating = scope.kind === "thread" && !thread.hydrated;
   useEffect(() => {
     if (scope.kind !== "thread") return;
-    composer.setInputLock(!known);
+    composer.setInputLock(hydrating);
     return () => composer.setInputLock(false);
-  }, [composer, known, scope.kind]);
+  }, [composer, hydrating, scope.kind]);
+  useSubmitGate(anchor, !authoritative || pending !== null);
 
   useEffect(
     () =>

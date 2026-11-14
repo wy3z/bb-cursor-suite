@@ -185,10 +185,11 @@ describe("titles", () => {
     expect(ownWords(`reviewer ${"word ".repeat(40)}`, "reviewer")?.length).toBe(80);
   });
 
-  it("replaces a fallback or title that leads with the label, and leaves real titles alone", () => {
-    expect(fixedTitle({ title: null, titleFallback: "reviewer Check" }, "reviewer", "Check")).toBe("Check");
-    expect(fixedTitle({ title: null, titleFallback: "Check" }, "reviewer", "Check")).toBeNull();
-    expect(fixedTitle({ title: "reviewer Check it", titleFallback: null }, "reviewer", "Check")).toBe("Check it");
-    expect(fixedTitle({ title: "Review the README", titleFallback: "reviewer Check" }, "reviewer", "Check")).toBeNull();
+  it("repairs only an untitled thread whose fallback is exactly the contaminated one", () => {
+    expect(fixedTitle({ title: null, titleFallback: "reviewer Check" }, "reviewer Check", "Check")).toBe("Check");
+    expect(fixedTitle({ title: null, titleFallback: "reviewer Check again" }, "reviewer Check", "Check")).toBeNull();
+    expect(fixedTitle({ title: "reviewer Check", titleFallback: "reviewer Check" }, "reviewer Check", "Check")).toBeNull();
+    expect(fixedTitle({ title: "reviewer Centauri", titleFallback: "reviewer Check" }, "reviewer Check", "Check")).toBeNull();
   });
+
 });
