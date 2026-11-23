@@ -79,6 +79,7 @@ export const GROUPING_HEADINGS: Record<ViewGroupBy, string> = {
   workspace: "Repositories",
   updated: "Chats",
   status: "Chats",
+  activity: "Chats",
   environment: "Chats",
   none: "Threads",
 };
@@ -186,6 +187,7 @@ const GROUPING_LABELS: Record<ViewGroupBy, string> = {
   workspace: "Repository",
   updated: "Updated",
   status: "Status",
+  activity: "Activity",
   environment: "Environment",
   none: "None",
 };
@@ -194,6 +196,7 @@ const GROUPING_ICONS: Record<ViewGroupBy, IconName> = {
   workspace: "FolderGit",
   updated: "Clock",
   status: "Spinner",
+  activity: "Inbox",
   environment: "Cloud",
   none: "ListView",
 };
@@ -424,9 +427,8 @@ export function SidebarViewMenuRoot({
                 >
                   <ChoiceItem value="updated" label="Updated" icon="Clock" />
                   <ChoiceItem value="status" label="Status" icon="Spinner" />
-                  <ChoiceItem value="activity" label="Activity" icon="Inbox" />
                 </DropdownMenu.RadioGroup>
-                {view.groupBy === "none" ? null : (
+                {view.groupBy === "none" || view.groupBy === "activity" ? null : (
                   <>
                     <DropdownMenu.Separator className="my-1 h-px bg-border" />
                     {view.groupBy === "workspace" ? (

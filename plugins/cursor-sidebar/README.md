@@ -1,6 +1,6 @@
 # Cursor Sidebar
 
-Replaces BB's thread list with a port of Cursor's sidebar. Chats nest under the chat that spawned them, pinned chats gather in one block, and you can group everything by project, last update, status, environment or not at all.
+Replaces BB's thread list with a port of Cursor's sidebar. Chats nest under the chat that spawned them, pinned chats gather in one block, and you can group everything by project, last update, status, activity, environment or not at all.
 
 ## Who it's for
 
@@ -8,8 +8,8 @@ Anyone who runs several agents at once and wants to see, at a glance, which ones
 
 ## What it looks like
 
-- **Five groupings:** Projects, Updated, Status, Environment or None. One at a time.
-- **Three chat orders:** Updated, Status or Activity. Activity puts chats that need you at the top, then quiet chats, then working chats, with chats idle for over a week settled at the bottom.
+- **Six groupings:** Projects, Updated, Status, Activity, Environment or None. One at a time.
+- **Activity grouping** works like T3 Code's sidebar: chats that need you or are waiting on you sit at the top with no heading, then a Working section, then a Settled section for chats idle for over a week. Inside each section, chats follow the Updated or Status order you pick.
 - **Child chats** sit right under their parent. A parent with working children shows a small count where its age would be.
 - **A view menu** for ordering, how many chats each group previews, what each row shows, and filters by status, age, environment and pull request state.
 - **A project switcher** that narrows every grouping to one project and opens BB's New project dialog.

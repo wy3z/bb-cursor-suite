@@ -594,9 +594,9 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
   // preview.
   const siblingOrdering = useMemo<SiblingOrdering>(
     () => ({
-      compare: familyAwareComparator(view.sortConversationsBy, familyFacts, now),
+      compare: familyAwareComparator(view.sortConversationsBy, familyFacts),
     }),
-    [familyFacts, now, view.sortConversationsBy],
+    [familyFacts, view.sortConversationsBy],
   );
   // Conversations always take the selected automatic order; only projects and
   // folders keep a manual arrangement.
@@ -968,7 +968,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
       const key = keys.get(activeThreadId) ?? null;
       if (key !== null && view.groupBy === "updated") {
         updatedAgeKey = ageGroupKey(keyScope.id, key.slice("updated:".length) as AgeGroup);
-      } else if (key !== null && (view.groupBy === "status" || view.groupBy === "environment")) {
+      } else if (key !== null && (view.groupBy === "status" || view.groupBy === "activity" || view.groupBy === "environment")) {
         collapsedGroupKey = `group:${keyScope.id}:${key}`;
       }
     }
@@ -1356,7 +1356,8 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
       triggerClassName={`${ICON_BTN} data-[state=open]:text-sidebar-foreground/90`}
     />
   );
-  const standaloneHeading = view.groupBy === "workspace" || view.groupBy === "none" || nothingToShow;
+  const standaloneHeading =
+    view.groupBy === "workspace" || view.groupBy === "none" || view.groupBy === "activity" || nothingToShow;
   const listControls = (
     <>
       {projectsGrouping ? null : (

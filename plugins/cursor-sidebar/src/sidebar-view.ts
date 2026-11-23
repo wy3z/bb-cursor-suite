@@ -25,6 +25,7 @@ export const VIEW_GROUP_BY = [
   "workspace",
   "updated",
   "status",
+  "activity",
   "environment",
   "none",
 ] as const;
@@ -34,7 +35,7 @@ export type ViewGroupBy = (typeof VIEW_GROUP_BY)[number];
  * Conversations always take an automatic order; only groups are arrangeable.
  * A persisted "manual" from an older client is coerced to the default.
  */
-export const VIEW_CONVERSATION_ORDER = ["updated", "status", "activity"] as const;
+export const VIEW_CONVERSATION_ORDER = ["updated", "status"] as const;
 export type ViewConversationOrder = (typeof VIEW_CONVERSATION_ORDER)[number];
 
 export const VIEW_GROUP_ORDER = ["manual", "updated"] as const;
@@ -279,10 +280,14 @@ export function coerceSidebarView(value: unknown): SidebarView {
     };
   }
   const raw = value as Record<string, unknown>;
-  const groupBy = VIEW_GROUP_BY.find((entry) => entry === raw.groupBy) ?? DEFAULT_SIDEBAR_VIEW.groupBy;
-  const sortConversationsBy =
-    VIEW_CONVERSATION_ORDER.find((entry) => entry === raw.sortConversationsBy) ??
-    DEFAULT_SIDEBAR_VIEW.sortConversationsBy;
+  const activityOrder = raw.sortConversationsBy === "activity";
+  const groupBy = activityOrder
+    ? "activity"
+    : VIEW_GROUP_BY.find((entry) => entry === raw.groupBy) ?? DEFAULT_SIDEBAR_VIEW.groupBy;
+  const sortConversationsBy = activityOrder
+    ? "updated"
+    : VIEW_CONVERSATION_ORDER.find((entry) => entry === raw.sortConversationsBy) ??
+      DEFAULT_SIDEBAR_VIEW.sortConversationsBy;
   const sortGroupsBy =
     VIEW_GROUP_ORDER.find((entry) => entry === raw.sortGroupsBy) ??
     DEFAULT_SIDEBAR_VIEW.sortGroupsBy;
@@ -530,7 +535,6 @@ export function ordinaryFamilyFacts(
 export function familyAwareComparator(
   order: ViewConversationOrder,
   facts: OrdinaryFamilyFacts,
-  now: number = Date.now(),
 ): (left: PluginSidebarThread, right: PluginSidebarThread) => number {
   const rootOf = (thread: PluginSidebarThread): string => facts.rootOf.get(thread.id) ?? thread.id;
   const aggregateOf = (thread: PluginSidebarThread): FamilyAggregate | undefined =>
@@ -545,21 +549,6 @@ export function familyAwareComparator(
       const leftAt = aggregateOf(left)?.latestUpdatedAt ?? left.updatedAt;
       const rightAt = aggregateOf(right)?.latestUpdatedAt ?? right.updatedAt;
       return rightAt - leftAt || left.id.localeCompare(right.id);
-    };
-  }
-  if (order === "activity") {
-    const familyOf = (thread: PluginSidebarThread): FamilyAggregate =>
-      aggregateOf(thread) ?? singleThreadAggregate(thread);
-    return (left, right) => {
-      if (rootOf(left) === rootOf(right)) return sameFamily(left, right);
-      const leftFamily = familyOf(left);
-      const rightFamily = familyOf(right);
-      return (
-        ACTIVITY_BAND_RANK[activityBandOf(leftFamily, now)] -
-          ACTIVITY_BAND_RANK[activityBandOf(rightFamily, now)] ||
-        rightFamily.latestUpdatedAt - leftFamily.latestUpdatedAt ||
-        left.id.localeCompare(right.id)
-      );
     };
   }
   return (left, right) => {
@@ -583,32 +572,23 @@ export function familyAwareComparator(
 
 export const ACTIVITY_SETTLE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type ActivityBand = "attention" | "inbox" | "working" | "settled";
+export const ACTIVITY_SECTIONS = ["inbox", "working", "settled"] as const;
+export type ActivitySection = (typeof ACTIVITY_SECTIONS)[number];
 
-const ACTIVITY_BAND_RANK: Record<ActivityBand, number> = {
-  attention: 0,
-  inbox: 1,
-  working: 2,
-  settled: 3,
+export const ACTIVITY_SECTION_LABELS: Record<ActivitySection, string | null> = {
+  inbox: null,
+  working: "Working",
+  settled: "Settled",
 };
+
+export const ACTIVITY_INBOX_GROUP_KEY = "activity:inbox";
 
 function needsActivityAttention(status: ThreadStatusKind): boolean {
   return status === "input" || status === "failed" || status === "unread";
 }
 
-function singleThreadAggregate(thread: PluginSidebarThread): FamilyAggregate {
-  const status = resolveThreadStatus(threadStatusFacts(thread));
-  return {
-    status,
-    host: familyHostOf(thread),
-    latestUpdatedAt: thread.updatedAt,
-    needsAttention: needsActivityAttention(status),
-    firstIndex: 0,
-  };
-}
-
-export function activityBandOf(aggregate: FamilyAggregate, now: number): ActivityBand {
-  if (aggregate.needsAttention) return "attention";
+export function activitySectionOf(aggregate: FamilyAggregate, now: number): ActivitySection {
+  if (aggregate.needsAttention) return "inbox";
   if (aggregate.status === "working") return "working";
   if (aggregate.latestUpdatedAt < now - ACTIVITY_SETTLE_AFTER_MS) return "settled";
   return "inbox";
@@ -927,6 +907,7 @@ export function ordinaryCollapsibleTargets(
       if (key === undefined) continue;
       const root = familyRootId(home.parentOf, thread.id);
       if (pinnedRoots.has(root) || filedRoots.has(root)) continue;
+      if (key === ACTIVITY_INBOX_GROUP_KEY) continue;
       if (view.groupBy === "updated") {
         ageKeys.add(`age:${home.id}:${key.slice("updated:".length)}`);
       } else {
@@ -983,8 +964,16 @@ function groupDefinition(
   view: SidebarView,
   aggregate: FamilyAggregate,
   facts: Pick<OrdinaryGroupFacts, "now" | "primaryHostId" | "cloudHostIds">,
-): { key: string; label: string; canonical: number } {
+): { key: string; label: string | null; canonical: number } {
   const now = facts.now;
+  if (view.groupBy === "activity") {
+    const section = activitySectionOf(aggregate, now);
+    return {
+      key: `activity:${section}`,
+      label: ACTIVITY_SECTION_LABELS[section],
+      canonical: ACTIVITY_SECTIONS.indexOf(section),
+    };
+  }
   if (view.groupBy === "updated") {
     const bucket = bucketForTimestamp(aggregate.latestUpdatedAt, now);
     return { key: `updated:${bucket}`, label: bucket, canonical: AGE_GROUPS.indexOf(bucket) };
@@ -1069,7 +1058,7 @@ export function groupOrdinaryRows(
   const { rootOf, aggregateOf: aggregates } = resolveFamilyFacts(complete, facts);
   interface GroupAccumulator {
     key: string;
-    label: string;
+    label: string | null;
     canonical: number;
     latestUpdatedAt: number;
     rows: DisplayRow[];
@@ -1083,7 +1072,7 @@ export function groupOrdinaryRows(
             status: facts.statusOf(row.thread),
             host: familyHostOf(row.thread),
             latestUpdatedAt: row.thread.updatedAt,
-            needsAttention: false,
+            needsAttention: needsActivityAttention(facts.statusOf(row.thread)),
             firstIndex: 0,
           }
         : aggregates.get(root);
@@ -1102,7 +1091,7 @@ export function groupOrdinaryRows(
     // "Most recent" floats the busiest group first; ties and the default keep
     // the grouping's own canonical order. Status sections never reorder by
     // time, so Unread always stays above Working.
-    if (view.sortGroupsBy === "updated" && view.groupBy !== "status") {
+    if (view.sortGroupsBy === "updated" && view.groupBy !== "status" && view.groupBy !== "activity") {
       const byTime = right.latestUpdatedAt - left.latestUpdatedAt;
       if (byTime !== 0) return byTime;
     }
@@ -1132,7 +1121,7 @@ export function flattenOrdinaryFamilies(
   const complete = facts.members ?? rows.map((row) => row.thread);
   const familyFacts =
     facts.familyFacts ?? ordinaryFamilyFacts(complete, facts);
-  const compare = familyAwareComparator(order, familyFacts, facts.now);
+  const compare = familyAwareComparator(order, familyFacts);
   const chunks: DisplayRow[][] = [];
   for (const row of rows) {
     if (row.depth === 0 || chunks.length === 0) chunks.push([row]);
