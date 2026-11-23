@@ -4,7 +4,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { buildPooledOrdinarySection, buildSections, flattenShelf } from "./forest";
 import {
   ACTIVITY_SETTLE_AFTER_MS,
-  activityBandOf,
+  activitySectionOf,
   coerceEnvironmentFilter,
   coerceSidebarView,
   DEFAULT_SIDEBAR_VIEW,
@@ -15,6 +15,7 @@ import {
   machineGroupHostId,
   machineGroupIcon,
   machineGroupOf,
+  ordinaryCollapsibleTargets,
   ordinaryFamilyFacts,
   ordinaryFamilyGroupKeys,
   ordinaryThreadStatus,
@@ -248,7 +249,7 @@ test("a hostless root keeps its family Local even with a cloud child", () => {
   assert.deepEqual(result.cloudOnly, []);
 });
 
-for (const order of ["updated", "status", "activity"] as const) {
+for (const order of ["updated", "status"] as const) {
   test(`${order} order puts a lead's active children first, then the latest activity`, () => {
     const members = [
       thread("lead", "p", 100),
@@ -271,60 +272,99 @@ for (const order of ["updated", "status", "activity"] as const) {
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = 100 * DAY;
 
-function activityOrder(members: PluginSidebarThread[], now = NOW): string[] {
+function activityGroups(
+  members: PluginSidebarThread[],
+  overrides: Partial<typeof DEFAULT_SIDEBAR_VIEW> = {},
+): { key: string; label: string | null; ids: string[] }[] {
+  const view = { ...DEFAULT_SIDEBAR_VIEW, groupBy: "activity" as const, ...overrides };
   const parentOf = (id: string) => members.find((entry) => entry.id === id)?.parentThreadId ?? null;
   const familyFacts = ordinaryFamilyFacts(members, { parentOf, statusOf: ordinaryThreadStatus });
   const homes = buildSections(members, [{ id: "p", name: "P" }],
-    () => "active", () => ({ compare: familyAwareComparator("activity", familyFacts, now) }));
-  return flattenShelf(homes[0]!, "active").map((row) => row.thread.id);
+    () => "active", () => ({ compare: familyAwareComparator(view.sortConversationsBy, familyFacts) }));
+  const pool = buildPooledOrdinarySection(homes, "pool", "Chats");
+  return groupOrdinaryRows(flattenShelf(pool, "active"), view,
+    { now: NOW, parentOf, statusOf: ordinaryThreadStatus, members, familyFacts })
+    .map((group) => ({ key: group.key, label: group.label, ids: group.rows.map((row) => row.thread.id) }));
 }
 
-test("activity order puts attention first, then quiet, then working, then settled", () => {
-  assert.deepEqual(activityOrder([
+const WORKFLOW = { workflows: 1, backgroundAgents: 0, backgroundCommands: 0, planMode: 0 };
+
+test("activity grouping renders T3's sections in order: a headless inbox, then Working, then Settled", () => {
+  assert.deepEqual(activityGroups([
     thread("settled", "p", NOW - 8 * DAY),
     thread("working", "p", NOW - 1000, { indicator: "runtime" }),
     thread("quiet", "p", NOW - 2 * DAY),
     thread("unread", "p", NOW - 3 * DAY, { isUnread: true }),
     thread("input", "p", NOW - 5 * DAY, { hasPendingInteraction: true }),
     thread("failed", "p", NOW - 4 * DAY, { indicator: "unread-error" }),
-  ]), ["unread", "failed", "input", "quiet", "working", "settled"]);
-});
-
-test("activity order sorts every band by latest update", () => {
-  assert.deepEqual(activityOrder([
-    thread("input-old", "p", NOW - 3 * DAY, { hasPendingInteraction: true }),
-    thread("unread-new", "p", NOW - DAY, { isUnread: true }),
-    thread("quiet-old", "p", NOW - 6 * DAY),
-    thread("quiet-new", "p", NOW - DAY),
-    thread("working-old", "p", NOW - 2 * DAY, { activity: { workflows: 1, backgroundAgents: 0, backgroundCommands: 0, planMode: 0 } }),
-    thread("working-new", "p", NOW - 1, { indicator: "runtime" }),
-    thread("settled-new", "p", NOW - 8 * DAY),
-    thread("settled-old", "p", NOW - 30 * DAY),
   ]), [
-    "unread-new", "input-old",
-    "quiet-new", "quiet-old",
-    "working-new", "working-old",
-    "settled-new", "settled-old",
+    { key: "activity:inbox", label: null, ids: ["quiet", "unread", "failed", "input"] },
+    { key: "activity:working", label: "Working", ids: ["working"] },
+    { key: "activity:settled", label: "Settled", ids: ["settled"] },
   ]);
 });
 
-test("activity order never settles a thread that needs attention or is working", () => {
-  assert.deepEqual(activityOrder([
+test("activity sections use the selected ordering inside each section", () => {
+  const members = () => [
+    thread("quiet-new", "p", NOW - DAY),
+    thread("input-old", "p", NOW - 5 * DAY, { hasPendingInteraction: true }),
+    thread("unread-mid", "p", NOW - 3 * DAY, { isUnread: true }),
+    thread("working-old", "p", NOW - 2 * DAY, { activity: WORKFLOW }),
+    thread("working-new", "p", NOW - 1, { indicator: "runtime" }),
+    thread("settled-new", "p", NOW - 8 * DAY),
+    thread("settled-old", "p", NOW - 30 * DAY),
+  ];
+  assert.deepEqual(activityGroups(members(), { sortConversationsBy: "updated" }).map((group) => group.ids), [
+    ["quiet-new", "unread-mid", "input-old"],
+    ["working-new", "working-old"],
+    ["settled-new", "settled-old"],
+  ]);
+  assert.deepEqual(activityGroups(members(), { sortConversationsBy: "status" }).map((group) => group.ids), [
+    ["input-old", "unread-mid", "quiet-new"],
+    ["working-new", "working-old"],
+    ["settled-new", "settled-old"],
+  ]);
+});
+
+test("activity grouping hides empty sections", () => {
+  assert.deepEqual(activityGroups([
     thread("quiet", "p", NOW - DAY),
+    thread("settled", "p", NOW - 9 * DAY),
+  ]).map((group) => group.key), ["activity:inbox", "activity:settled"]);
+  assert.deepEqual(activityGroups([
+    thread("working", "p", NOW - 9 * DAY, { indicator: "runtime" }),
+  ]).map((group) => group.key), ["activity:working"]);
+});
+
+test("activity sections keep T3's order when groups are sorted by most recent", () => {
+  assert.deepEqual(activityGroups([
+    thread("settled", "p", NOW - 8 * DAY),
+    thread("working", "p", NOW - 9 * DAY, { indicator: "runtime" }),
+    thread("quiet", "p", NOW - 3 * DAY),
+  ], { sortGroupsBy: "updated" }).map((group) => group.key), ["activity:inbox", "activity:working", "activity:settled"]);
+});
+
+test("activity never settles a thread that needs attention or is working", () => {
+  assert.deepEqual(activityGroups([
     thread("old-working", "p", NOW - 40 * DAY, { indicator: "runtime" }),
     thread("old-input", "p", NOW - 40 * DAY, { hasPendingInteraction: true }),
+    thread("old-failed", "p", NOW - 41 * DAY, { indicator: "unread-error" }),
     thread("old-idle", "p", NOW - 40 * DAY),
-  ]), ["old-input", "quiet", "old-working", "old-idle"]);
+  ]).map((group) => [group.key, group.ids]), [
+    ["activity:inbox", ["old-input", "old-failed"]],
+    ["activity:working", ["old-working"]],
+    ["activity:settled", ["old-idle"]],
+  ]);
 });
 
 test("activity settles a quiet thread once it has been idle longer than the settle window", () => {
   const aggregate = { status: "idle" as const, host: null, needsAttention: false, firstIndex: 0 };
-  assert.equal(activityBandOf({ ...aggregate, latestUpdatedAt: NOW - ACTIVITY_SETTLE_AFTER_MS }, NOW), "inbox");
-  assert.equal(activityBandOf({ ...aggregate, latestUpdatedAt: NOW - ACTIVITY_SETTLE_AFTER_MS - 1 }, NOW), "settled");
+  assert.equal(activitySectionOf({ ...aggregate, latestUpdatedAt: NOW - ACTIVITY_SETTLE_AFTER_MS }, NOW), "inbox");
+  assert.equal(activitySectionOf({ ...aggregate, latestUpdatedAt: NOW - ACTIVITY_SETTLE_AFTER_MS - 1 }, NOW), "settled");
 });
 
-test("activity order places a family by its aggregate: any attention wins, then working, and children stay together", () => {
-  assert.deepEqual(activityOrder([
+test("activity places a family by its aggregate and keeps it together: attention wins, then working", () => {
+  assert.deepEqual(activityGroups([
     thread("quiet", "p", NOW - DAY),
     thread("lead-working", "p", NOW - 10, { indicator: "runtime" }),
     thread("lead-working-child", "p", NOW - 20, { parentThreadId: "lead-working", isUnread: true }),
@@ -332,10 +372,32 @@ test("activity order places a family by its aggregate: any attention wins, then 
     thread("old-lead-child", "p", NOW - 30 * DAY, { parentThreadId: "old-lead", indicator: "runtime" }),
     thread("settled-lead", "p", NOW - 20 * DAY),
     thread("settled-child", "p", NOW - 9 * DAY, { parentThreadId: "settled-lead" }),
-  ]), [
-    "lead-working", "lead-working-child",
-    "quiet",
-    "old-lead", "old-lead-child",
-    "settled-lead", "settled-child",
+  ]).map((group) => [group.key, group.ids]), [
+    ["activity:inbox", ["lead-working", "lead-working-child", "quiet"]],
+    ["activity:working", ["old-lead", "old-lead-child"]],
+    ["activity:settled", ["settled-lead", "settled-child"]],
   ]);
+});
+
+test("Collapse All targets the Working and Settled headings but not the headless inbox", () => {
+  const members = [
+    thread("quiet", "p", NOW - DAY),
+    thread("working", "p", NOW - 1, { indicator: "runtime" }),
+    thread("settled", "p", NOW - 9 * DAY),
+  ];
+  const targets = ordinaryCollapsibleTargets([{
+    id: "pool", isPersonal: true, members, childrenOf: () => [], parentOf: () => null,
+  }], { ...DEFAULT_SIDEBAR_VIEW, groupBy: "activity" }, {
+    now: NOW, folderIds: new Set(), statusOf: ordinaryThreadStatus,
+  });
+  assert.deepEqual([...targets.groupKeys].sort(), ["group:pool:activity:settled", "group:pool:activity:working"]);
+});
+
+test("a saved Activity ordering becomes the Activity grouping with Updated ordering", () => {
+  const migrated = coerceSidebarView({ ...DEFAULT_SIDEBAR_VIEW, groupBy: "environment", sortConversationsBy: "activity" });
+  assert.equal(migrated.groupBy, "activity");
+  assert.equal(migrated.sortConversationsBy, "updated");
+  const kept = coerceSidebarView({ ...DEFAULT_SIDEBAR_VIEW, groupBy: "activity", sortConversationsBy: "status" });
+  assert.equal(kept.groupBy, "activity");
+  assert.equal(kept.sortConversationsBy, "status");
 });

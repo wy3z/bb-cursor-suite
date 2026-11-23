@@ -26,6 +26,7 @@ import {
   partitionStandaloneRows,
 } from "./standalone-groups";
 import {
+  ACTIVITY_INBOX_GROUP_KEY,
   flattenOrdinaryFamilies,
   groupOrdinaryRows,
   NO_PROJECT_KEY,
@@ -528,7 +529,7 @@ export function ShelfList({
             ? !ctx.collapsedAgeGroups.has(collapseKey)
             : !ctx.collapsedGroups.has(collapseKey);
       const paged =
-        group.label === null && ctx.view.groupBy !== "none"
+        group.label === null && ctx.view.groupBy !== "none" && group.key !== ACTIVITY_INBOX_GROUP_KEY
           ? { shown: group.rows, hiddenConversations: 0 }
           : pageGroupRows(group.rows, parentOf, {
               activeThreadId: ctx.activeThreadId,

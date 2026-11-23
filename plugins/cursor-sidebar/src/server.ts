@@ -85,8 +85,8 @@ const projectIconSchema = z.union([
     .refine((value) => value.length > PROJECT_ICON_IMAGE_PREFIX.length),
 ]);
 
-const viewGroupBySchema = z.enum(["workspace", "updated", "status", "environment", "none"]);
-const viewConversationOrderSchema = z.enum(["updated", "status", "activity"]);
+const viewGroupBySchema = z.enum(["workspace", "updated", "status", "activity", "environment", "none"]);
+const viewConversationOrderSchema = z.enum(["updated", "status"]);
 const viewGroupOrderSchema = z.enum(["manual", "updated"]);
 /** How the project list is arranged: by hand, or by each project's worst status. */
 const viewProjectOrderSchema = z.enum(["manual", "status"]);
