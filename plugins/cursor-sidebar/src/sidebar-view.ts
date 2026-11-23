@@ -570,27 +570,41 @@ export function familyAwareComparator(
   };
 }
 
-export const ACTIVITY_SETTLE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
-
-export const ACTIVITY_SECTIONS = ["inbox", "working", "settled"] as const;
+export const ACTIVITY_SECTIONS = ["inbox", "working"] as const;
 export type ActivitySection = (typeof ACTIVITY_SECTIONS)[number];
 
 export const ACTIVITY_SECTION_LABELS: Record<ActivitySection, string | null> = {
   inbox: null,
   working: "Working",
-  settled: "Settled",
 };
 
 export const ACTIVITY_INBOX_GROUP_KEY = "activity:inbox";
+export const ACTIVITY_WORKING_GROUP_KEY = "activity:working";
+export const ACTIVITY_SETTLED_KEY = "activity:settled";
+
+export function archivedNewestFirst(left: PluginSidebarThread, right: PluginSidebarThread): number {
+  return (right.archivedAt ?? 0) - (left.archivedAt ?? 0) || left.id.localeCompare(right.id);
+}
+
+export function settledMembers(
+  threads: readonly PluginSidebarThread[],
+  projectFilter: readonly string[] | null,
+): PluginSidebarThread[] {
+  return threads.filter(
+    (thread) =>
+      thread.isArchived &&
+      !thread.isHidden &&
+      (projectFilter === null || projectFilter.includes(projectKeyOf(thread))),
+  );
+}
 
 function needsActivityAttention(status: ThreadStatusKind): boolean {
   return status === "input" || status === "failed" || status === "unread";
 }
 
-export function activitySectionOf(aggregate: FamilyAggregate, now: number): ActivitySection {
+export function activitySectionOf(aggregate: FamilyAggregate): ActivitySection {
   if (aggregate.needsAttention) return "inbox";
   if (aggregate.status === "working") return "working";
-  if (aggregate.latestUpdatedAt < now - ACTIVITY_SETTLE_AFTER_MS) return "settled";
   return "inbox";
 }
 
@@ -844,6 +858,7 @@ export interface CollapsibleTargets {
   ageKeys: ReadonlySet<string>;
   /** Threads with children, held by the expanded-parents store. */
   parentIds: ReadonlySet<string>;
+  activityKeys: ReadonlySet<string>;
 }
 
 /**
@@ -869,6 +884,7 @@ export function ordinaryCollapsibleTargets(
   const groupKeys = new Set<string>();
   const ageKeys = new Set<string>();
   const parentIds = new Set<string>();
+  const activityKeys = new Set<string>();
   for (const home of homes) {
     for (const thread of home.members) {
       if (home.childrenOf(thread.id).length > 0) parentIds.add(thread.id);
@@ -894,6 +910,7 @@ export function ordinaryCollapsibleTargets(
     // Extra grouping wraps the pooled ordinary section; per-home calls still
     // wrap standalone threads only. Project folders stay unsplit.
     if (home.isPersonal === false) continue;
+    if (view.groupBy === "activity") activityKeys.add(ACTIVITY_SETTLED_KEY);
     const keys = ordinaryFamilyGroupKeys(home.members, view, {
       now: options.now,
       parentOf: home.parentOf,
@@ -908,14 +925,16 @@ export function ordinaryCollapsibleTargets(
       const root = familyRootId(home.parentOf, thread.id);
       if (pinnedRoots.has(root) || filedRoots.has(root)) continue;
       if (key === ACTIVITY_INBOX_GROUP_KEY) continue;
-      if (view.groupBy === "updated") {
+      if (key === ACTIVITY_WORKING_GROUP_KEY) {
+        activityKeys.add(key);
+      } else if (view.groupBy === "updated") {
         ageKeys.add(`age:${home.id}:${key.slice("updated:".length)}`);
       } else {
         groupKeys.add(`group:${home.id}:${key}`);
       }
     }
   }
-  return { groupKeys, ageKeys, parentIds };
+  return { groupKeys, ageKeys, parentIds, activityKeys };
 }
 
 export interface OrdinaryGroup {
@@ -967,7 +986,7 @@ function groupDefinition(
 ): { key: string; label: string | null; canonical: number } {
   const now = facts.now;
   if (view.groupBy === "activity") {
-    const section = activitySectionOf(aggregate, now);
+    const section = activitySectionOf(aggregate);
     return {
       key: `activity:${section}`,
       label: ACTIVITY_SECTION_LABELS[section],

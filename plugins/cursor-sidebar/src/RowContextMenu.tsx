@@ -112,8 +112,8 @@ export function RowContextMenu({
   });
   items.push({ label: "Export transcript…", run: () => void exportTranscript(sdk, thread) });
   if (onSetProjectIcon) items.push({ label: "Set project icon…", run: onSetProjectIcon, separatorBefore: true });
-  items.push({ label: "Archive", run: onArchive, separatorBefore: true });
-  if (resolveThread) {
+  items.push({ label: thread.isArchived ? "Unarchive" : "Archive", run: onArchive, separatorBefore: true });
+  if (resolveThread && !thread.isArchived) {
     items.push({
       label: "Archive all below",
       run: () => {
@@ -143,12 +143,9 @@ export function RowContextMenu({
               },
             }
           : {}),
-        right: {
-          label: "Archive",
-          icon: "Archive",
-          destructive: true,
-          run: onArchive,
-        },
+        right: thread.isArchived
+          ? { label: "Unarchive", icon: "ArchiveRestore", run: onArchive }
+          : { label: "Archive", icon: "Archive", destructive: true, run: onArchive },
       };
   // No hold action: on touch a hold opens this menu, and the menu carries the
   // children toggle. A row with children used to spend its hold on expanding

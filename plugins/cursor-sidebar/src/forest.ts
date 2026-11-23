@@ -387,6 +387,19 @@ export function buildPooledOrdinarySection(
   };
 }
 
+export function buildSettledSection(
+  members: readonly PluginSidebarThread[],
+  id: string,
+  compare: (left: PluginSidebarThread, right: PluginSidebarThread) => number,
+): ProjectSectionData {
+  const pooled = buildPooledOrdinarySection(
+    buildSections(members, [], () => "settled", () => ({ compare })),
+    id,
+    "Settled",
+  );
+  return { ...pooled, byShelf: { ...pooled.byShelf, settled: [...pooled.byShelf.settled].sort(compare) } };
+}
+
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
 /**
