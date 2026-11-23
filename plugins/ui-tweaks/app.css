@@ -3,6 +3,16 @@ html[data-bb-ui-prompt-position="center"]
 html[data-bb-ui-prompt-position="bottom"]
   [data-bb-ui-tweaks-prompt-container="true"] {
   min-height: 100%;
+  flex: 1 0 auto;
+}
+
+html[data-bb-ui-prompt-position="center"]
+  [data-bb-ui-tweaks-prompt-host="true"],
+html[data-bb-ui-prompt-position="bottom"]
+  [data-bb-ui-tweaks-prompt-host="true"] {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 html[data-bb-ui-prompt-position="center"]
