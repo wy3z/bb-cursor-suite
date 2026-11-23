@@ -75,6 +75,7 @@ const WORKSPACE_APP_MENU_ITEM_MARKER =
 const WORKSPACE_APP_MENU_HIDDEN_MARKER =
   "data-bb-ui-tweaks-workspace-app-menu-hidden";
 const PROMPT_CONTAINER_MARKER = "data-bb-ui-tweaks-prompt-container";
+const PROMPT_HOST_MARKER = "data-bb-ui-tweaks-prompt-host";
 const PROMPT_POSITIONS = ["top", "center", "bottom"] as const;
 type PromptPosition = (typeof PROMPT_POSITIONS)[number];
 const PROMPT_HEIGHTS = ["default", "two-lines", "one-line"] as const;
@@ -350,21 +351,32 @@ function applyPromptContainerMarker() {
     container = container.parentElement;
   }
 
-  for (const marked of Array.from(
+  const marked = container && container !== document.body ? container : null;
+  const host = marked?.parentElement && marked.parentElement !== document.body ? marked.parentElement : null;
+  for (const element of Array.from(
     document.querySelectorAll<HTMLElement>(`[${PROMPT_CONTAINER_MARKER}]`),
   )) {
-    if (marked !== container) marked.removeAttribute(PROMPT_CONTAINER_MARKER);
+    if (element !== marked) element.removeAttribute(PROMPT_CONTAINER_MARKER);
   }
-  if (container && container !== document.body) {
-    container.setAttribute(PROMPT_CONTAINER_MARKER, "true");
+  for (const element of Array.from(
+    document.querySelectorAll<HTMLElement>(`[${PROMPT_HOST_MARKER}]`),
+  )) {
+    if (element !== host) element.removeAttribute(PROMPT_HOST_MARKER);
+  }
+  if (marked && marked.getAttribute(PROMPT_CONTAINER_MARKER) !== "true") {
+    marked.setAttribute(PROMPT_CONTAINER_MARKER, "true");
+  }
+  if (host && host.getAttribute(PROMPT_HOST_MARKER) !== "true") {
+    host.setAttribute(PROMPT_HOST_MARKER, "true");
   }
 }
 
 function clearPromptContainerMarker() {
   for (const marked of Array.from(
-    document.querySelectorAll<HTMLElement>(`[${PROMPT_CONTAINER_MARKER}]`),
+    document.querySelectorAll<HTMLElement>(`[${PROMPT_CONTAINER_MARKER}], [${PROMPT_HOST_MARKER}]`),
   )) {
     marked.removeAttribute(PROMPT_CONTAINER_MARKER);
+    marked.removeAttribute(PROMPT_HOST_MARKER);
   }
 }
 
