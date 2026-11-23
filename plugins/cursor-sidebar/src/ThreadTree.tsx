@@ -266,6 +266,7 @@ export function ShelfList({
   expandIds,
   grouped,
   onRenderedIds,
+  activityPart,
 }: {
   section: ProjectSectionData;
   shelf: ThreadShelf;
@@ -280,6 +281,7 @@ export function ShelfList({
    * or Chats).
    */
   grouped: boolean;
+  activityPart?: "list" | "working";
 }) {
   const [childPages, setChildPages] = useState<ReadonlyMap<string, number>>(() => new Map());
   // One page of child threads under a parent. "All" is no limit, so no child
@@ -507,7 +509,7 @@ export function ShelfList({
     ctx.folderDropTarget === `folder:${UNFILED_GROUP_KEY}` ||
     ctx.folderDropTarget === "pin:unpin";
   const folderBlocks =
-    grouping && partition !== null && ctx.view.groupBy !== "none"
+    grouping && partition !== null && ctx.view.groupBy !== "none" && activityPart !== "working"
       ? foldersForHome.map((folder) => {
           const key = folderKey(folder.id);
           return { folder, key, open: !ctx.collapsedGroups.has(key), rows: folderRowsById.get(folder.id) ?? [] };
@@ -515,6 +517,13 @@ export function ShelfList({
       : [];
   const groupBlocks = groups
     .filter((group) => group.rows.length > 0)
+    .filter((group) =>
+      activityPart === undefined
+        ? true
+        : activityPart === "working"
+          ? group.key === ACTIVITY_WORKING_GROUP_KEY
+          : group.key !== ACTIVITY_WORKING_GROUP_KEY,
+    )
     .map((group) => {
       const isDate = group.key.startsWith("updated:") && group.label !== null;
       const isActivityShelf = group.key === ACTIVITY_WORKING_GROUP_KEY;

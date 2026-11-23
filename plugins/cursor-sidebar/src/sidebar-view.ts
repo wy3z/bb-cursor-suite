@@ -580,22 +580,14 @@ export const ACTIVITY_SECTION_LABELS: Record<ActivitySection, string | null> = {
 
 export const ACTIVITY_INBOX_GROUP_KEY = "activity:inbox";
 export const ACTIVITY_WORKING_GROUP_KEY = "activity:working";
-export const ACTIVITY_SETTLED_KEY = "activity:settled";
+export const ACTIVITY_ARCHIVED_KEY = "activity:archived";
 
 export function archivedNewestFirst(left: PluginSidebarThread, right: PluginSidebarThread): number {
   return (right.archivedAt ?? 0) - (left.archivedAt ?? 0) || left.id.localeCompare(right.id);
 }
 
-export function settledMembers(
-  threads: readonly PluginSidebarThread[],
-  projectFilter: readonly string[] | null,
-): PluginSidebarThread[] {
-  return threads.filter(
-    (thread) =>
-      thread.isArchived &&
-      !thread.isHidden &&
-      (projectFilter === null || projectFilter.includes(projectKeyOf(thread))),
-  );
+export function archivedMembers(threads: readonly PluginSidebarThread[]): PluginSidebarThread[] {
+  return threads.filter((thread) => thread.isArchived && !thread.isHidden);
 }
 
 function needsActivityAttention(status: ThreadStatusKind): boolean {
@@ -910,7 +902,7 @@ export function ordinaryCollapsibleTargets(
     // Extra grouping wraps the pooled ordinary section; per-home calls still
     // wrap standalone threads only. Project folders stay unsplit.
     if (home.isPersonal === false) continue;
-    if (view.groupBy === "activity") activityKeys.add(ACTIVITY_SETTLED_KEY);
+    if (view.groupBy === "activity") activityKeys.add(ACTIVITY_ARCHIVED_KEY);
     const keys = ordinaryFamilyGroupKeys(home.members, view, {
       now: options.now,
       parentOf: home.parentOf,

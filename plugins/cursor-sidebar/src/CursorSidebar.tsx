@@ -80,7 +80,7 @@ import {
   EXPANDED_ACTIVITY_KEY,
   usePersistentIds,
 } from "./collapse";
-import { SettledSection } from "./SettledSection";
+import { ArchivedSection } from "./ArchivedSection";
 import { useThreadSections } from "./useThreadSections";
 import { useThreadMutations } from "./thread-actions";
 import { ThreadRoutingContext, type ThreadRouting } from "./lead-tabs";
@@ -578,6 +578,17 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         },
       }),
     [activeFamilyRoot, familyFacts, familyRootOfId, now, pinnedFamilyRoots, prStateOf, visible, view, primaryHostId, cloudHostIds],
+  );
+  const filterArchived = useCallback(
+    (threads: readonly PluginSidebarThread[]) =>
+      filterOrdinaryThreads(threads, view, {
+        now,
+        prStateOf,
+        primaryHostId,
+        cloudHostIds,
+        bypass: (thread) => thread.id === activeThreadId,
+      }),
+    [activeThreadId, cloudHostIds, now, prStateOf, primaryHostId, view],
   );
   const viewEnvironmentOptions = useMemo(
     () => environmentFilterOptions(visible, { familyFacts, primaryHostId, cloudHostIds }),
@@ -1524,7 +1535,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         ref={listRef}
         data-fade-more={listHasMore ? "true" : undefined}
         onKeyDown={handleListKeyDown}
-        className="cs-scroll cs-row-inset relative min-h-0 flex-1 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="cs-scroll cs-row-inset relative flex min-h-0 flex-1 flex-col overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       <div className="cs-managers pt-2">
                 <GroupHeading
@@ -1731,8 +1742,8 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
                     shelf="active"
                     ctx={ctx}
                     grouped
+                    activityPart={view.groupBy === "activity" ? "list" : undefined}
                   />
-                  {view.groupBy === "activity" ? <SettledSection ctx={ctx} /> : null}
                 </Drawer>
               </section>
             )}
@@ -1749,6 +1760,12 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
             ) : null}
             </div>
           </AnimatedList>
+          {!projectsGrouping && view.groupBy === "activity" ? (
+            <div data-activity-shelves="" className="mt-auto pt-6">
+              <ShelfList section={pooledSection} shelf="active" ctx={ctx} grouped activityPart="working" />
+              <ArchivedSection ctx={ctx} filter={filterArchived} />
+            </div>
+          ) : null}
       </div>
     </div>
     </SidebarViewMenuRoot>

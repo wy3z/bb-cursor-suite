@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { buildPooledOrdinarySection, buildSections, buildSettledSection, flattenShelf } from "./forest";
+import { buildPooledOrdinarySection, buildSections, buildArchivedSection, flattenShelf } from "./forest";
 import {
   archivedNewestFirst,
   coerceEnvironmentFilter,
@@ -18,7 +18,7 @@ import {
   ordinaryFamilyFacts,
   ordinaryFamilyGroupKeys,
   ordinaryThreadStatus,
-  settledMembers,
+  archivedMembers,
 } from "./sidebar-view";
 
 function thread(id: string, projectId: string, updatedAt: number,
@@ -348,7 +348,7 @@ test("activity places a family by its aggregate and keeps it together: attention
   ]);
 });
 
-test("Working and Settled are activity toggles, not collapsed-group keys, and the inbox has none", () => {
+test("Working and Archived are activity toggles, not collapsed-group keys, and the inbox has none", () => {
   const members = [
     thread("quiet", "p", NOW - DAY),
     thread("working", "p", NOW - 1, { indicator: "runtime" }),
@@ -359,7 +359,7 @@ test("Working and Settled are activity toggles, not collapsed-group keys, and th
     now: NOW, folderIds: new Set(), statusOf: ordinaryThreadStatus,
   });
   assert.deepEqual([...targets.groupKeys], []);
-  assert.deepEqual([...targets.activityKeys].sort(), ["activity:settled", "activity:working"]);
+  assert.deepEqual([...targets.activityKeys].sort(), ["activity:archived", "activity:working"]);
   const other = ordinaryCollapsibleTargets([{
     id: "pool", isPersonal: true, members, childrenOf: () => [], parentOf: () => null,
   }], { ...DEFAULT_SIDEBAR_VIEW, groupBy: "status" }, {
@@ -368,28 +368,52 @@ test("Working and Settled are activity toggles, not collapsed-group keys, and th
   assert.deepEqual([...other.activityKeys], []);
 });
 
-test("Settled lists archived, visible threads in the selected projects", () => {
-  const members = settledMembers([
+test("Archived takes archived, visible threads only", () => {
+  assert.deepEqual(archivedMembers([
     thread("active", "p", 1),
     thread("archived", "p", 1, { isArchived: true, archivedAt: 10 }),
     thread("hidden", "p", 1, { isArchived: true, archivedAt: 11, isHidden: true }),
-    thread("other-project", "q", 1, { isArchived: true, archivedAt: 12 }),
-  ], ["p"]);
-  assert.deepEqual(members.map((entry) => entry.id), ["archived"]);
-  assert.deepEqual(settledMembers([
-    thread("a", "p", 1, { isArchived: true, archivedAt: 1 }),
-    thread("b", "q", 1, { isArchived: true, archivedAt: 2 }),
-  ], null).map((entry) => entry.id), ["a", "b"]);
+  ]).map((entry) => entry.id), ["archived"]);
 });
 
-test("Settled orders families newest archived first and keeps children under their parent", () => {
-  const members = settledMembers([
+test("Archived goes through the list's own filters: status, PR, age, repository, environment and project", () => {
+  const archived = (id: string, overrides: Partial<PluginSidebarThread> = {}) =>
+    thread(id, "p", NOW - DAY, { isArchived: true, archivedAt: NOW, host: LOCAL, ...overrides });
+  const members = archivedMembers([
+    archived("keep"),
+    archived("unread", { isUnread: true }),
+    archived("old", { updatedAt: NOW - 60 * DAY }),
+    archived("other-project", { projectId: "q" }),
+    archived("cloud", { host: SANDBOX_A }),
+    archived("merged"),
+  ]);
+  const view = {
+    ...DEFAULT_SIDEBAR_VIEW,
+    groupBy: "activity" as const,
+    statusFilter: ["idle" as const],
+    ageFilter: ["Yesterday" as const, "Last 7 days" as const],
+    projectFilter: ["p"],
+    environmentFilter: ["machine:local"],
+    prFilter: ["none" as const, "open" as const],
+  };
+  const kept = filterOrdinaryThreads(members, view, {
+    now: NOW,
+    primaryHostId: LOCAL.id,
+    cloudHostIds: CLOUD,
+    prStateOf: (entry) => (entry.id === "merged" ? "merged" : "none"),
+    bypass: () => false,
+  });
+  assert.deepEqual(kept.map((entry) => entry.id), ["keep"]);
+});
+
+test("Archived orders families newest archived first and keeps children under their parent", () => {
+  const members = archivedMembers([
     thread("old", "p", 50, { isArchived: true, archivedAt: 100 }),
     thread("new", "q", 1, { isArchived: true, archivedAt: 300 }),
     thread("parent", "p", 1, { isArchived: true, archivedAt: 200 }),
     thread("child", "p", 1, { isArchived: true, archivedAt: 400, parentThreadId: "parent" }),
-  ], null);
-  const pool = buildSettledSection(members, "settled", archivedNewestFirst);
+  ]);
+  const pool = buildArchivedSection(members, "archived", archivedNewestFirst);
   assert.deepEqual(flattenShelf(pool, "settled").map((row) => [row.thread.id, row.depth]), [
     ["new", 0], ["parent", 0], ["child", 1], ["old", 0],
   ]);
