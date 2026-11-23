@@ -34,7 +34,7 @@ export type ViewGroupBy = (typeof VIEW_GROUP_BY)[number];
  * Conversations always take an automatic order; only groups are arrangeable.
  * A persisted "manual" from an older client is coerced to the default.
  */
-export const VIEW_CONVERSATION_ORDER = ["updated", "status"] as const;
+export const VIEW_CONVERSATION_ORDER = ["updated", "status", "activity"] as const;
 export type ViewConversationOrder = (typeof VIEW_CONVERSATION_ORDER)[number];
 
 export const VIEW_GROUP_ORDER = ["manual", "updated"] as const;
@@ -413,6 +413,7 @@ export interface FamilyAggregate {
   status: ThreadStatusKind;
   host: FamilyHost | null;
   latestUpdatedAt: number;
+  needsAttention: boolean;
   firstIndex: number;
 }
 
@@ -492,12 +493,14 @@ function familyAggregates(
         status: facts.statusOf(thread),
         host: rootHostOf(byId, root, thread),
         latestUpdatedAt: thread.updatedAt,
+        needsAttention: false,
         firstIndex: firstIndex++,
       };
       aggregates.set(root, aggregate);
     }
     aggregate.latestUpdatedAt = Math.max(aggregate.latestUpdatedAt, thread.updatedAt);
     const status = facts.statusOf(thread);
+    if (needsActivityAttention(status)) aggregate.needsAttention = true;
     if (THREAD_STATUS_RANK[status] < THREAD_STATUS_RANK[aggregate.status]) {
       aggregate.status = status;
     }
@@ -527,6 +530,7 @@ export function ordinaryFamilyFacts(
 export function familyAwareComparator(
   order: ViewConversationOrder,
   facts: OrdinaryFamilyFacts,
+  now: number = Date.now(),
 ): (left: PluginSidebarThread, right: PluginSidebarThread) => number {
   const rootOf = (thread: PluginSidebarThread): string => facts.rootOf.get(thread.id) ?? thread.id;
   const aggregateOf = (thread: PluginSidebarThread): FamilyAggregate | undefined =>
@@ -541,6 +545,21 @@ export function familyAwareComparator(
       const leftAt = aggregateOf(left)?.latestUpdatedAt ?? left.updatedAt;
       const rightAt = aggregateOf(right)?.latestUpdatedAt ?? right.updatedAt;
       return rightAt - leftAt || left.id.localeCompare(right.id);
+    };
+  }
+  if (order === "activity") {
+    const familyOf = (thread: PluginSidebarThread): FamilyAggregate =>
+      aggregateOf(thread) ?? singleThreadAggregate(thread);
+    return (left, right) => {
+      if (rootOf(left) === rootOf(right)) return sameFamily(left, right);
+      const leftFamily = familyOf(left);
+      const rightFamily = familyOf(right);
+      return (
+        ACTIVITY_BAND_RANK[activityBandOf(leftFamily, now)] -
+          ACTIVITY_BAND_RANK[activityBandOf(rightFamily, now)] ||
+        rightFamily.latestUpdatedAt - leftFamily.latestUpdatedAt ||
+        left.id.localeCompare(right.id)
+      );
     };
   }
   return (left, right) => {
@@ -560,6 +579,39 @@ export function familyAwareComparator(
       left.id.localeCompare(right.id)
     );
   };
+}
+
+export const ACTIVITY_SETTLE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type ActivityBand = "attention" | "inbox" | "working" | "settled";
+
+const ACTIVITY_BAND_RANK: Record<ActivityBand, number> = {
+  attention: 0,
+  inbox: 1,
+  working: 2,
+  settled: 3,
+};
+
+function needsActivityAttention(status: ThreadStatusKind): boolean {
+  return status === "input" || status === "failed" || status === "unread";
+}
+
+function singleThreadAggregate(thread: PluginSidebarThread): FamilyAggregate {
+  const status = resolveThreadStatus(threadStatusFacts(thread));
+  return {
+    status,
+    host: familyHostOf(thread),
+    latestUpdatedAt: thread.updatedAt,
+    needsAttention: needsActivityAttention(status),
+    firstIndex: 0,
+  };
+}
+
+export function activityBandOf(aggregate: FamilyAggregate, now: number): ActivityBand {
+  if (aggregate.needsAttention) return "attention";
+  if (aggregate.status === "working") return "working";
+  if (aggregate.latestUpdatedAt < now - ACTIVITY_SETTLE_AFTER_MS) return "settled";
+  return "inbox";
 }
 
 export interface OrdinaryFilterFacts {
@@ -1031,6 +1083,7 @@ export function groupOrdinaryRows(
             status: facts.statusOf(row.thread),
             host: familyHostOf(row.thread),
             latestUpdatedAt: row.thread.updatedAt,
+            needsAttention: false,
             firstIndex: 0,
           }
         : aggregates.get(root);
@@ -1079,7 +1132,7 @@ export function flattenOrdinaryFamilies(
   const complete = facts.members ?? rows.map((row) => row.thread);
   const familyFacts =
     facts.familyFacts ?? ordinaryFamilyFacts(complete, facts);
-  const compare = familyAwareComparator(order, familyFacts);
+  const compare = familyAwareComparator(order, familyFacts, facts.now);
   const chunks: DisplayRow[][] = [];
   for (const row of rows) {
     if (row.depth === 0 || chunks.length === 0) chunks.push([row]);

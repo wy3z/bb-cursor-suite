@@ -594,9 +594,9 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
   // preview.
   const siblingOrdering = useMemo<SiblingOrdering>(
     () => ({
-      compare: familyAwareComparator(view.sortConversationsBy, familyFacts),
+      compare: familyAwareComparator(view.sortConversationsBy, familyFacts, now),
     }),
-    [familyFacts, view.sortConversationsBy],
+    [familyFacts, now, view.sortConversationsBy],
   );
   // Conversations always take the selected automatic order; only projects and
   // folders keep a manual arrangement.

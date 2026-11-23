@@ -424,6 +424,7 @@ export function SidebarViewMenuRoot({
                 >
                   <ChoiceItem value="updated" label="Updated" icon="Clock" />
                   <ChoiceItem value="status" label="Status" icon="Spinner" />
+                  <ChoiceItem value="activity" label="Activity" icon="Inbox" />
                 </DropdownMenu.RadioGroup>
                 {view.groupBy === "none" ? null : (
                   <>

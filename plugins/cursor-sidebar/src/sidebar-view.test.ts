@@ -3,6 +3,8 @@ import { test } from "node:test";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { buildPooledOrdinarySection, buildSections, flattenShelf } from "./forest";
 import {
+  ACTIVITY_SETTLE_AFTER_MS,
+  activityBandOf,
   coerceEnvironmentFilter,
   coerceSidebarView,
   DEFAULT_SIDEBAR_VIEW,
@@ -246,7 +248,7 @@ test("a hostless root keeps its family Local even with a cloud child", () => {
   assert.deepEqual(result.cloudOnly, []);
 });
 
-for (const order of ["updated", "status"] as const) {
+for (const order of ["updated", "status", "activity"] as const) {
   test(`${order} order puts a lead's active children first, then the latest activity`, () => {
     const members = [
       thread("lead", "p", 100),
@@ -265,3 +267,75 @@ for (const order of ["updated", "status"] as const) {
     );
   });
 }
+
+const DAY = 24 * 60 * 60 * 1000;
+const NOW = 100 * DAY;
+
+function activityOrder(members: PluginSidebarThread[], now = NOW): string[] {
+  const parentOf = (id: string) => members.find((entry) => entry.id === id)?.parentThreadId ?? null;
+  const familyFacts = ordinaryFamilyFacts(members, { parentOf, statusOf: ordinaryThreadStatus });
+  const homes = buildSections(members, [{ id: "p", name: "P" }],
+    () => "active", () => ({ compare: familyAwareComparator("activity", familyFacts, now) }));
+  return flattenShelf(homes[0]!, "active").map((row) => row.thread.id);
+}
+
+test("activity order puts attention first, then quiet, then working, then settled", () => {
+  assert.deepEqual(activityOrder([
+    thread("settled", "p", NOW - 8 * DAY),
+    thread("working", "p", NOW - 1000, { indicator: "runtime" }),
+    thread("quiet", "p", NOW - 2 * DAY),
+    thread("unread", "p", NOW - 3 * DAY, { isUnread: true }),
+    thread("input", "p", NOW - 5 * DAY, { hasPendingInteraction: true }),
+    thread("failed", "p", NOW - 4 * DAY, { indicator: "unread-error" }),
+  ]), ["unread", "failed", "input", "quiet", "working", "settled"]);
+});
+
+test("activity order sorts every band by latest update", () => {
+  assert.deepEqual(activityOrder([
+    thread("input-old", "p", NOW - 3 * DAY, { hasPendingInteraction: true }),
+    thread("unread-new", "p", NOW - DAY, { isUnread: true }),
+    thread("quiet-old", "p", NOW - 6 * DAY),
+    thread("quiet-new", "p", NOW - DAY),
+    thread("working-old", "p", NOW - 2 * DAY, { activity: { workflows: 1, backgroundAgents: 0, backgroundCommands: 0, planMode: 0 } }),
+    thread("working-new", "p", NOW - 1, { indicator: "runtime" }),
+    thread("settled-new", "p", NOW - 8 * DAY),
+    thread("settled-old", "p", NOW - 30 * DAY),
+  ]), [
+    "unread-new", "input-old",
+    "quiet-new", "quiet-old",
+    "working-new", "working-old",
+    "settled-new", "settled-old",
+  ]);
+});
+
+test("activity order never settles a thread that needs attention or is working", () => {
+  assert.deepEqual(activityOrder([
+    thread("quiet", "p", NOW - DAY),
+    thread("old-working", "p", NOW - 40 * DAY, { indicator: "runtime" }),
+    thread("old-input", "p", NOW - 40 * DAY, { hasPendingInteraction: true }),
+    thread("old-idle", "p", NOW - 40 * DAY),
+  ]), ["old-input", "quiet", "old-working", "old-idle"]);
+});
+
+test("activity settles a quiet thread once it has been idle longer than the settle window", () => {
+  const aggregate = { status: "idle" as const, host: null, needsAttention: false, firstIndex: 0 };
+  assert.equal(activityBandOf({ ...aggregate, latestUpdatedAt: NOW - ACTIVITY_SETTLE_AFTER_MS }, NOW), "inbox");
+  assert.equal(activityBandOf({ ...aggregate, latestUpdatedAt: NOW - ACTIVITY_SETTLE_AFTER_MS - 1 }, NOW), "settled");
+});
+
+test("activity order places a family by its aggregate: any attention wins, then working, and children stay together", () => {
+  assert.deepEqual(activityOrder([
+    thread("quiet", "p", NOW - DAY),
+    thread("lead-working", "p", NOW - 10, { indicator: "runtime" }),
+    thread("lead-working-child", "p", NOW - 20, { parentThreadId: "lead-working", isUnread: true }),
+    thread("old-lead", "p", NOW - 20 * DAY),
+    thread("old-lead-child", "p", NOW - 30 * DAY, { parentThreadId: "old-lead", indicator: "runtime" }),
+    thread("settled-lead", "p", NOW - 20 * DAY),
+    thread("settled-child", "p", NOW - 9 * DAY, { parentThreadId: "settled-lead" }),
+  ]), [
+    "lead-working", "lead-working-child",
+    "quiet",
+    "old-lead", "old-lead-child",
+    "settled-lead", "settled-child",
+  ]);
+});
