@@ -27,6 +27,7 @@ import {
 } from "./standalone-groups";
 import {
   ACTIVITY_INBOX_GROUP_KEY,
+  ACTIVITY_WORKING_GROUP_KEY,
   flattenOrdinaryFamilies,
   groupOrdinaryRows,
   NO_PROJECT_KEY,
@@ -130,6 +131,8 @@ export interface TreeContext {
   /** Persistently collapsed pinned/folder groups; everything defaults open. */
   collapsedGroups: ReadonlySet<string>;
   onToggleGroup: (key: string) => void;
+  expandedActivity: ReadonlySet<string>;
+  onToggleActivity: (key: string) => void;
   /** Unfile one standalone family back to the dated chats, keeping pin state. */
   onRemoveFromFolder: (threadId: string) => void;
   onRenameFolder: (sectionId: string) => void;
@@ -263,6 +266,7 @@ export function ShelfList({
   expandIds,
   grouped,
   onRenderedIds,
+  activityPart,
 }: {
   section: ProjectSectionData;
   shelf: ThreadShelf;
@@ -277,6 +281,7 @@ export function ShelfList({
    * or Chats).
    */
   grouped: boolean;
+  activityPart?: "list" | "working";
 }) {
   const [childPages, setChildPages] = useState<ReadonlyMap<string, number>>(() => new Map());
   // One page of child threads under a parent. "All" is no limit, so no child
@@ -504,7 +509,7 @@ export function ShelfList({
     ctx.folderDropTarget === `folder:${UNFILED_GROUP_KEY}` ||
     ctx.folderDropTarget === "pin:unpin";
   const folderBlocks =
-    grouping && partition !== null && ctx.view.groupBy !== "none"
+    grouping && partition !== null && ctx.view.groupBy !== "none" && activityPart !== "working"
       ? foldersForHome.map((folder) => {
           const key = folderKey(folder.id);
           return { folder, key, open: !ctx.collapsedGroups.has(key), rows: folderRowsById.get(folder.id) ?? [] };
@@ -512,22 +517,34 @@ export function ShelfList({
       : [];
   const groupBlocks = groups
     .filter((group) => group.rows.length > 0)
+    .filter((group) =>
+      activityPart === undefined
+        ? true
+        : activityPart === "working"
+          ? group.key === ACTIVITY_WORKING_GROUP_KEY
+          : group.key !== ACTIVITY_WORKING_GROUP_KEY,
+    )
     .map((group) => {
       const isDate = group.key.startsWith("updated:") && group.label !== null;
+      const isActivityShelf = group.key === ACTIVITY_WORKING_GROUP_KEY;
       const collapseKey =
         group.label === null
           ? null
-          : isDate
-            ? ageGroupKey(section.id, group.label as AgeGroup)
-            : `group:${section.id}:${group.key}`;
+          : isActivityShelf
+            ? group.key
+            : isDate
+              ? ageGroupKey(section.id, group.label as AgeGroup)
+              : `group:${section.id}:${group.key}`;
       // Every bucket defaults open: an allow-list of open buckets left a bucket
       // with threads in it looking empty. Only an explicit fold closes one.
       const open =
         collapseKey === null
           ? true
-          : isDate
-            ? !ctx.collapsedAgeGroups.has(collapseKey)
-            : !ctx.collapsedGroups.has(collapseKey);
+          : isActivityShelf
+            ? ctx.expandedActivity.has(collapseKey)
+            : isDate
+              ? !ctx.collapsedAgeGroups.has(collapseKey)
+              : !ctx.collapsedGroups.has(collapseKey);
       const paged =
         group.label === null && ctx.view.groupBy !== "none" && group.key !== ACTIVITY_INBOX_GROUP_KEY
           ? { shown: group.rows, hiddenConversations: 0 }
@@ -535,11 +552,16 @@ export function ShelfList({
               activeThreadId: ctx.activeThreadId,
               limit: groupPages.get(group.key) ?? pageSize,
             });
-      return { group, isDate, collapseKey, open, paged };
+      const peek =
+        isActivityShelf && !open
+          ? group.rows.filter((row) => row.thread.id === ctx.activeThreadId)
+          : [];
+      return { group, isDate, isActivityShelf, collapseKey, open, paged, peek };
     });
   const renderedIds = renderedIdsOf([
     ...folderBlocks.map((block) => ({ open: block.open, rows: block.rows })),
     ...groupBlocks.map((block) => ({ open: block.open, rows: block.paged.shown })),
+    ...groupBlocks.map((block) => ({ open: true, rows: block.peek })),
   ]);
   const renderedKey = [...renderedIds].join("\n");
   const reportRendered = useRef(onRenderedIds);
@@ -548,7 +570,7 @@ export function ShelfList({
     reportRendered.current?.(new Set(renderedKey === "" ? [] : renderedKey.split("\n")));
   }, [renderedKey]);
   useLayoutEffect(() => () => reportRendered.current?.(NO_RENDERED_ROWS), []);
-  const renderGroup = ({ group, isDate, collapseKey, open, paged }: (typeof groupBlocks)[number]) => {
+  const renderGroup = ({ group, isDate, isActivityShelf, collapseKey, open, paged, peek }: (typeof groupBlocks)[number]) => {
     return (
       <div key={group.key} className={group.label ? "mt-2 first:mt-0" : undefined}>
         {group.label !== null && collapseKey !== null ? (
@@ -563,9 +585,11 @@ export function ShelfList({
               icon={ctx.view.groupBy === "environment" ? machineGroupIcon(group.key) ?? undefined : undefined}
               open={open}
               onToggle={
-                isDate
-                  ? () => ctx.onToggleAgeGroup(collapseKey)
-                  : () => ctx.onToggleGroup(collapseKey)
+                isActivityShelf
+                  ? () => ctx.onToggleActivity(collapseKey)
+                  : isDate
+                    ? () => ctx.onToggleAgeGroup(collapseKey)
+                    : () => ctx.onToggleGroup(collapseKey)
               }
               shelfKey={collapseKey}
             />
@@ -595,6 +619,9 @@ export function ShelfList({
             ) : null}
           </AnimatedList>
         </Drawer>
+        {peek.length > 0 ? (
+          <AnimatedList className="flex flex-col">{renderThreadRows(peek, {})}</AnimatedList>
+        ) : null}
       </div>
     );
   };
@@ -1032,7 +1059,11 @@ function ThreadRow({
             aria-label={`${title}${isActive ? ", selected" : ""}`}
             aria-current={isActive ? "true" : undefined}
             aria-expanded={hasChildren ? expanded : undefined}
-            aria-description="Swipe left to pin, swipe right to archive. Hold to open the actions menu, or use the Actions control or Shift+F10."
+            aria-description={
+              thread.isArchived
+                ? "Swipe right to unarchive. Hold to open the actions menu, or use the Actions control or Shift+F10."
+                : "Swipe left to pin, swipe right to archive. Hold to open the actions menu, or use the Actions control or Shift+F10."
+            }
             {...splitProps}
             draggable={false}
             onPointerDown={handlePointerDown}
@@ -1149,8 +1180,8 @@ function ThreadRow({
               ) : null}
               <button
                 type="button"
-                aria-label="Archive"
-                title="Archive"
+                aria-label={thread.isArchived ? "Unarchive" : "Archive"}
+                title={thread.isArchived ? "Unarchive" : "Archive"}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -1158,7 +1189,7 @@ function ThreadRow({
                 }}
                 className="cs-row-action pointer-events-none flex size-5 items-center justify-center rounded text-[color:var(--bbs-text-secondary)] group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
               >
-                <Icon name="Archive" className="size-3.5" />
+                <Icon name={thread.isArchived ? "ArchiveRestore" : "Archive"} className="size-3.5" />
               </button>
             </span>
             <span className="cs-thread-time pointer-events-none tabular-nums text-xs">

@@ -77,8 +77,10 @@ import {
   COLLAPSED_AGES_KEY,
   COLLAPSED_GROUPS_KEY,
   COLLAPSED_SECTIONS_KEY,
+  EXPANDED_ACTIVITY_KEY,
   usePersistentIds,
 } from "./collapse";
+import { ArchivedSection } from "./ArchivedSection";
 import { useThreadSections } from "./useThreadSections";
 import { useThreadMutations } from "./thread-actions";
 import { ThreadRoutingContext, type ThreadRouting } from "./lead-tabs";
@@ -256,6 +258,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
   // hold the folded ones and are device preferences, not shared state.
   const topGroupCollapsed = usePersistentIds("bb-plugin-cursor-sidebar:collapsed-top-groups:v1");
   const collapsedSections = usePersistentIds(COLLAPSED_SECTIONS_KEY);
+  const expandedActivity = usePersistentIds(EXPANDED_ACTIVITY_KEY);
   const folderStore = useThreadSections();
   const knownFolderIds = useMemo(
     () => new Set(folderStore.sections.map((folder) => folder.id)),
@@ -575,6 +578,17 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         },
       }),
     [activeFamilyRoot, familyFacts, familyRootOfId, now, pinnedFamilyRoots, prStateOf, visible, view, primaryHostId, cloudHostIds],
+  );
+  const filterArchived = useCallback(
+    (threads: readonly PluginSidebarThread[]) =>
+      filterOrdinaryThreads(threads, view, {
+        now,
+        prStateOf,
+        primaryHostId,
+        cloudHostIds,
+        bypass: (thread) => thread.id === activeThreadId,
+      }),
+    [activeThreadId, cloudHostIds, now, prStateOf, primaryHostId, view],
   );
   const viewEnvironmentOptions = useMemo(
     () => environmentFilterOptions(visible, { familyFacts, primaryHostId, cloudHostIds }),
@@ -968,7 +982,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
       const key = keys.get(activeThreadId) ?? null;
       if (key !== null && view.groupBy === "updated") {
         updatedAgeKey = ageGroupKey(keyScope.id, key.slice("updated:".length) as AgeGroup);
-      } else if (key !== null && (view.groupBy === "status" || view.groupBy === "activity" || view.groupBy === "environment")) {
+      } else if (key !== null && (view.groupBy === "status" || view.groupBy === "environment")) {
         collapsedGroupKey = `group:${keyScope.id}:${key}`;
       }
     }
@@ -1085,6 +1099,8 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
       threadSections: folderStore.sections,
       collapsedGroups: collapsedGroups.ids,
       onToggleGroup: collapsedGroups.toggle,
+      expandedActivity: expandedActivity.ids,
+      onToggleActivity: expandedActivity.toggle,
       onRemoveFromFolder: (threadId: string) => {
         void (async () => {
           const result = await applyFolderMoveRef.current(threadId, null);
@@ -1123,6 +1139,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
       activeThreadId,
       canPin,
       collapsedGroups,
+      expandedActivity,
       togglePin,
       collapsedAges,
       descendantsById,
@@ -1228,19 +1245,21 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
     collapsedSections.removeMany(bulkSectionIds);
     collapsedGroups.removeMany(bulkTargets.groupKeys);
     collapsedAges.removeMany(bulkTargets.ageKeys);
+    expandedActivity.addMany(bulkTargets.activityKeys);
     setExpandedParents((current) => new Set([...current, ...bulkTargets.parentIds]));
-  }, [bulkSectionIds, bulkTargets, bulkTopGroupKeys, collapsedAges, collapsedGroups, collapsedSections, topGroupCollapsed]);
+  }, [bulkSectionIds, bulkTargets, bulkTopGroupKeys, collapsedAges, collapsedGroups, collapsedSections, expandedActivity, topGroupCollapsed]);
   const collapseAll = useCallback(() => {
     topGroupCollapsed.addMany(bulkTopGroupKeys);
     collapsedSections.addMany(bulkSectionIds);
     collapsedGroups.addMany(bulkTargets.groupKeys);
     collapsedAges.addMany(bulkTargets.ageKeys);
+    expandedActivity.removeMany(bulkTargets.activityKeys);
     setExpandedParents((current) => {
       const next = new Set(current);
       for (const id of bulkTargets.parentIds) next.delete(id);
       return next;
     });
-  }, [bulkSectionIds, bulkTargets, bulkTopGroupKeys, collapsedAges, collapsedGroups, collapsedSections, topGroupCollapsed]);
+  }, [bulkSectionIds, bulkTargets, bulkTopGroupKeys, collapsedAges, collapsedGroups, collapsedSections, expandedActivity, topGroupCollapsed]);
 
   if (status === "loading") {
     return (
@@ -1341,6 +1360,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
     bulkSectionIds.some((id) => collapsedSections.ids.has(id)) ||
     [...bulkTargets.groupKeys].some((key) => collapsedGroups.ids.has(key)) ||
     [...bulkTargets.ageKeys].some((key) => collapsedAges.ids.has(key)) ||
+    [...bulkTargets.activityKeys].some((key) => !expandedActivity.ids.has(key)) ||
     [...bulkTargets.parentIds].some((id) => !expandedParents.has(id));
 
   const nothingToShow =
@@ -1515,7 +1535,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         ref={listRef}
         data-fade-more={listHasMore ? "true" : undefined}
         onKeyDown={handleListKeyDown}
-        className="cs-scroll cs-row-inset relative min-h-0 flex-1 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="cs-scroll cs-row-inset relative flex min-h-0 flex-1 flex-col overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       <div className="cs-managers pt-2">
                 <GroupHeading
@@ -1722,6 +1742,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
                     shelf="active"
                     ctx={ctx}
                     grouped
+                    activityPart={view.groupBy === "activity" ? "list" : undefined}
                   />
                 </Drawer>
               </section>
@@ -1739,6 +1760,12 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
             ) : null}
             </div>
           </AnimatedList>
+          {!projectsGrouping && view.groupBy === "activity" ? (
+            <div data-activity-shelves="" className="mt-auto pt-6">
+              <ShelfList section={pooledSection} shelf="active" ctx={ctx} grouped activityPart="working" />
+              <ArchivedSection ctx={ctx} filter={filterArchived} />
+            </div>
+          ) : null}
       </div>
     </div>
     </SidebarViewMenuRoot>

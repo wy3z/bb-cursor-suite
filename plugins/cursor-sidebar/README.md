@@ -9,7 +9,7 @@ Anyone who runs several agents at once and wants to see, at a glance, which ones
 ## What it looks like
 
 - **Six groupings:** Projects, Updated, Status, Activity, Environment or None. One at a time.
-- **Activity grouping** works like T3 Code's sidebar: chats that need you or are waiting on you sit at the top with no heading, then a Working section, then a Settled section for chats idle for over a week. Inside each section, chats follow the Updated or Status order you pick.
+- **Activity grouping** works like T3 Code's sidebar: chats that are not working sit at the top with no heading, and the Working and Archived shelves sit at the very bottom of the sidebar, below Projects. Archived lists your archived chats, newest archived first, through the same filters as the rest of the list. Both shelves start collapsed and remember what you choose. Inside each section, chats follow the Updated or Status order you pick.
 - **Child chats** sit right under their parent. A parent with working children shows a small count where its age would be.
 - **A view menu** for ordering, how many chats each group previews, what each row shows, and filters by status, age, environment and pull request state.
 - **A project switcher** that narrows every grouping to one project and opens BB's New project dialog.
