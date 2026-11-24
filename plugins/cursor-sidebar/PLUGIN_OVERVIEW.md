@@ -97,6 +97,8 @@ SQLite in the plugin's data directory: `sidebar_view`, `project_icon`, `thread_o
 
 Every grouping uses the same sections: Pinned first, then the grouping's own headings, then **Chats** for standalone chats. An empty heading is never drawn. Under Projects, a project with no visible chat is hidden, except the one picked in the switcher, which says **No threads**.
 
+The **Projects** block of board rows above the list follows the same rule in every grouping. A board row shows only while its lead or one of the lead's unarchived children passes the current filters (the open chat's family always counts). When no board row is left, the whole block, heading and **+** included, is hidden, and **New project** moves to the list's own controls next to the view menu. Archived board chats still show under Activity's **Archived** shelf.
+
 ### Toolbar and headings
 
 One fixed row sits above the list: the project switcher on the left and the view menu on the right. A section heading is a small muted label that folds its block. When a working chat inside a folded or filtered project is out of sight, a small spinner sits on the project folder's corner. Chats under a Projects board count towards the board row, not their repository.
