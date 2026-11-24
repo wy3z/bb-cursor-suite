@@ -46,10 +46,10 @@ html.dark .bb-pr-pi-rose { --bb-pr-pi-fg: oklch(71.2% 0.194 13.428); }
    depends on nothing outside its own `bb-pr-` classes. The host's pill-row,
    popover and selection tokens are still the source of truth. */
 .bb-pr-chips {
-  --bb-pr-pill-surface: var(--pill-surface);
-  --bb-pr-pill-surface-hover: var(--pill-surface-selected);
-  --bb-pr-pill-outline: var(--pill-surface-border);
-  --bb-pr-pill-outline-hover: var(--pill-surface-selected-border);
+  --bb-pr-pill-surface: var(--bbs-composer-surface, var(--background));
+  --bb-pr-pill-surface-hover: linear-gradient(var(--state-hover), var(--state-hover)), var(--bbs-composer-surface, var(--background));
+  --bb-pr-pill-outline: var(--bbs-composer-border, var(--border));
+  --bb-pr-pill-outline-hover: var(--bbs-composer-border, var(--border));
   position: relative;
   min-width: 0;
   max-width: 100%;
@@ -74,7 +74,7 @@ html.dark .bb-pr-pi-rose { --bb-pr-pi-fg: oklch(71.2% 0.194 13.428); }
   border-radius: var(--bbs-pill-radius);
   background: var(--bb-pr-pill-surface);
   color: var(--pill-foreground);
-  box-shadow: var(--pill-shadow);
+  box-shadow: none;
   font-family: inherit;
   font-size: var(--bbs-pill-font);
   font-weight: 450;
@@ -128,9 +128,9 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
   max-height: 440px;
   overflow-y: auto;
   padding: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--bbs-composer-border, var(--border));
   border-radius: var(--bbs-tray-radius);
-  background: var(--popover, var(--surface-raised-solid, var(--background)));
+  background: var(--bbs-composer-surface, var(--popover));
   color: var(--popover-foreground, var(--foreground));
   box-shadow: var(--shadow-lg);
 }

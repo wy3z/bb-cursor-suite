@@ -43,10 +43,10 @@
 }
 
 :root {
-  --bbs-chip-surface: var(--pill-surface);
-  --bbs-chip-surface-hover: var(--pill-surface-selected);
-  --bbs-chip-outline: var(--pill-surface-border);
-  --bbs-chip-outline-focus: var(--pill-surface-selected-border);
+  --bbs-chip-surface: var(--bbs-composer-surface, var(--background));
+  --bbs-chip-surface-hover: linear-gradient(var(--state-hover), var(--state-hover)), var(--bbs-composer-surface, var(--background));
+  --bbs-chip-outline: var(--bbs-composer-border, var(--border));
+  --bbs-chip-outline-focus: var(--input);
 }
 
 :root {

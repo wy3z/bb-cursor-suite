@@ -18,10 +18,10 @@
 }
 
 :root {
-  --bb-agent-pills-surface: var(--pill-surface);
-  --bb-agent-pills-outline: var(--pill-surface-border);
-  --bb-agent-pills-surface-hover: var(--pill-surface-selected);
-  --bb-agent-pills-outline-hover: var(--pill-surface-selected-border);
+  --bb-agent-pills-surface: var(--bbs-composer-surface, var(--background));
+  --bb-agent-pills-outline: var(--bbs-composer-border, var(--border));
+  --bb-agent-pills-surface-hover: linear-gradient(var(--state-hover), var(--state-hover)), var(--bbs-composer-surface, var(--background));
+  --bb-agent-pills-outline-hover: var(--bbs-composer-border, var(--border));
 }
 
 .bb-agent-pills__pill {
@@ -36,7 +36,7 @@
   border-radius: var(--bbs-pill-radius);
   background: var(--bb-agent-pills-surface);
   color: var(--pill-foreground);
-  box-shadow: var(--pill-shadow);
+  box-shadow: none;
   font-family: inherit;
   font-size: var(--bbs-pill-font);
   font-weight: 450;
@@ -151,9 +151,9 @@ span.bb-agent-pills__pill {
   max-width: min(620px, calc(100vw - 32px));
   max-height: 440px;
   padding: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--bbs-composer-border, var(--border));
   border-radius: var(--bbs-tray-radius);
-  background: var(--popover, var(--surface-raised-solid, var(--background)));
+  background: var(--bbs-composer-surface, var(--popover));
   color: var(--popover-foreground, var(--foreground));
   box-shadow: var(--shadow-lg);
 }
@@ -1028,7 +1028,7 @@ html[data-bb-agent-pills-composer="cursor"] [data-scroll-footer] > div {
 
 .bb-agent-pills__pill,
 html[data-bb-agent-pills-pills] section[aria-label="Thread context before sending"] > div:first-child > :is(div, button)[data-bb-agent-pills-context-segment] {
-  box-shadow: var(--pill-shadow) !important;
+  box-shadow: none !important;
 }
 
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] {
@@ -2411,18 +2411,14 @@ html.dark .bb-agent-pills-mode-tone-brand { --bb-agent-pills-mode-tone: #f54e00;
 
 .bb-agent-pills__pill.bb-agent-pills-mode__pill {
   gap: var(--bbs-gap-xs, 4px);
-  border-color: color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 30%, var(--pill-surface-border));
-  background:
-    linear-gradient(color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 12%, transparent), color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 12%, transparent)),
-    var(--pill-surface);
+  border-color: color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 40%, var(--bb-agent-pills-outline));
+  background: var(--bb-agent-pills-surface);
   color: var(--bb-agent-pills-mode-tone, var(--foreground));
 }
 
 .bb-agent-pills__pill.bb-agent-pills-mode__pill:hover {
-  border-color: color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 45%, var(--pill-surface-selected-border));
-  background:
-    linear-gradient(color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 18%, transparent), color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 18%, transparent)),
-    var(--pill-surface);
+  border-color: color-mix(in oklab, var(--bb-agent-pills-mode-tone, var(--foreground)) 55%, var(--bb-agent-pills-outline));
+  background: var(--bb-agent-pills-surface-hover);
 }
 
 .bb-agent-pills-mode__pill-icon,
