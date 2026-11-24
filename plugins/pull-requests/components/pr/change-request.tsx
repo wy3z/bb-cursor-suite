@@ -87,7 +87,7 @@ const CI_COPY: Record<ChangeRequestCiState, { label: string; icon: IconName; ton
 const STATE_CHIP: Record<MergeRequestDetail["state"], { label: string; icon: IconName; className: string }> = {
   open: { label: "Open", icon: "GitPullRequest", className: "bg-[color-mix(in_oklab,var(--success)_10%,transparent)] [&>svg]:text-[var(--success)]" },
   draft: { label: "Draft", icon: "FileText", className: "bg-muted-foreground/10 [&>svg]:text-[color:var(--bbs-text-tertiary)]" },
-  merged: { label: "Merged", icon: "GitMerge", className: "bg-[color-mix(in_oklab,var(--color-purple-400)_10%,transparent)] [&>svg]:text-[var(--color-purple-400)]" },
+  merged: { label: "Merged", icon: "GitMerge", className: "bg-[color-mix(in_oklab,var(--pr-merged)_10%,transparent)] [&>svg]:text-[var(--pr-merged)]" },
   closed: { label: "Closed", icon: "CircleX", className: "bg-[color-mix(in_oklab,var(--destructive)_10%,transparent)] [&>svg]:text-[var(--destructive-text)]" },
 };
 

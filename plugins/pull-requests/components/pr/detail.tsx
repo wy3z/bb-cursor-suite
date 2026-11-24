@@ -48,14 +48,14 @@ const TONE_TEXT: Record<Tone, string> = {
   positive: "text-[var(--success)]",
   warning: "text-[var(--attention)]",
   negative: "text-[var(--destructive-text)]",
-  merged: "text-[var(--color-purple-400)]",
+  merged: "text-[var(--pr-merged)]",
 };
 const TONE_BG: Record<Tone, string> = {
   neutral: "bg-muted-foreground/10",
   positive: "bg-[color-mix(in_oklab,var(--success)_10%,transparent)]",
   warning: "bg-[color-mix(in_oklab,var(--attention)_10%,transparent)]",
   negative: "bg-[color-mix(in_oklab,var(--destructive)_10%,transparent)]",
-  merged: "bg-[color-mix(in_oklab,var(--color-purple-400)_10%,transparent)]",
+  merged: "bg-[color-mix(in_oklab,var(--pr-merged)_10%,transparent)]",
 };
 
 function statusStyle(raw: string): { label: string; icon: IconName; tone: Tone } {

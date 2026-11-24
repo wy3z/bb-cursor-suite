@@ -7,6 +7,7 @@
  */
 import { startRelationalMarkers } from "./relational-markers";
 import { startSendContextMenu } from "./send-context-menu";
+import { startComposerSurface, syncComposerSurface } from "./composer-surface";
 
 const PINNED = new WeakMap<
   HTMLElement,
@@ -156,7 +157,9 @@ export function startComposerLayout(signal: AbortSignal): () => void {
     if (frame !== 0) return;
     frame = window.requestAnimationFrame(() => {
       frame = 0;
-      if (!signal.aborted) syncComposerLayout(true);
+      if (signal.aborted) return;
+      syncComposerLayout(true);
+      syncComposerSurface();
     });
   }
 
@@ -173,6 +176,7 @@ export function startComposerLayout(signal: AbortSignal): () => void {
   formWatcher = new MutationObserver(schedule);
   watchedForms = new WeakSet<HTMLElement>();
   window.addEventListener("resize", schedule);
+  startComposerSurface(signal, schedule);
   syncContextSegments();
   schedule();
 
