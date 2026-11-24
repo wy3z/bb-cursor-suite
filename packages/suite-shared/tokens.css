@@ -47,10 +47,6 @@
   --bbs-chip-surface-hover: var(--pill-surface-selected);
   --bbs-chip-outline: var(--pill-surface-border);
   --bbs-chip-outline-focus: var(--pill-surface-selected-border);
-  --bbs-chip-foreground: var(--pill-foreground);
-  --bbs-chip-icon: var(--pill-icon);
-  --bbs-chip-shadow: var(--pill-shadow);
-  --bbs-popover-shadow: var(--shadow-lg);
 }
 
 :root {
