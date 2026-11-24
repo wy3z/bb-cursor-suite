@@ -1762,7 +1762,7 @@ html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]:has(.ProseMirror > p[data-placeholder]:only-child):not(:has([data-promptbox-attachments] *))
   [data-promptbox-submit-action]:not([aria-label="Stop run"]) {
   background: var(--state-active) !important;
-  color: var(--muted-foreground) !important;
+  color: var(--subtle-foreground) !important;
 }
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] [data-promptbox-submit-action] {
   width: 28px !important;
@@ -1775,10 +1775,15 @@ html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox
 }
 html[data-bb-agent-pills-composer="cursor"]
   form[data-promptbox]:has(.ProseMirror > p[data-placeholder]:only-child):not(:has([data-promptbox-attachments] *))
+  [data-promptbox-send-menu]:not(:has([aria-label="Stop run"])) {
+  color: var(--subtle-foreground) !important;
+}
+html[data-bb-agent-pills-composer="cursor"]
+  form[data-promptbox]:has(.ProseMirror > p[data-placeholder]:only-child):not(:has([data-promptbox-attachments] *))
   [data-promptbox-send-menu]
   [data-promptbox-submit-action]:not([aria-label="Stop run"]) {
   box-shadow: inset 0 0 0 14px var(--state-active) !important;
-  color: var(--muted-foreground) !important;
+  color: var(--subtle-foreground) !important;
 }
 html[data-bb-agent-pills-composer="cursor"] form[data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"] > span {
   opacity: 1 !important;
