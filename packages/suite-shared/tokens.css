@@ -1,11 +1,10 @@
 :root {
-  --bbs-accent: var(--timeline-accent, #3b82f6);
-  --bbs-green: var(--success, #3fb950);
-  --bbs-amber: var(--attention, #d29922);
-  --bbs-red: var(--destructive-text, var(--destructive, #f85149));
-  --bbs-purple: var(--color-purple-400, #a371f7);
-  --bbs-pink: var(--color-pink-400, #e5577f);
-  --bbs-orange: var(--warning, #db6d28);
+  --bbs-accent: var(--timeline-accent);
+  --bbs-green: var(--success);
+  --bbs-amber: var(--attention);
+  --bbs-red: var(--destructive-text, var(--destructive));
+  --bbs-purple: var(--pr-merged);
+  --bbs-orange: var(--warning);
   --bbs-grey: var(--muted-foreground);
   --bbs-muted: var(--muted-foreground);
   --bbs-text-primary: var(--foreground);
@@ -44,17 +43,21 @@
 }
 
 :root {
-  --bbs-chip-surface: color-mix(in srgb, var(--foreground) 6%, var(--background));
-  --bbs-chip-surface-hover: color-mix(in srgb, var(--foreground) 10%, var(--background));
-  --bbs-chip-outline: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --bbs-chip-outline-focus: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --bbs-chip-surface: var(--pill-surface);
+  --bbs-chip-surface-hover: var(--pill-surface-selected);
+  --bbs-chip-outline: var(--pill-surface-border);
+  --bbs-chip-outline-focus: var(--pill-surface-selected-border);
+  --bbs-chip-foreground: var(--pill-foreground);
+  --bbs-chip-icon: var(--pill-icon);
+  --bbs-chip-shadow: var(--pill-shadow);
+  --bbs-popover-shadow: var(--shadow-lg);
 }
 
 :root {
   --bbs-live-orb-color: var(--color-timeline-accent, var(--timeline-accent, var(--primary)));
   --bbs-live-orb-size: 8px;
   --bbs-live-orb-halo: 0 0 0 3px color-mix(in oklch, var(--bbs-live-orb-color) 22%, transparent);
-  --bbs-done-color: var(--success, #3fb950);
+  --bbs-done-color: var(--success);
 }
 
 @keyframes bbs-live-orb-pulse {

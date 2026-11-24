@@ -46,9 +46,10 @@ html.dark .bb-pr-pi-rose { --bb-pr-pi-fg: oklch(71.2% 0.194 13.428); }
    depends on nothing outside its own `bb-pr-` classes. The host's pill-row,
    popover and selection tokens are still the source of truth. */
 .bb-pr-chips {
-  --bb-pr-pill-surface: var(--bbs-chip-surface);
-  --bb-pr-pill-surface-hover: var(--bbs-chip-surface-hover);
-  --bb-pr-pill-outline: var(--bbs-chip-outline);
+  --bb-pr-pill-surface: var(--pill-surface);
+  --bb-pr-pill-surface-hover: var(--pill-surface-selected);
+  --bb-pr-pill-outline: var(--pill-surface-border);
+  --bb-pr-pill-outline-hover: var(--pill-surface-selected-border);
   position: relative;
   min-width: 0;
   max-width: 100%;
@@ -72,7 +73,8 @@ html.dark .bb-pr-pi-rose { --bb-pr-pi-fg: oklch(71.2% 0.194 13.428); }
   border: 1px solid var(--bb-pr-pill-outline);
   border-radius: var(--bbs-pill-radius);
   background: var(--bb-pr-pill-surface);
-  color: var(--pill-foreground, var(--muted-foreground));
+  color: var(--pill-foreground);
+  box-shadow: var(--pill-shadow);
   font-family: inherit;
   font-size: var(--bbs-pill-font);
   font-weight: 450;
@@ -87,7 +89,7 @@ html.dark .bb-pr-pi-rose { --bb-pr-pi-fg: oklch(71.2% 0.194 13.428); }
 }
 .bb-pr-chips__pill:hover,
 .bb-pr-chips__pill[aria-expanded="true"] {
-  border-color: var(--bb-pr-pill-outline);
+  border-color: var(--bb-pr-pill-outline-hover);
   background: var(--bb-pr-pill-surface-hover);
   color: var(--bbs-text-primary);
 }
@@ -130,7 +132,7 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
   border-radius: var(--bbs-tray-radius);
   background: var(--popover, var(--surface-raised-solid, var(--background)));
   color: var(--popover-foreground, var(--foreground));
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.28);
+  box-shadow: var(--shadow-lg);
 }
 .bb-pr-tray__header {
   display: flex;
@@ -322,11 +324,11 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
   color: var(--bbs-text-tertiary);
 }
 .bb-pr-tray__description[data-error] {
-  color: var(--destructive-text, oklch(0.65 0.2 25));
+  color: var(--destructive-text);
 }
 .bb-pr-listening__error {
   margin: 4px 8px 6px;
-  color: var(--destructive-text, oklch(0.65 0.2 25));
+  color: var(--destructive-text);
   font-size: var(--bbs-text-body);
 }
 
@@ -392,7 +394,7 @@ section[aria-label="Thread context before sending"]:has(.bb-pr-chips [aria-expan
   border-radius: var(--bbs-radius-md);
   background: var(--popover);
   color: var(--popover-foreground, var(--foreground));
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  box-shadow: var(--shadow-lg);
   font-size: var(--bbs-text-row);
   line-height: 18px;
 }

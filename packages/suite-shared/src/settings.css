@@ -101,7 +101,7 @@
   border: 1px solid transparent;
   border-radius: 9999px;
   background: var(--input);
-  box-shadow: var(--shadow-xs, 0 1px 2px 0 rgb(0 0 0 / 0.05));
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
   outline: none;
   transition: background-color 150ms, border-color 150ms;
