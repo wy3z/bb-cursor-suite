@@ -128,6 +128,7 @@ import {
 } from "./SectionDivider";
 import { openHostAddProject } from "./open-host-add-project";
 import { NewProjectDialog } from "./NewProjectDialog";
+import { activeProjectBoards } from "./active-boards";
 import { ShowMoreButton } from "./ShowMoreButton";
 import { useSidebarFooterHeight } from "./sidebar-footer-height";
 import { useSidebarRootMarker } from "./root-marker";
@@ -478,7 +479,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
     [rawById],
   );
   const boardIcons = useBoardIcons(allProjectBoards.length > 0);
-  const projectBoards = useMemo(
+  const liveProjectBoards = useMemo(
     () => allProjectBoards.filter((board) => {
       const lead = board.leadThreadId ? rawById.get(board.leadThreadId) : undefined;
       return lead !== undefined && !lead.isArchived;
@@ -578,6 +579,10 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         },
       }),
     [activeFamilyRoot, familyFacts, familyRootOfId, now, pinnedFamilyRoots, prStateOf, visible, view, primaryHostId, cloudHostIds],
+  );
+  const projectBoards = useMemo(
+    () => activeProjectBoards(liveProjectBoards, viewVisible, familyRootOfId),
+    [familyRootOfId, liveProjectBoards, viewVisible],
   );
   const filterArchived = useCallback(
     (threads: readonly PluginSidebarThread[]) =>
@@ -1395,6 +1400,17 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         </button>
       )}
       {viewMenu}
+      {projectBoards.length === 0 ? (
+        <button
+          type="button"
+          aria-label="New project"
+          title="New project"
+          className={ICON_BTN}
+          onClick={() => setCreatingProject(true)}
+        >
+          <Icon name="ListTodo" className="size-3.5" aria-hidden="true" />
+        </button>
+      ) : null}
       <button
         type="button"
         aria-label="Open repo"
@@ -1537,6 +1553,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
         onKeyDown={handleListKeyDown}
         className="cs-scroll cs-row-inset relative flex min-h-0 flex-1 flex-col overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
+      {projectBoards.length === 0 ? null : (
       <div className="cs-managers pt-2">
                 <GroupHeading
                   label="Projects"
@@ -1640,6 +1657,7 @@ export function CursorSidebar({ activeThreadId: routedThreadId, onNavigate }: Pl
                   </div>
                 </Drawer>
               </div>
+      )}
 
         <p aria-live="polite" className="sr-only">
           {announcement}
